@@ -20,7 +20,7 @@ Version 1 aims to:
 - Provide a central platform for agents and staff to manage cases.
 - Maintain agent profiles, referral relationships, levels, and sales records.
 - Calculate and track commissions based on Smartegy's commission structure.
-- Generate invoices and receipts linked to individual cases.
+- Generate invoices and receipts linked to cases, plus registration invoices linked to agents.
 - Provide dashboards and reports for operational and management use.
 - Launch a functional production system by 5 September 2026.
 
@@ -36,7 +36,7 @@ Proposed statuses are Submitted, Under review, Quotation prepared, Pending custo
 
 ### 3.2 Agent and Referral Management
 
-The system maintains agent profiles, registration information, level, referrer/upline, successful cases, personal and referral sales, qualification progress, and active/inactive status.
+The system maintains agent profiles, registration information, the RM50 name-card-fee invoice, payment proof and manual verification status, level, referrer/upline, successful cases, personal and referral sales, qualification progress, and active/inactive status.
 
 | Level | Qualification |
 |---|---|
@@ -44,7 +44,7 @@ The system maintains agent profiles, registration information, level, referrer/u
 | Level 2 | At least one recruited agent and six successful cases |
 | Level 3 | At least 30 agents and RM3 million in annual sales |
 
-Promotion remains subject to authorised Smartegy review and approval.
+Promotion remains subject to authorised Smartegy review and approval. As part of registration, the system issues an RM50 name-card-fee invoice and makes it available to the agent on the website. The fee is non-refundable, payment is made manually, and authorised staff verify the submitted proof of payment. Agent activation requires staff approval and verification of the fee.
 
 ### 3.3 Commission Calculation and Tracking
 
@@ -55,6 +55,8 @@ Approved example:
 - Total sale: RM24,500
 - Total commission: 20% of the sale
 - Total commission pool: RM4,900
+- Verified monthly savings after installation: 2,253 kWh × RM0.5170 = RM1,164.80
+- First three monthly instalments: RM1,164.80 × 3 = RM3,494.40
 - First-payment commission pool: RM1,747.20
 - Deferred commission balance: RM3,152.80
 - Deferred period: 17 months
@@ -79,13 +81,15 @@ The first-payment pool is allocated as follows. These percentages are shares of 
 
 Each deferred balance is distributed across 17 months. The final instalment absorbs any rounding difference.
 
-Version 1 supports automatic calculation from approved inputs, eligible-recipient identification, first/deferred schedules, payment tracking, statuses, authorised adjustments with reasons, statements, spreadsheet export, and audit history. The general formula for deriving the RM1,747.20 first-payment pool must be confirmed before it can be automated for other cases.
+The first-payment pool is calculated as `(verified monthly electricity savings after installation × 3 months) ÷ 2`. In this example, `(RM1,164.80 × 3) ÷ 2 = RM1,747.20`.
+
+Version 1 supports automatic calculation from approved inputs, eligible-recipient identification, first/deferred schedules, payment tracking, statuses, authorised adjustments with reasons, statements, spreadsheet export, and audit history.
 
 Direct bank integration is excluded.
 
 ### 3.4 Invoices and Receipts
 
-Authorised staff can generate invoices and receipts, assign sequential numbers, link documents to the case/customer/agent, download PDFs, retrieve issued documents, and record payment details. Smartegy will provide approved templates and required fields.
+Authorised staff can generate invoices and receipts, including the RM50 non-refundable name-card-fee invoice linked to an agent registration, assign sequential numbers, link documents to the relevant case/customer/agent, download PDFs, retrieve issued documents, and record payment details. The name-card-fee invoice is made available to the agent on the website; payment remains manual and is verified by authorised staff. Smartegy will provide approved templates and required fields.
 
 ### 3.5 Dashboards and Reports
 
@@ -135,7 +139,7 @@ The timeline depends on timely client rules, templates, branding, sample data, a
 - Responsive web application.
 - Authentication for agents and staff.
 - Case and document management.
-- Agent and referral management.
+- Agent registration, RM50 name-card-fee invoicing and manual verification, and referral management.
 - Commission calculation and tracking.
 - Invoice and receipt generation.
 - Dashboards and reports.
@@ -204,7 +208,7 @@ Functions not expressly included are additional scope. Material changes to requi
 
 ## 12. Acceptance Criteria
 
-Version 1 is delivered when agents can submit cases/documents; staff can review/update cases; agent/referral relationships can be maintained; commissions can be calculated and tracked using approved rules; invoices/receipts can be generated; agreed dashboards/reports work; production deployment is complete; and critical acceptance-test issues are resolved.
+Version 1 is delivered when agents can submit cases/documents; staff can review/update cases; agent registrations, RM50 non-refundable name-card-fee invoices, manual fee verification and referral relationships can be maintained; commissions can be calculated and tracked using approved rules; invoices/receipts can be generated; agreed dashboards/reports work; production deployment is complete; and critical acceptance-test issues are resolved.
 
 ## 13. Approval
 
@@ -220,4 +224,3 @@ Date: ______________________________
 Name: Damian Teh  
 Signature: __________________________  
 Date: ______________________________
-

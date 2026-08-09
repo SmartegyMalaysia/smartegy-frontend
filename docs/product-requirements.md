@@ -57,8 +57,8 @@ Version 2 is not part of the Version 1 implementation or acceptance criteria.
 
 | Role | Primary responsibilities |
 |---|---|
-| Agent | Submit cases, upload documents, track own cases, view own/referral information permitted by policy, and view own commissions |
-| Admin/Staff | Review and manage cases, agents, documents, operational statuses, invoices, and receipts |
+| Agent | Complete registration, submit the RM50 registration fee proof, submit cases, upload documents, track own cases, view own/referral information permitted by policy, and view own commissions |
+| Admin/Staff | Review and manage agent registrations, manually verify registration-fee payments, and manage cases, agents, documents, operational statuses, invoices, and receipts |
 | Finance/Management | Verify payments, review commissions, approve financial actions, and access management dashboards and reports |
 
 Detailed permissions must be confirmed before production. The frontend may hide unavailable controls, but the server must independently enforce access.
@@ -103,6 +103,7 @@ The system must maintain:
 
 - Agent identity and contact details.
 - Registration and active/inactive status.
+- RM50 registration-fee payment proof and manual verification status.
 - Current level.
 - Direct referrer/upline relationship.
 - Successful case count.
@@ -119,6 +120,8 @@ Proposed qualification rules:
 | Level 3 | At least 30 agents and RM3 million in annual sales |
 
 The system displays qualification progress. Promotion remains subject to authorised Smartegy review and approval unless a later rule explicitly automates it.
+
+Each agent must manually transfer RM50.00 as part of registration. The system displays configured payment instructions and the generated agent/application number as the payment reference. The agent submits the payment date, payment reference number, and proof of payment; authorised staff verify or reject the submission. The system does not process the payment, generate a registration-fee receipt, or verify it automatically. Agent activation requires verified email, complete required profile information, staff approval, and a verified or formally waived fee.
 
 ### 5.4 Commission Processing
 
@@ -254,5 +257,30 @@ The following must be confirmed before the affected backend behaviour is conside
 6. Exact definition of a successful case and annual sales period.
 7. Invoice/receipt numbering, templates, taxes, and cancellation rules.
 8. Final report columns and export format.
-9. The general formula that derives the first-payment commission pool; the current worked example supplies an approved value but not a reusable derivation formula.
 
+## 10. Confirmed Version 1 Agent Registration and Onboarding
+
+1. An applicant opens an invitation/referral link containing a valid referral code.
+2. The applicant creates an account with full name, email address, mobile number, password, password confirmation, and acceptance of the Terms of Use and Privacy Notice.
+3. The applicant verifies their email address.
+4. The applicant completes only the confirmed profile information: full name, email address, and mobile number. Identification, tax, emergency-contact, and banking fields are not part of this flow.
+5. The applicant views Smartegy's configured instructions for manually transferring RM50.00.
+6. The applicant enters the payment date and payment reference number and uploads proof of payment.
+7. Authorised staff review the application and payment proof, record the verified amount/payment date/bank reference/internal note, and verify or reject the payment.
+8. Authorised staff approve or reject the registration. Approval activates the agent only when every activation requirement is satisfied.
+
+The system generates the agent/application number. A valid referral link pre-fills the referral code, displays the referring agent, and locks the confirmed upline. Applicants cannot search for or select another upline.
+
+The registration page displays a website-issued invoice for the non-refundable RM50.00 name-card fee after the account details and email OTP are successfully verified. The applicant submits proof of payment on the same page. This invoice is not a payment receipt; payment remains subject to manual staff verification.
+
+Registration status and registration-fee status are separate. Registration status is `draft`, `pending_approval`, `active`, `rejected`, or `suspended`. Registration-fee status is `unpaid`, `pending_verification`, `verified`, `rejected`, `waived`, or `refunded`.
+
+An agent can become active only when email is verified, required profile information is complete, the RM50 fee is verified or formally waived, and authorised staff approve the registration. Pending agents may log in but can access only onboarding and registration-status screens. Agents cannot assign or modify role, level, commission percentage, registration status, fee-verification status, or confirmed upline. Privileged registration actions create an audit entry with action, previous/new status, acting user, timestamp, and reason/note where applicable.
+
+Payment instructions and temporary bank values belong to configuration/mock data, not presentational components. The DuitNow QR is an explicit unavailable state until supplied. Version 1 does not provide a payment gateway, automatic verification, or a registration-fee receipt.
+
+### 10.1 Simplified Mock Applicant Flow
+
+For the frontend mock flow, applicant onboarding is reduced to two pages. The first page collects the six initial fields (full name, email, mobile number, password, password confirmation, and the locked invitation/referral code), plus Terms of Use and Privacy Notice acceptance. The applicant requests and verifies a mock email OTP; the mock code is `123456` and is not a production authentication mechanism. After email verification, the application is created and the applicant goes directly to the RM50 payment page.
+
+The second page displays the configured RM50 payment instructions and application number as the transfer reference. Applicant submission contains only proof-of-payment upload and optional remarks. Applicant payment date and payment reference inputs are intentionally omitted from this mock flow; authorised staff still record the verified payment date and bank reference during review.

@@ -69,6 +69,21 @@ export type DocumentType =
 
 export type FinancialDocumentType = "invoice" | "receipt";
 export type AgentLevel = 1 | 2 | 3;
+
+export type AgentRegistrationStatus =
+  | "draft"
+  | "pending_approval"
+  | "active"
+  | "rejected"
+  | "suspended";
+
+export type RegistrationFeeStatus =
+  | "unpaid"
+  | "pending_verification"
+  | "verified"
+  | "rejected"
+  | "waived"
+  | "refunded";
 ```
 
 The enum values above are proposed and must be kept aligned across TypeScript, validation schemas, database constraints, and UI labels.
@@ -101,6 +116,7 @@ export interface AgentSummary {
 export interface AgentDetail extends AgentSummary {
   phone: string | null;
   registrationDate: ISODate;
+  registrationStatus: AgentRegistrationStatus;
   directRecruits: AgentSummary[];
   qualification: AgentQualificationProgress;
   updatedAt: ISODateTime;
@@ -301,7 +317,7 @@ export interface GenerateFinancialDocumentResult {
 }
 ```
 
-The server allocates the sequential document number, generates the PDF, stores it securely, and returns the resulting record. The client must not predict document numbers or submit a storage path.
+The server allocates the sequential document number, generates the PDF, stores it securely, and returns the resulting record. The client must not predict document numbers or submit a storage path. Registration-fee payments are handled by the registration contract below and do not generate a registration-fee receipt in this Version 1 flow.
 
 ## 9. Reports and Pagination
 
@@ -419,3 +435,71 @@ Before integration, both developers should agree on:
 9. Error codes and optimistic-concurrency/version fields.
 10. Audit-event coverage.
 
+## 14. Agent Registration and Onboarding Contracts
+
+```ts
+export interface ReferralInvitation {
+  id: ID;
+  code: string;
+  referringAgentId: ID;
+  referringAgentName: string;
+  expiresAt: ISODateTime | null;
+  valid: boolean;
+}
+
+export interface RegistrationPaymentProof {
+  id: ID;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedAt: ISODateTime;
+}
+
+export interface RegistrationInvoice {
+  invoiceNumber: string;
+  amountSen: MoneySen;
+  description: string;
+  issueDate: ISODate;
+  status: "issued";
+}
+
+export interface AgentRegistration {
+  id: ID;
+  applicationNumber: string;
+  profile: { fullName: string; email: string; mobileNumber: string };
+  referralCode: string;
+  referringAgentId: ID;
+  referringAgentName: string;
+  registrationStatus: AgentRegistrationStatus;
+  feeStatus: RegistrationFeeStatus;
+  emailVerified: boolean;
+  profileComplete: boolean;
+  feeAmountSen: MoneySen;
+  invoice: RegistrationInvoice;
+  paymentDate: ISODate | null;
+  paymentReference: string | null;
+  paymentRemarks: string | null;
+  verifiedAmountSen: MoneySen | null;
+  verifiedPaymentDate: ISODate | null;
+  bankReference: string | null;
+  proof: RegistrationPaymentProof | null;
+  rejectionReason: string | null;
+  submittedAt: ISODateTime | null;
+  audit: RegistrationAuditEvent[];
+}
+
+export interface RegistrationAuditEvent {
+  id: ID;
+  entityType: "registration" | "registration_fee";
+  entityId: ID;
+  action: string;
+  previousStatus: AgentRegistrationStatus | RegistrationFeeStatus | null;
+  newStatus: AgentRegistrationStatus | RegistrationFeeStatus | null;
+  actorId: ID;
+  actorDisplayName: string;
+  occurredAt: ISODateTime;
+  reason: string | null;
+}
+```
+
+The repository boundary exposes invitation lookup, mock OTP send/verification, application creation, fee-proof submission, staff listing, fee verification/rejection, registration approval/rejection, and active-agent access checks. In the simplified applicant contract, `paymentDate` and `paymentReference` remain null at applicant submission and `paymentRemarks` is optional; staff verification separately records the verified payment date and bank reference. Production bank details and proof-file URLs come from authorised configuration/storage services; the client does not submit role, level, commission, status, fee-verification, or upline values as trusted fields. Activation requires verified email, complete profile, verified/waived fee, and staff approval, and every privileged action creates an audit event.

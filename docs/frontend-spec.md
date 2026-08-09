@@ -46,12 +46,17 @@ Proposed route structure; adjust to the actual Next.js architecture without chan
 
 | Route | Page | Main roles |
 |---|---|---|
+| `/join/[code]` | Invitation/referral-based registration, OTP verification, and payment proof | Public/invited applicant |
+| `/forgot-password` | Request password-reset instructions | Public |
+| `/reset-password` | Set a new password from a valid reset session | Public/reset session |
+| `/onboarding/status` | Registration and fee status | Pending agent |
 | `/dashboard` | Role-aware dashboard | All |
 | `/cases` | Case list | All, permission-filtered |
 | `/cases/new` | New case form | Agent, Admin/Staff |
 | `/cases/[caseId]` | Case detail | All, permission-filtered |
 | `/agents` | Agent list | Admin/Staff, Finance/Management |
 | `/agents/[agentId]` | Agent profile and referral details | Permitted users |
+| `/registrations` | Registration and RM50 fee-verification queue | Admin/Staff, Finance/Management |
 | `/commissions` | Commission list | All, permission-filtered |
 | `/commissions/[commissionId]` | Commission breakdown and schedule | Permitted users |
 | `/documents` | Invoice and receipt list | Admin/Staff, Finance/Management |
@@ -203,6 +208,7 @@ Filters:
 ### Agent Profile
 
 - Identity and registration details.
+- Registration status, RM50 fee status, and manual payment-verification status.
 - Current level and approval history.
 - Upline.
 - Direct recruits.
@@ -213,6 +219,12 @@ Filters:
 - Recent activity.
 
 A simple table/list is sufficient for the initial referral view. A full interactive tree is not required for Version 1 unless specifically approved.
+
+### Agent Registration and RM50 Fee
+
+The simplified mock invitation signup page keeps account registration, OTP verification, and payment proof in one registration page. The card transitions from the six initial fields to OTP entry, then to the manual RM50.00 non-refundable name-card-fee invoice and payment form without changing the URL. The payment state shows the application number as the transfer reference, configured bank instructions, the DuitNow QR unavailable state, proof upload, and optional applicant remarks. Applicant payment date and payment reference inputs are omitted. Separate registration/fee statuses remain in force. Pending agents may access onboarding and registration status only until authorised staff approve the registration and verify or waive the fee.
+
+The staff queue must show the application number, applicant name, email/mobile, referrer, profile-completion status, proof of payment, submitted date, registration status, and fee status. Staff can record verified amount, payment date, bank reference, and internal note; verify or reject payment; and approve or reject registration. Verification, rejection, waiver, refund, and activation are confirmation-protected actions with feedback and audit entries. The system must not provide a payment gateway, automatic verification, or a registration-fee receipt.
 
 ## 8. Commissions
 
@@ -365,3 +377,8 @@ A screen is not done until:
 - Mock data uses the same shape as the agreed data contract.
 - Lint and type-check pass.
 
+## 15. Password Recovery
+
+The public authentication routes are `/forgot-password` and `/reset-password`. Forgot-password requests always show a neutral response so the interface does not reveal whether an email is registered. The reset page validates the provider/service password policy, confirmation matching, reset-link validity/expiry, and one-time use.
+
+The current frontend has no Supabase configuration, so local preview behavior uses the replaceable auth service with an eight-character minimum password policy. Supabase Auth should replace the mock request/session implementation when configured, without changing the routes or page contract.
