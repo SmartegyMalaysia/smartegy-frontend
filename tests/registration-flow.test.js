@@ -12,7 +12,7 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 };
 
 const repository = require(path.resolve(__dirname, "../lib/registration-repository.ts"));
-const staff = { id: "staff-test", role: "admin_staff", displayName: "Test Staff", email: "staff@example.com", agentId: null };
+const staff = { id: "staff-test", role: "staff", displayName: "Test Staff", email: "staff@example.com", agentId: null };
 
 function applicant(id) {
   return { id: `user-${id}`, role: "agent", displayName: "Test Applicant", email: "test@example.com", agentId: id };

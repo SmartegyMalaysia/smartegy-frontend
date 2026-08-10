@@ -183,7 +183,7 @@ Do not choose final brand hex values until the logo/brand palette is available i
 
 - Use white and cool grey surfaces as the structural base, with deep navy (`#293b80`) for primary text/actions and fresh green (`#49ad50`) for brand identity, focus, and positive highlights drawn from the supplied logo.
 - Use a borders-first light canvas with `10px` panels, `8px` controls, and a `4px` base spacing rhythm. Raised shadows are reserved for dialogs and the mobile drawer.
-- Dashboard composition uses one dark focal priority panel, a compact four-card metric row, then a recent-record table and a secondary queue/team panel. This weighting applies to future role dashboards: agent views emphasize personal progress; staff and finance views emphasize queues.
+- Dashboard composition uses one dark focal priority panel, a compact four-card metric row, then a recent-record table and a secondary queue/team panel. This weighting applies to future role dashboards: agent views emphasize personal progress; staff and admin views currently share the same operational queue layout.
 - The desktop sidebar collapses to an icon rail and becomes a focusable off-canvas drawer below the mobile breakpoint. Navigation labels remain permission-filtered; the development role switcher is a preview-only control.
 - Dense tables preserve readable minimum widths and use horizontal scrolling on small screens. Primary identity, status, amount, and action remain the priority columns.
 - Status badges always include visible text plus a semantic dot; colour is never the sole status cue. Financial values use tabular numerals and `en-MY` MYR formatting from integer sen.

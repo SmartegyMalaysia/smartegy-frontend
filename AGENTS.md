@@ -58,10 +58,9 @@ Do not silently resolve a conflict involving money, permissions, commission elig
 
 ## Roles and Security
 
-- Preserve role-based separation among `agent`, `admin_staff`, and `finance_management`.
+- Preserve role-based separation among `agent`, `staff`, and `admin`. Staff and admin currently share the same view and permissions in the frontend preview; their differences will be defined later.
 - Agents may access only their own permitted cases, documents, referral information, and commissions.
-- Admin/staff may manage operational records according to assigned permissions.
-- Finance/management may review financial records, commissions, dashboards, and reports according to assigned permissions.
+- Staff and admin may manage operational records according to the currently shared preview permissions.
 - Privileged updates require server-side authorization and an audit trail.
 
 ## Quality Bar

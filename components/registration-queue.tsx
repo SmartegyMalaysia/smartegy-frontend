@@ -7,12 +7,12 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { mockRegistrationConfig, registrationRepository } from "@/lib/registration-repository";
 import type { AgentRegistration, CurrentUser, RegistrationActionResult, VerifyRegistrationFeeInput } from "@/lib/types";
 
-const staffUser: CurrentUser = { id: "user-002", role: "admin_staff", displayName: "Farid Iskandar", email: "farid@smartegy.example", agentId: null };
+const staffUser: CurrentUser = { id: "user-002", role: "staff", displayName: "Farid Iskandar", email: "farid@smartegy.example", agentId: null };
 type ReviewAction = "verify" | "approve" | "reject-fee" | "reject-registration";
 type VerificationDetails = Omit<VerifyRegistrationFeeInput, "registrationId">;
 
 export function RegistrationQueuePage() {
-  const [role, setRole] = useState<CurrentUser["role"]>("admin_staff");
+  const [role, setRole] = useState<CurrentUser["role"]>("staff");
   const [registrations, setRegistrations] = useState<AgentRegistration[]>([]);
   const [selected, setSelected] = useState<AgentRegistration | null>(null);
   const [loading, setLoading] = useState(true);

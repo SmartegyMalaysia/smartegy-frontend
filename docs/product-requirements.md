@@ -58,10 +58,10 @@ Version 2 is not part of the Version 1 implementation or acceptance criteria.
 | Role | Primary responsibilities |
 |---|---|
 | Agent | Complete registration, submit the RM50 registration fee proof, submit cases, upload documents, track own cases, view own/referral information permitted by policy, and view own commissions |
-| Admin/Staff | Review and manage agent registrations, manually verify registration-fee payments, and manage cases, agents, documents, operational statuses, invoices, and receipts |
-| Finance/Management | Verify payments, review commissions, approve financial actions, and access management dashboards and reports |
+| Staff | Review and manage agent registrations, manually verify registration-fee payments, and manage cases, agents, documents, operational statuses, invoices, receipts, commissions, and reports. The Staff view currently matches the Admin view. |
+| Admin | Review and manage agent registrations, manually verify registration-fee payments, and manage cases, agents, documents, operational statuses, invoices, receipts, commissions, and reports. The Admin view currently matches the Staff view. |
 
-Detailed permissions must be confirmed before production. The frontend may hide unavailable controls, but the server must independently enforce access.
+Detailed differences between Staff and Admin must be confirmed before production. Until then, the mock frontend exposes the same navigation and dashboard content for both roles; the server must independently enforce the eventual permission matrix.
 
 ## 5. Core Workflows
 

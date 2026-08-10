@@ -28,8 +28,8 @@ export type BasisPoints = number; // 100 = 1%
 
 export type UserRole =
   | "agent"
-  | "admin_staff"
-  | "finance_management";
+  | "staff"
+  | "admin";
 
 export type RecordStatus = "active" | "inactive";
 
@@ -183,9 +183,22 @@ export interface CaseDocument {
   uploadedAt: ISODateTime;
   downloadUrl?: never; // obtain a short-lived URL through an authorised action
 }
+
+export interface CaseDocumentInput {
+  type: "electricity_bill" | "supporting_document";
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
+export interface CreateCaseInput {
+  customer: Pick<CustomerRecord, "displayName" | "contactName" | "email" | "phone">;
+  service: Pick<ServiceRecord, "siteAddress" | "electricityAccountNumber" | "notes">;
+  documents: CaseDocumentInput[];
+}
 ```
 
-Required case and customer fields remain subject to client confirmation. Do not make optional draft fields mandatory without approval.
+For the Version 1 agent submission flow, `customer.displayName` and one `electricity_bill` document are required. Contact, email, phone, service address, electricity account number, notes, and `supporting_document` uploads remain optional. The upload boundary validates configured file types and maximum size, stores document metadata against the case, and enforces ownership when an agent reads a case or its documents.
 
 ## 6. Payments
 
@@ -409,7 +422,7 @@ The frontend should call interfaces such as:
 export interface CasesRepository {
   list(input: PageRequest & { status?: CaseStatus }): Promise<PageResult<CaseSummary>>;
   getById(caseId: ID): Promise<CaseDetail>;
-  create(input: unknown): Promise<CaseDetail>;
+  create(input: CreateCaseInput): Promise<CaseDetail>;
 }
 
 export interface CommissionsRepository {

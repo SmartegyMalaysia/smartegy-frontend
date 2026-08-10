@@ -104,8 +104,8 @@ Filterable reports cover cases, agents, sales, referrals, commissions, monthly c
 | Role | Main access |
 |---|---|
 | Agent | Submit cases, upload documents, track cases, and view personal commissions |
-| Admin/Staff | Manage cases, agents, documents, payments, invoices, and receipts |
-| Finance/Management | Review commissions, payment records, dashboards, and reports |
+| Staff | Manage cases, agents, documents, payments, invoices, receipts, commissions, dashboards, and reports |
+| Admin | Manage cases, agents, documents, payments, invoices, receipts, commissions, dashboards, and reports. The Admin view currently matches Staff. |
 
 Detailed permissions will be finalised during configuration.
 

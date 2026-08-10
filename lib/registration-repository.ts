@@ -69,7 +69,7 @@ function failure<T>(code: "VALIDATION_ERROR" | "FORBIDDEN" | "NOT_FOUND" | "CONF
 }
 
 function staffOnly<T>(actor: CurrentUser): RegistrationActionResult<T> {
-  return actor.role === "admin_staff" || actor.role === "finance_management"
+  return actor.role === "staff" || actor.role === "admin"
     ? ({ ok: true, data: undefined as T })
     : failure("FORBIDDEN", "Only authorised staff can perform this registration action.");
 }
@@ -215,7 +215,7 @@ export const registrationRepository: RegistrationRepository = {
   async verifyFee(actor, input) {
     const allowed = staffOnly<AgentRegistration>(actor);
     if (!allowed.ok) return allowed;
-    const found = getOwnedRegistration({ ...actor, role: "admin_staff" }, input.registrationId);
+    const found = getOwnedRegistration({ ...actor, role: "staff" }, input.registrationId);
     if (!found.ok) return found;
     if (input.verifiedAmountSen !== mockRegistrationConfig.feeAmountSen) return failure("VALIDATION_ERROR", "The verified amount must be exactly RM50.00.", { verifiedAmountSen: ["Enter RM50.00 to verify this registration fee."] });
     if (!input.paymentDate || !input.bankReference.trim()) return failure("VALIDATION_ERROR", "Payment date and bank reference are required.");
@@ -232,7 +232,7 @@ export const registrationRepository: RegistrationRepository = {
   async rejectFee(actor, input) {
     const allowed = staffOnly<AgentRegistration>(actor);
     if (!allowed.ok) return allowed;
-    const found = getOwnedRegistration({ ...actor, role: "admin_staff" }, input.registrationId);
+    const found = getOwnedRegistration({ ...actor, role: "staff" }, input.registrationId);
     if (!found.ok) return found;
     if (!input.reason.trim()) return failure("VALIDATION_ERROR", "A rejection reason is required.");
     const previous = found.data.feeStatus;
@@ -245,7 +245,7 @@ export const registrationRepository: RegistrationRepository = {
   async approveRegistration(actor, input) {
     const allowed = staffOnly<AgentRegistration>(actor);
     if (!allowed.ok) return allowed;
-    const found = getOwnedRegistration({ ...actor, role: "admin_staff" }, input.registrationId);
+    const found = getOwnedRegistration({ ...actor, role: "staff" }, input.registrationId);
     if (!found.ok) return found;
     if (found.data.registrationStatus !== "pending_approval") return failure("CONFLICT", "Only pending registrations can be approved.");
     if (!found.data.emailVerified || !found.data.profileComplete || !["verified", "waived"].includes(found.data.feeStatus)) return failure("CONFLICT", "The application cannot be activated until email, profile, and fee requirements are complete.");
@@ -258,7 +258,7 @@ export const registrationRepository: RegistrationRepository = {
   async rejectRegistration(actor, input) {
     const allowed = staffOnly<AgentRegistration>(actor);
     if (!allowed.ok) return allowed;
-    const found = getOwnedRegistration({ ...actor, role: "admin_staff" }, input.registrationId);
+    const found = getOwnedRegistration({ ...actor, role: "staff" }, input.registrationId);
     if (!found.ok) return found;
     if (!input.reason?.trim()) return failure("VALIDATION_ERROR", "A rejection reason is required.");
     const previous = found.data.registrationStatus;

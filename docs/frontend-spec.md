@@ -52,17 +52,17 @@ Proposed route structure; adjust to the actual Next.js architecture without chan
 | `/onboarding/status` | Registration and fee status | Pending agent |
 | `/dashboard` | Role-aware dashboard | All |
 | `/cases` | Case list | All, permission-filtered |
-| `/cases/new` | New case form | Agent, Admin/Staff |
+| `/cases/new` | New case form | Agent, Staff, Admin |
 | `/cases/[caseId]` | Case detail | All, permission-filtered |
-| `/agents` | Agent list | Admin/Staff, Finance/Management |
+| `/agents` | Agent list | Staff, Admin |
 | `/agents/[agentId]` | Agent profile and referral details | Permitted users |
-| `/registrations` | Registration and RM50 fee-verification queue | Admin/Staff, Finance/Management |
+| `/registrations` | Registration and RM50 fee-verification queue | Staff, Admin |
 | `/commissions` | Commission list | All, permission-filtered |
 | `/commissions/[commissionId]` | Commission breakdown and schedule | Permitted users |
-| `/documents` | Invoice and receipt list | Admin/Staff, Finance/Management |
-| `/reports` | Reports and exports | Admin/Staff, Finance/Management |
+| `/documents` | Invoice and receipt list | Staff, Admin |
+| `/reports` | Reports and exports | Staff, Admin |
 | `/settings/profile` | User profile | All |
-| `/settings/agents` | Agent/level configuration where approved | Admin/Staff |
+| `/settings/agents` | Agent/level configuration where approved | Staff, Admin |
 
 ## 4. Shared Page Patterns
 
@@ -118,7 +118,7 @@ Primary actions:
 - View cases.
 - View commission statement.
 
-### Admin/Management Dashboard
+### Staff and Admin Dashboard
 
 Recommended content:
 
@@ -169,6 +169,8 @@ Suggested sections pending final field confirmation:
 5. Review and submit.
 
 Do not invent mandatory fields. Final fields come from client-approved requirements.
+
+The Version 1 agent submission implementation requires only the customer/company name and latest electricity bill. Contact details and electricity/service fields are optional. Supporting documents are optional and may be uploaded in multiple files. The latest bill and supporting uploads use the shared configured file validation and storage/repository boundary.
 
 ### Case Detail
 
