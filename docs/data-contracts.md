@@ -193,7 +193,7 @@ export interface CaseDocumentInput {
 
 export interface CreateCaseInput {
   customer: Pick<CustomerRecord, "displayName" | "contactName" | "email" | "phone">;
-  service: Pick<ServiceRecord, "siteAddress" | "electricityAccountNumber" | "notes">;
+  service: Pick<ServiceRecord, "siteAddress" | "notes">;
   documents: CaseDocumentInput[];
 }
 ```
@@ -284,9 +284,27 @@ export interface CommissionInstalment {
   sequence: number; // 1 through 17 for the current rule
   dueDate: ISODate;
   amountSen: MoneySen;
-  status: "scheduled" | "approved" | "paid" | "withheld" | "reversed";
+  status: "scheduled" | "approved" | "paid" | "withheld" | "adjusted" | "reversed";
   paidAt: ISODateTime | null;
   paymentReference: string | null;
+}
+
+export interface AgentCommissionRecord extends CommissionSummary {
+  customerDisplayName: string;
+  eligibilityStatus: "eligible" | "pending";
+  lastUpdatedAt: ISODateTime;
+  schedule: CommissionInstalment[];
+  withheldReason: string | null;
+  adjustmentNote: string | null;
+  qualifyingPaymentDate: ISODate | null;
+}
+
+export interface CommissionOverview {
+  totalEntitlementSen: MoneySen;
+  paidToDateSen: MoneySen;
+  remainingBalanceSen: MoneySen;
+  upcomingPayoutSen: MoneySen | null;
+  upcomingPayoutDate: ISODate | null;
 }
 
 export interface AdjustCommissionInput {
@@ -298,6 +316,8 @@ export interface AdjustCommissionInput {
 ```
 
 The frontend must never submit calculated recipient entitlements as trusted results. It may preview values for explanation, but the backend recalculates and returns the authoritative schedule.
+
+The agent-facing commissions repository exposes only the authenticated agent's permitted records and returns the summary totals plus complete 17-month schedule. It has no client mutation methods. Staff/admin commission-management actions remain outside this agent-facing contract.
 
 ## 8. Invoices and Receipts
 

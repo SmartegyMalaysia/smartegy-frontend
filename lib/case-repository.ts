@@ -50,7 +50,7 @@ export const mockCasesRepository: CasesRepository = {
       id, caseNumber, customerDisplayName: input.customer.displayName.trim(), agentId: actor.agentId, agentName: actor.displayName,
       status: "submitted", paymentStatus: "not_recorded", saleAmountSen: null, submittedAt, updatedAt: submittedAt,
       customer: { id: `customer-${id}`, displayName: input.customer.displayName.trim(), companyRegistrationNumber: null, contactName: input.customer.contactName?.trim() || null, email: input.customer.email?.trim() || null, phone: input.customer.phone?.trim() || null },
-      service: { siteAddress: input.service.siteAddress.trim(), electricityAccountNumber: input.service.electricityAccountNumber?.trim() || null, notes: input.service.notes?.trim() || null },
+      service: { siteAddress: input.service.siteAddress.trim(), electricityAccountNumber: null, notes: input.service.notes?.trim() || null },
       documents, activity: [{ id: `activity-${id}`, action: "case_submitted", actorDisplayName: actor.displayName, occurredAt: submittedAt, summary: "Case submitted for staff review." }],
     };
     caseStore.set(id, created);

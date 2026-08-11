@@ -114,9 +114,9 @@ Recommended content:
 
 Primary actions:
 
-- Submit new case.
-- View cases.
-- View commission statement.
+- Submit New Case.
+- View Cases.
+- View Commission Statement.
 
 ### Staff and Admin Dashboard
 

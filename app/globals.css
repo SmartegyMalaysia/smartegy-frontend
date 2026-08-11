@@ -252,6 +252,9 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .payment-submitted-state { display: grid; justify-items: start; gap: 14px; }
 .dashboard-grid-agent { grid-template-columns: minmax(0, 1fr); }
 .case-table-panel { min-width: 0; }
+.case-table-row { cursor: pointer; }
+.case-table-row:hover td, .case-table-row:focus-visible td { background: #f7fafb; }
+.case-table-row:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
 .desktop-case-table, .mobile-case-list { min-width: 0; }
 .mobile-case-list { display: none; }
 .case-table-header { align-items: center; }
@@ -364,7 +367,7 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .case-field label span:not(.required-mark) { color: var(--muted); font-weight: 400; }
 .case-field input, .case-field textarea { display: block; width: 100%; min-width: 0; border: 1px solid #d4e0e5; border-radius: 8px; background: #f9fbfc; color: var(--text); padding: 10px 12px; font: inherit; }
 .case-field input { min-height: 44px; }
-.case-field textarea { resize: vertical; }
+.case-field textarea { min-height: 44px; resize: vertical; }
 .case-field input:focus, .case-field textarea:focus { outline: none; border-color: #3eabb8; background: white; box-shadow: 0 0 0 3px #65c7d133; }
 .case-field-error input, .case-field-error textarea { border-color: var(--danger); background: var(--danger-bg); }
 .case-field-error-message, .case-submit-error { margin: 7px 0 0; color: var(--danger); font-size: 12px; line-height: 1.45; }
@@ -418,4 +421,79 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .case-detail-activity strong { font-size: 13px; }
 .case-detail-activity span:not(.case-activity-dot) { color: var(--muted); font-size: 12px; }
 .case-activity-dot { width: 8px; height: 8px; flex: 0 0 8px; margin-top: 5px; border-radius: 50%; background: var(--brand-green); box-shadow: 0 0 0 4px var(--brand-green-soft); }
+.commissions-page, .commission-detail-page { max-width: 1440px; }
+.commission-overview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+.commission-summary-card { display: grid; min-width: 0; min-height: 142px; align-content: start; gap: 8px; padding: 19px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.commission-summary-card strong { min-width: 0; overflow-wrap: anywhere; color: var(--text); font-size: 25px; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.commission-summary-card span { min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.commission-summary-accent { border-top: 3px solid var(--brand-green); padding-top: 17px; }
+.commission-records-panel { min-width: 0; overflow: hidden; }
+.commission-records-header { align-items: center; }
+.commission-filters { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; padding: 0 20px 16px; border-bottom: 1px solid var(--border); }
+.commission-filters label { display: grid; gap: 6px; min-width: 150px; color: var(--muted); font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
+.commission-filters label:first-child { flex: 1 1 240px; }
+.commission-filters input, .commission-filters select { width: 100%; min-width: 0; min-height: 38px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-subtle); color: var(--text); padding: 0 10px; font: inherit; font-size: 13px; text-transform: none; letter-spacing: normal; }
+.commission-filters input:focus, .commission-filters select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px #293b8033; }
+.commission-filter-field { display: grid; gap: 6px; min-width: 150px; color: var(--muted); font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
+.commission-filter-field .date-picker { width: 100%; min-width: 0; }
+.date-picker { position: relative; min-width: 0; }
+.date-picker summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-subtle); color: var(--text); cursor: pointer; list-style: none; font-size: 13px; font-weight: 400; text-transform: none; letter-spacing: normal; }
+.date-picker summary::-webkit-details-marker { display: none; }
+.date-picker summary:focus-visible, .date-picker[open] summary { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px #293b8033; }
+.date-picker-placeholder { color: var(--muted); }
+.date-picker-icon { flex: 0 0 auto; color: var(--muted); font-size: 14px; }
+.date-picker-popover { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; width: min(280px, calc(100vw - 32px)); padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); box-shadow: 0 12px 24px -16px #10283866; }
+.date-picker-toolbar { display: grid; grid-template-columns: 36px 1fr 36px; align-items: center; gap: 6px; margin-bottom: 10px; }
+.date-picker-toolbar strong { text-align: center; font-size: 13px; }
+.date-picker-toolbar button, .date-picker-month-grid button, .date-picker-day-grid button { min-height: 36px; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; font: inherit; font-size: 12px; }
+.date-picker-toolbar button { font-size: 20px; }
+.date-picker-toolbar button:hover, .date-picker-toolbar button:focus-visible, .date-picker-month-grid button:hover, .date-picker-day-grid button:hover, .date-picker-month-grid button:focus-visible, .date-picker-day-grid button:focus-visible { background: var(--brand-green-soft); color: var(--brand); outline: none; }
+.date-picker-month-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.date-picker-day-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.date-picker-weekday { display: grid; place-items: center; min-height: 28px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.date-picker-month-grid .date-picker-selected, .date-picker-day-grid .date-picker-selected { background: var(--brand); color: white; font-weight: 700; }
+.commission-filter-reset { min-height: 38px; padding: 0 4px; }
+.commission-filter-reset:disabled { color: var(--muted); cursor: not-allowed; opacity: .55; text-decoration: none; }
+.commission-table-row { cursor: pointer; }
+.commission-table-row:hover td, .commission-table-row:focus-visible td { background: #f7fafb; }
+.commission-table-row:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.commission-money { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mobile-commission-list { display: none; }
+.commission-card { display: grid; gap: 14px; min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.commission-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-width: 0; }
+.commission-card-top > div { display: grid; min-width: 0; gap: 4px; }
+.commission-card-top strong { overflow-wrap: anywhere; font-size: 13px; }
+.commission-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.commission-card-grid span { display: grid; min-width: 0; gap: 4px; }
+.commission-card-grid small { color: var(--muted); font-size: 11px; }
+.commission-card-grid b { min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-variant-numeric: tabular-nums; }
+.commission-card-action { display: inline-flex; align-items: center; gap: 5px; color: var(--brand); font-size: 12px; font-weight: 700; }
+.commission-detail-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+.commission-detail-header .badge { margin-bottom: 7px; }
+.commission-detail-notice { display: grid; gap: 4px; margin-bottom: 16px; padding: 13px 15px; border: 1px solid #c8e9ee; border-radius: 8px; background: #eef9fb; color: #215563; }
+.commission-detail-notice strong { font-size: 13px; }
+.commission-detail-notice span { font-size: 12px; line-height: 1.45; }
+.commission-detail-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.commission-detail-summary > div { display: grid; min-width: 0; gap: 6px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; }
+.commission-detail-summary span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.commission-detail-summary strong { min-width: 0; overflow-wrap: anywhere; font-size: 20px; font-variant-numeric: tabular-nums; }
+.commission-detail-note { display: grid; gap: 4px; margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.commission-detail-note strong { font-size: 12px; }
+.commission-detail-note span { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.commission-detail-note-warning { border-color: #efd7a6; background: var(--warning-bg); }
+.commission-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.commission-detail-panel { min-width: 0; }
+.commission-detail-list { display: grid; gap: 12px; margin: 4px 20px 20px; }
+.commission-detail-list > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; }
+.commission-detail-list dt { color: var(--muted); font-size: 12px; }
+.commission-detail-list dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 650; }
+.commission-first-payment { display: grid; gap: 7px; padding: 4px 20px 20px; }
+.commission-first-payment strong { font-size: 27px; font-variant-numeric: tabular-nums; }
+.commission-first-payment span { color: var(--muted); font-size: 12px; }
+.commission-schedule-panel { min-width: 0; overflow: hidden; }
+.commission-schedule-table { min-width: 760px; }
+.commission-schedule-table th, .commission-schedule-table td { padding-left: 16px; padding-right: 16px; }
+@media (max-width: 960px) { .commission-overview-grid, .commission-detail-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .commission-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: end; } .commission-filters > label:first-child { grid-column: 1 / -1; } .commission-filters > label { min-width: 0; } .commission-filter-reset { white-space: nowrap; } }
+@media (max-width: 760px) { .commission-overview-grid, .commission-detail-summary, .commission-detail-grid { grid-template-columns: 1fr; } .commission-filters { display: flex; align-items: stretch; flex-direction: column; } .commission-filters label, .commission-filters label:first-child, .commission-filter-field { width: 100%; min-width: 0; flex: none; } .commission-filter-reset { align-self: flex-start; min-height: 40px; } .desktop-commission-table { display: none; } .mobile-commission-list { display: grid; gap: 10px; padding: 0 16px 16px; } .commission-detail-header { align-items: flex-start; flex-direction: column; gap: 12px; } .commission-detail-header .badge { margin-bottom: 0; } .commission-detail-list { margin-left: 16px; margin-right: 16px; } .commission-detail-list > div { grid-template-columns: 125px minmax(0, 1fr); } .commission-first-payment { padding-left: 16px; padding-right: 16px; } }
+@media (max-width: 360px) { .commission-card-grid { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .case-create-header, .case-detail-header { align-items: flex-start; flex-direction: column; gap: 12px; } .case-create-header .badge, .case-detail-header .badge { margin-bottom: 0; } .case-form-grid, .case-detail-grid { grid-template-columns: 1fr; } .case-form-body { padding: 4px 16px 16px; } .case-upload-section { padding-left: 16px; padding-right: 16px; } .case-upload-heading { gap: 10px; } .case-upload-heading h3 { font-size: 15px; } .case-submit-actions { flex-direction: column-reverse; } .case-submit-actions .button { width: 100%; } .case-detail-list, .case-detail-documents, .case-detail-activity { margin-left: 16px; margin-right: 16px; padding-left: 0; padding-right: 0; } .case-detail-list > div { grid-template-columns: 110px minmax(0, 1fr); } }
