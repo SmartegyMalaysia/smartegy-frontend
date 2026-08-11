@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
@@ -8,6 +8,7 @@ import { Badge, EmptyState, ErrorState, LoadingState, StatCard } from "@/compone
 import { DataTable } from "@/components/data-table";
 import { Icon } from "@/components/icons";
 import { ExportIcon } from "@/components/export-icon";
+import { FilterSelect } from "@/components/filter-select";
 import { formatDate, formatMoney } from "@/lib/format";
 import { mockRepository } from "@/lib/mock-repository";
 import { roleLabels } from "@/lib/navigation";
@@ -59,16 +60,9 @@ function MobileCaseList({ cases, isAgent }: { cases: DashboardSnapshot["cases"];
   return <div className="mobile-case-list" aria-label="Cases">{cases.map((item) => <article className="case-card" key={item.id}><div className="case-card-header"><div><Link className="table-primary" href={`/cases/${item.id}`}>{item.caseNumber}</Link><span className="case-card-customer">{item.customerDisplayName}</span></div><Link className="case-card-action" href={`/cases/${item.id}`}>Open case <Icon name="arrow" size={14} /></Link></div>{!isAgent && <p className="case-card-agent">Agent: {item.agentName}</p>}<div className="case-card-statuses"><Badge status={item.status} /><Badge status={item.paymentStatus} /></div><p className="case-card-updated">Updated {formatDate(item.updatedAt)} &middot; {formatMoney(item.saleAmountSen)}</p></article>)}</div>;
 }
 
-function FilterSelect<T extends string>({ allLabel, value, options, onChange }: { allLabel: string; value: T; options: T[]; onChange: (value: T) => void }) {
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-  function labelFor(option: T) { return option === "all" ? allLabel : option.replaceAll("_", " "); }
-  return <details className="filter-select" ref={detailsRef}><summary><strong>{labelFor(value)}</strong><Icon name="chevron" size={14} /></summary><div className="filter-select-menu" role="listbox" aria-label={allLabel}>{options.map((option) => <button key={option} type="button" role="option" aria-selected={option === value} className={option === value ? "filter-option-selected" : ""} onClick={() => { onChange(option); if (detailsRef.current) detailsRef.current.open = false; }}>{labelFor(option)}</button>)}</div></details>;
-}
-
 function TeamSnapshot({ agents }: { agents: DashboardSnapshot["agents"] }) {
   return <section className="panel side-panel"><div className="panel-header"><div><h2>Team snapshot</h2><p>Agent performance</p></div><Link className="text-link" href="/agents">View all <Icon name="arrow" size={14} /></Link></div><div className="team-list">{agents.map((agent) => <div className="team-item" key={agent.id}><span className="avatar avatar-small">{agent.displayName.split(" ").map((name) => name[0]).join("")}</span><div><strong>{agent.displayName}</strong><span>Level {agent.currentLevel} &middot; {agent.successfulCaseCount} successful cases</span></div><span className="team-sales">{formatMoney(agent.personalSalesSen)}</span></div>)}</div></section>;
 }
-
 
 
 
