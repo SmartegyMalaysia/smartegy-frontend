@@ -44,18 +44,18 @@ These are starting values, not a substitute for checking the implemented theme a
 
 ### Colour Roles
 
-- App background: cool off-white/slate tint.
-- Primary surface: white or the lightest theme surface.
-- Secondary surface: subtle cool neutral.
-- Border: low-contrast cool neutral with sufficient separation.
-- Foreground: near-black cool slate.
-- Muted text: mid-dark slate that still meets contrast requirements.
+- App background: Tailwind `slate-100` (`#F1F5F9`).
+- Primary surface: Tailwind `slate-50` (`#F8FAFC`); reserve pure white for text/icons on dark or brand fills.
+- Secondary surface: Tailwind `slate-200` (`#E2E8F0`).
+- Border: Tailwind `slate-300` (`#CBD5E1`).
+- Foreground: Tailwind `slate-800` (`#1E293B`).
+- Muted text: Tailwind `slate-500` (`#64748B`).
 - Brand/action: restrained blue or teal, final value to follow supplied Smartegy branding.
 - Focus: clearly visible blue/teal ring with adequate contrast.
-- Success: green plus text/icon.
-- Warning: amber plus text/icon.
-- Danger: red plus text/icon.
-- Informational: blue plus text/icon.
+- Success: `green-600` with `green-50` background.
+- Warning: `amber-700` with `amber-50` background.
+- Danger: `red-600` with `red-50` background.
+- Informational: `cyan-500` / `cyan-50`.
 
 Do not choose final brand hex values until the logo/brand palette is available in the repository.
 
