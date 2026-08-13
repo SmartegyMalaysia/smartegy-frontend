@@ -121,7 +121,7 @@ Proposed qualification rules:
 
 The system displays qualification progress. Promotion remains subject to authorised Smartegy review and approval unless a later rule explicitly automates it.
 
-Each agent must manually transfer RM50.00 as part of registration. The system displays configured payment instructions and the generated agent/application number as the payment reference. The agent submits the payment date, payment reference number, and proof of payment; authorised staff verify or reject the submission. The system does not process the payment, generate a registration-fee receipt, or verify it automatically. Agent activation requires verified email, complete required profile information, staff approval, and a verified or formally waived fee.
+Each agent must manually transfer RM50.00 as part of registration. The system displays configured payment instructions and the generated agent/application number as the payment reference. The agent submits the payment date, payment reference number, and proof of payment; authorised staff verify or reject the submission. The system does not process the payment, generate a registration-fee receipt, or verify it automatically. Once authorised staff verify the fee, an application with verified email and complete required profile information is automatically approved and activated; incomplete applications remain pending approval until those requirements are satisfied.
 
 ### 5.4 Commission Processing
 
@@ -267,7 +267,7 @@ The following must be confirmed before the affected backend behaviour is conside
 5. The applicant views Smartegy's configured instructions for manually transferring RM50.00.
 6. The applicant enters the payment date and payment reference number and uploads proof of payment.
 7. Authorised staff review the application and payment proof, record the verified amount/payment date/bank reference/internal note, and verify or reject the payment.
-8. Authorised staff approve or reject the registration. Approval activates the agent only when every activation requirement is satisfied.
+8. Authorised staff verify or reject the payment proof. Verification automatically approves and activates the registration when email and required profile information are complete; incomplete applications remain pending approval. Authorised staff may reject the registration.
 
 The system generates the agent/application number. A valid referral link pre-fills the referral code, displays the referring agent, and locks the confirmed upline. Applicants cannot search for or select another upline.
 

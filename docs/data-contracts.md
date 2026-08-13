@@ -106,11 +106,15 @@ export interface AgentSummary {
   currentLevel: AgentLevel;
   uplineAgentId: ID | null;
   uplineName: string | null;
+  directAgentCount: number;
   successfulCaseCount: number;
   personalSalesSen: MoneySen;
   referralSalesSen: MoneySen;
+  annualSalesSen: MoneySen;
   commissionEarnedSen: MoneySen;
   status: RecordStatus;
+  qualification: AgentQualificationProgress;
+  promotionHistory: AgentPromotionAudit[];
 }
 
 export interface AgentDetail extends AgentSummary {
@@ -122,12 +126,70 @@ export interface AgentDetail extends AgentSummary {
   updatedAt: ISODateTime;
 }
 
+export interface AgentWorkspaceDetail {
+  agent: AgentSummary;
+  sales: CaseSummary[];
+  commissions: CommissionSummary[];
+  uplineAgents: AgentSummary[];
+  downlineAgents: AgentSummary[];
+}
+
 export interface AgentQualificationProgress {
   currentLevel: AgentLevel;
   successfulCases: { current: number; required: number | null };
   directAgents: { current: number; required: number | null };
   annualSalesSen: { current: MoneySen; required: MoneySen | null };
-  pendingApproval: boolean;
+  eligibleForPromotion: boolean;
+  nextLevel: AgentLevel | null;
+}
+
+export interface AgentPromotionAudit {
+  id: ID;
+  agentId: ID;
+  previousLevel: AgentLevel;
+  newLevel: AgentLevel;
+  actorId: ID;
+  actorDisplayName: string;
+  occurredAt: ISODateTime;
+  note: string | null;
+}
+
+export interface AgentLevelChangeRequest {
+  id: ID;
+  agentId: ID;
+  previousLevel: AgentLevel;
+  requestedLevel: AgentLevel;
+  requestedById: ID;
+  requestedByDisplayName: string;
+  requestedAt: ISODateTime;
+  status: "pending" | "approved" | "rejected";
+  reviewedById: ID | null;
+  reviewedByDisplayName: string | null;
+  reviewedAt: ISODateTime | null;
+  reason: string | null;
+}
+
+export type PayoutSettlementStatus = "pending" | "settled";
+
+export interface PayoutTransaction {
+  id: ID;
+  payoutMonth: string;
+  agentId: ID;
+  commissionId: ID;
+  amountSen: MoneySen;
+  settlementStatus: PayoutSettlementStatus;
+  settledAt: ISODateTime | null;
+  settledById: ID | null;
+  bankReference: string | null;
+}
+
+export interface AgentMonthlyPayout {
+  agentId: ID;
+  payoutMonth: string;
+  totalSen: MoneySen;
+  settledSen: MoneySen;
+  pendingSen: MoneySen;
+  settlementStatus: PayoutSettlementStatus | "partially_settled";
 }
 ```
 
@@ -535,4 +597,6 @@ export interface RegistrationAuditEvent {
 }
 ```
 
-The repository boundary exposes invitation lookup, mock OTP send/verification, application creation, fee-proof submission, staff listing, fee verification/rejection, registration approval/rejection, and active-agent access checks. In the simplified applicant contract, `paymentDate` and `paymentReference` remain null at applicant submission and `paymentRemarks` is optional; staff verification separately records the verified payment date and bank reference. Production bank details and proof-file URLs come from authorised configuration/storage services; the client does not submit role, level, commission, status, fee-verification, or upline values as trusted fields. Activation requires verified email, complete profile, verified/waived fee, and staff approval, and every privileged action creates an audit event.
+The repository boundary exposes invitation lookup, mock OTP send/verification, application creation, fee-proof submission, staff listing, fee verification/rejection, registration rejection, and active-agent access checks. In the simplified applicant contract, `paymentDate` and `paymentReference` remain null at applicant submission and `paymentRemarks` is optional; staff verification separately records the verified payment date and bank reference. Production bank details and proof-file URLs come from authorised configuration/storage services; the client does not submit role, level, commission, status, fee-verification, or upline values as trusted fields. Fee verification automatically approves and activates an application when email is verified and the profile is complete; otherwise it remains pending approval. Every privileged action creates an audit event.
+
+The staff registration queue additionally accepts `RegistrationQueueQuery` filters for search, separate registration/fee status, profile and email readiness, submitted date range, and supported sort orders. Staff detail lookup uses the human-readable application number. Payment proof access is returned by `getPaymentProof` as a short-lived protected access token; proof files must not be exposed as public URLs. Queue/detail reads and all fee or registration decisions remain staff/admin-only at the repository/server boundary.

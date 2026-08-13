@@ -2,27 +2,50 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { createAvatar } from "@dicebear/core";
+import { initials as avatarStyle } from "@dicebear/collection";
 import { navigation, roleLabels } from "@/lib/navigation";
 import type { CurrentUser, UserRole } from "@/lib/types";
 import { Icon } from "./icons";
 import { BrandLogo } from "./brand-logo";
 
-export function AppShell({ user, children, onRoleChange, onboardingOnly = false }: { user: CurrentUser; children: React.ReactNode; onRoleChange: (role: UserRole) => void; onboardingOnly?: boolean }) {
+function ProfileMenuIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>; }
+function LogoutMenuIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8"/><path d="M11 12h9M17 8l4 4-4 4"/></svg>; }
+
+function breadcrumbFor(pathname: string, restricted: boolean) {
+  if (restricted) return ["Onboarding", "Registration"];
+  if (pathname === "/settings/profile") return ["Settings", "Your profile"];
+  const match = navigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
+  if (!match) return ["Workspace", "Dashboard"];
+  if (pathname === match.href) return ["Workspace", match.label];
+  const detailLabel = match.label === "Agents" ? "Agent detail" : match.label === "Registrations" ? "Registration review" : `${match.label.slice(0, -1)} detail`;
+  return [match.label, detailLabel];
+}
+
+export function AppShell({ user, children, onRoleChange, onboardingOnly = false, hideSidebar = false }: { user: CurrentUser; children: React.ReactNode; onRoleChange: (role: UserRole) => void; onboardingOnly?: boolean; hideSidebar?: boolean }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const pendingAgent = user.role === "agent" && user.agentId?.startsWith("registration-");
-  const restricted = onboardingOnly || pendingAgent;
+  const restricted = Boolean(onboardingOnly || pendingAgent);
   const links = restricted ? [] : navigation.filter((item) => item.roles.includes(user.role));
-  const nav = <nav aria-label="Primary navigation">{!restricted && <p className="nav-label">Workspace</p>}{links.map((item) => <Link onClick={() => setMobileOpen(false)} className={`nav-link ${pathname === item.href ? "nav-link-active" : ""}`} href={item.href} key={item.href}><Icon name={item.icon}/><span>{item.label}</span></Link>)}</nav>;
+  const breadcrumb = breadcrumbFor(pathname, restricted);
+  const nav = <nav aria-label="Primary navigation">{!restricted && <p className="nav-label">Workspace</p>}{links.map((item) => <Link onClick={() => setMobileOpen(false)} className={`nav-link ${pathname === item.href || pathname.startsWith(`${item.href}/`) ? "nav-link-active" : ""}`} href={item.href} key={item.href}><Icon name={item.icon}/><span>{item.label}</span></Link>)}</nav>;
   return <div className="app-shell">
-    <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""} ${mobileOpen ? "sidebar-mobile-open" : ""}`}>
+    {!hideSidebar && <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""} ${mobileOpen ? "sidebar-mobile-open" : ""}`}>
       <BrandLogo className="brand" />
       {nav}
       <div className="sidebar-footer">{!restricted && <><div className="preview-note"><span className="preview-dot"/>Preview mode</div><label className="role-select-label" htmlFor="role-switcher">View as</label><select id="role-switcher" value={user.role} onChange={(event) => onRoleChange(event.target.value as UserRole)}>{Object.entries(roleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></>}</div>
       {!restricted && <button className="collapse-button" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={() => setCollapsed(!collapsed)}><Icon name="chevron"/><span>{collapsed ? "" : "Collapse sidebar"}</span></button>}
-    </aside>
-    {mobileOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)}/>}<div className="shell-main"><header className="topbar"><button className="mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Icon name="menu"/></button><div className="breadcrumb">{restricted ? <>Onboarding <span>/</span> <strong>Registration</strong></> : <>Workspace <span>/</span> <strong>Dashboard</strong></>}</div><div className="topbar-actions"><button className="icon-button" aria-label="Notifications"><Icon name="bell"/></button><div className="user-menu"><span className="avatar">{user.displayName.split(" ").map((name) => name[0]).join("")}</span><span className="user-name">{user.displayName}</span><Icon name="chevron" size={14}/></div></div></header><main>{children}</main></div>
+    </aside>}
+    {!hideSidebar && mobileOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)}/>}<div className={`shell-main ${hideSidebar ? "shell-main-full" : ""}`}><header className="topbar">{!hideSidebar && <button className="mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Icon name="menu"/></button>}<div className="breadcrumb">{breadcrumb[0]} <span>/</span> <strong>{breadcrumb[1]}</strong></div><UserMenu user={user}/></header><main>{children}</main></div>
   </div>;
+}
+
+function UserMenu({ user }: { user: CurrentUser }) {
+  const avatarSrc = createAvatar(avatarStyle, { seed: user.displayName, backgroundColor: ["d3edf1"], radius: 50, size: 64 }).toDataUri();
+  function logout() { if (window.confirm("Log out of your Smartegy account?")) window.location.href = "/"; }
+  return <details className="user-menu"><summary aria-label={`Account menu for ${user.displayName}`}><Image className="avatar avatar-image" src={avatarSrc} alt="" width={32} height={32} unoptimized/><span className="user-name">{user.displayName}</span><Icon name="chevron" size={14}/></summary><div className="user-menu-popover"><Link href="/settings/profile"><ProfileMenuIcon/><span>Your Profile</span></Link><button type="button" onClick={logout}><LogoutMenuIcon/><span>Log Out</span></button></div></details>;
 }

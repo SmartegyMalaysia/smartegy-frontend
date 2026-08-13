@@ -50,7 +50,7 @@ test("valid invitation signup locks the confirmed upline and invalid codes fail"
   assert.deepEqual(invalidMobile.error.fieldErrors.mobileNumber, ["Enter a valid mobile number, for example 012345678."]);
 });
 
-test("premature activation is blocked, self-verification is forbidden, and full approval activates", async () => {
+test("premature activation is blocked, self-verification is forbidden, and verified payment activates complete applications", async () => {
   const created = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "password123", referralCode: "AISHARAHMAN", acceptedTerms: true });
   const id = created.data.id;
   const actor = applicant(id);
@@ -62,9 +62,8 @@ test("premature activation is blocked, self-verification is forbidden, and full 
   await repository.registrationRepository.completeProfile(actor, id, { fullName: "Test Applicant", email: "test@example.com", mobileNumber: "+60123456789" });
   const submitted = await repository.registrationRepository.submitFee(actor, { registrationId: id, paymentDate: "2026-08-09", paymentReference: "SMG-REG-TEST", proof: { fileName: "proof.pdf", mimeType: "application/pdf", sizeBytes: 1000 } });
   assert.equal(submitted.data.feeStatus, "pending_verification");
-  await repository.registrationRepository.verifyFee(staff, { registrationId: id, verifiedAmountSen: 5000, paymentDate: "2026-08-09", bankReference: "BANK-TEST" });
-  const approved = await repository.registrationRepository.approveRegistration(staff, { registrationId: id, reason: "All checks complete" });
-  assert.equal(approved.data.registrationStatus, "active");
+  const verified = await repository.registrationRepository.verifyFee(staff, { registrationId: id, verifiedAmountSen: 5000, paymentDate: "2026-08-09", bankReference: "BANK-TEST" });
+  assert.equal(verified.data.registrationStatus, "active");
   const activeAccess = await repository.registrationRepository.assertActiveAgent(actor, id);
   assert.equal(activeAccess.ok, true);
 });
@@ -89,4 +88,33 @@ test("agents cannot access the staff queue", async () => {
   const denied = await repository.registrationRepository.listForStaff(applicant("registration-001"));
   assert.equal(denied.ok, false);
   assert.equal(denied.error.code, "FORBIDDEN");
+});
+
+test("staff registration queue supports search, priority sorting, and protected proof access", async () => {
+  const queue = await repository.registrationRepository.listForStaff(staff, { search: "nadia", sort: "priority" });
+  assert.equal(queue.ok, true);
+  assert.equal(queue.data[0].applicationNumber, "SMG-REG-0001");
+  const proof = await repository.registrationRepository.getPaymentProof(staff, "registration-001");
+  assert.equal(proof.ok, true);
+  assert.match(proof.data.accessToken, /^protected-proof-/);
+  const denied = await repository.registrationRepository.getPaymentProof(applicant("registration-001"), "registration-001");
+  assert.equal(denied.ok, false);
+  assert.equal(denied.error.code, "FORBIDDEN");
+});
+
+test("agent registration reads do not expose internal audit history", async () => {
+  await repository.registrationRepository.verifyFee(staff, { registrationId: "registration-001", verifiedAmountSen: 5000, paymentDate: "2026-08-13", bankReference: "BANK-002", note: "Internal reconciliation note" });
+  const view = await repository.registrationRepository.getRegistration(applicant("registration-001"), "registration-001");
+  assert.equal(view.ok, true);
+  assert.deepEqual(view.data.audit, []);
+});
+
+test("fee verification and activation create separate auditable status changes", async () => {
+  const verified = await repository.registrationRepository.verifyFee(staff, { registrationId: "registration-001", verifiedAmountSen: 5000, paymentDate: "2026-08-13", bankReference: "BANK-001", note: "Matched bank statement" });
+  assert.equal(verified.ok, true);
+  assert.equal(verified.data.registrationStatus, "active");
+  assert.equal(verified.data.feeStatus, "verified");
+  assert.equal(verified.data.audit.some((event) => event.action === "payment_verified" && event.previousStatus === "pending_verification" && event.newStatus === "verified"), true);
+  assert.equal(verified.data.audit.some((event) => event.action === "registration_approved"), true);
+  assert.equal(verified.data.audit.some((event) => event.action === "agent_activated" && event.newStatus === "active"), true);
 });

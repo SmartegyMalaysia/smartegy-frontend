@@ -10,6 +10,8 @@ import type {
   RegistrationFeeStatus,
   RegistrationPaymentConfig,
   RegistrationPaymentProof,
+  RegistrationPaymentProofAccess,
+  RegistrationQueueQuery,
   RegistrationStatus,
   RejectRegistrationFeeInput,
   SubmitRegistrationFeeInput,
@@ -58,7 +60,11 @@ const seedRegistration: AgentRegistration = {
   submittedAt: "2026-08-05T08:35:00Z",
   createdAt: "2026-08-05T08:30:00Z",
   updatedAt: "2026-08-05T08:35:00Z",
-  audit: [],
+  audit: [
+    { id: "audit-003", entityType: "registration_fee", entityId: "registration-001", action: "payment_submitted", previousStatus: "unpaid", newStatus: "pending_verification", actorId: "user-registration-001", actorDisplayName: "Nadia Yusuf", occurredAt: "2026-08-05T08:35:00Z", reason: "Proof of payment uploaded for staff review." },
+    { id: "audit-002", entityType: "registration", entityId: "registration-001", action: "profile_completed", previousStatus: "draft", newStatus: "draft", actorId: "user-registration-001", actorDisplayName: "Nadia Yusuf", occurredAt: "2026-08-05T08:32:00Z", reason: null },
+    { id: "audit-001", entityType: "registration", entityId: "registration-001", action: "email_verified", previousStatus: "draft", newStatus: "draft", actorId: "user-registration-001", actorDisplayName: "Nadia Yusuf", occurredAt: "2026-08-05T08:31:00Z", reason: null },
+  ],
 };
 
 let registrations: AgentRegistration[] = [seedRegistration];
@@ -81,6 +87,10 @@ function getOwnedRegistration(actor: CurrentUser, registrationId: ID) {
   return { ok: true as const, data: registration };
 }
 
+function applicantRegistrationView(registration: AgentRegistration): AgentRegistration {
+  return { ...registration, audit: [] };
+}
+
 function addAudit(registration: AgentRegistration, actor: CurrentUser, entityType: "registration" | "registration_fee", action: string, previousStatus: RegistrationStatus | RegistrationFeeStatus | null, newStatus: RegistrationStatus | RegistrationFeeStatus | null, reason: string | null = null) {
   registration.audit.unshift({ id: id("audit"), entityType, entityId: registration.id, action, previousStatus, newStatus, actorId: actor.id, actorDisplayName: actor.displayName, occurredAt: now(), reason });
   registration.updatedAt = now();
@@ -95,7 +105,9 @@ export interface RegistrationRepository {
   verifyEmail(actor: CurrentUser, registrationId: ID): Promise<RegistrationActionResult<AgentRegistration>>;
   completeProfile(actor: CurrentUser, registrationId: ID, input: CompleteRegistrationProfileInput): Promise<RegistrationActionResult<AgentRegistration>>;
   submitFee(actor: CurrentUser, input: SubmitRegistrationFeeInput): Promise<RegistrationActionResult<AgentRegistration>>;
-  listForStaff(actor: CurrentUser): Promise<RegistrationActionResult<AgentRegistration[]>>;
+  listForStaff(actor: CurrentUser, query?: RegistrationQueueQuery): Promise<RegistrationActionResult<AgentRegistration[]>>;
+  getByApplicationNumber(actor: CurrentUser, applicationNumber: string): Promise<RegistrationActionResult<AgentRegistration>>;
+  getPaymentProof(actor: CurrentUser, registrationId: ID): Promise<RegistrationActionResult<RegistrationPaymentProofAccess>>;
   verifyFee(actor: CurrentUser, input: VerifyRegistrationFeeInput): Promise<RegistrationActionResult<AgentRegistration>>;
   rejectFee(actor: CurrentUser, input: RejectRegistrationFeeInput): Promise<RegistrationActionResult<AgentRegistration>>;
   approveRegistration(actor: CurrentUser, input: RegistrationDecisionInput): Promise<RegistrationActionResult<AgentRegistration>>;
@@ -166,7 +178,11 @@ export const registrationRepository: RegistrationRepository = {
     return { ok: true, data: registration };
   },
 
-  async getRegistration(actor, registrationId) { return getOwnedRegistration(actor, registrationId); },
+  async getRegistration(actor, registrationId) {
+    const found = getOwnedRegistration(actor, registrationId);
+    if (!found.ok) return found;
+    return actor.role === "agent" ? { ok: true, data: applicantRegistrationView(found.data) } : found;
+  },
 
   async verifyEmail(actor, registrationId) {
     const found = getOwnedRegistration(actor, registrationId);
@@ -207,9 +223,40 @@ export const registrationRepository: RegistrationRepository = {
     return { ok: true, data: found.data };
   },
 
-  async listForStaff(actor) {
+  async listForStaff(actor, query = {}) {
     const allowed = staffOnly<AgentRegistration[]>(actor);
-    return allowed.ok ? { ok: true, data: registrations } : allowed;
+    if (!allowed.ok) return allowed;
+    const term = query.search?.trim().toLowerCase() ?? "";
+    const priority = (item: AgentRegistration) => item.feeStatus === "pending_verification" || item.registrationStatus === "pending_approval" ? 0 : 1;
+    const filtered = registrations.filter((item) => {
+      const haystack = [item.applicationNumber, item.profile.fullName, item.profile.email, item.profile.mobileNumber, item.referringAgentName].join(" ").toLowerCase();
+      const submitted = item.submittedAt?.slice(0, 10) ?? "";
+      return (!term || haystack.includes(term)) && (!query.registrationStatus || query.registrationStatus === "all" || item.registrationStatus === query.registrationStatus) && (!query.feeStatus || query.feeStatus === "all" || item.feeStatus === query.feeStatus) && (!query.profileComplete || query.profileComplete === "all" || (query.profileComplete === "complete" ? item.profileComplete : !item.profileComplete)) && (!query.emailVerified || query.emailVerified === "all" || (query.emailVerified === "verified" ? item.emailVerified : !item.emailVerified)) && (!query.submittedFrom || (submitted && submitted >= query.submittedFrom)) && (!query.submittedTo || (submitted && submitted <= query.submittedTo));
+    });
+    const sorted = [...filtered].sort((a, b) => {
+      if (!query.sort || query.sort === "priority") return priority(a) - priority(b) || b.updatedAt.localeCompare(a.updatedAt);
+      if (query.sort === "oldest") return (a.submittedAt ?? a.createdAt).localeCompare(b.submittedAt ?? b.createdAt);
+      if (query.sort === "fee_status") return a.feeStatus.localeCompare(b.feeStatus) || b.updatedAt.localeCompare(a.updatedAt);
+      if (query.sort === "recently_updated") return b.updatedAt.localeCompare(a.updatedAt);
+      return (b.submittedAt ?? b.createdAt).localeCompare(a.submittedAt ?? a.createdAt);
+    });
+    return { ok: true, data: sorted };
+  },
+
+  async getByApplicationNumber(actor, applicationNumber) {
+    const allowed = staffOnly<AgentRegistration>(actor);
+    if (!allowed.ok) return allowed;
+    const registration = registrations.find((item) => item.applicationNumber.toLowerCase() === applicationNumber.trim().toLowerCase());
+    return registration ? { ok: true, data: registration } : failure("NOT_FOUND", "Registration application not found.");
+  },
+
+  async getPaymentProof(actor, registrationId) {
+    const allowed = staffOnly<RegistrationPaymentProofAccess>(actor);
+    if (!allowed.ok) return allowed;
+    const registration = registrations.find((item) => item.id === registrationId);
+    if (!registration) return failure("NOT_FOUND", "Registration application not found.");
+    if (!registration.proof) return failure("NOT_FOUND", "No payment proof has been uploaded.");
+    return { ok: true, data: { fileName: registration.proof.fileName, mimeType: registration.proof.mimeType, accessToken: `protected-proof-${registration.proof.id}`, expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString() } };
   },
 
   async verifyFee(actor, input) {
@@ -226,6 +273,12 @@ export const registrationRepository: RegistrationRepository = {
     found.data.bankReference = input.bankReference.trim();
     found.data.rejectionReason = null;
     addAudit(found.data, actor, "registration_fee", "payment_verified", previous, "verified", input.note ?? null);
+    if (found.data.emailVerified && found.data.profileComplete && found.data.registrationStatus === "pending_approval") {
+      const previousRegistrationStatus = found.data.registrationStatus;
+      found.data.registrationStatus = "active";
+      addAudit(found.data, actor, "registration", "registration_approved", previousRegistrationStatus, "active", "Automatically approved after verified registration fee.");
+      addAudit(found.data, actor, "registration", "agent_activated", previousRegistrationStatus, "active", "Automatically activated after verified registration fee.");
+    }
     return { ok: true, data: found.data };
   },
 
@@ -251,7 +304,8 @@ export const registrationRepository: RegistrationRepository = {
     if (!found.data.emailVerified || !found.data.profileComplete || !["verified", "waived"].includes(found.data.feeStatus)) return failure("CONFLICT", "The application cannot be activated until email, profile, and fee requirements are complete.");
     const previous = found.data.registrationStatus;
     found.data.registrationStatus = "active";
-    addAudit(found.data, actor, "registration", "registration_approved_and_activated", previous, "active", input.reason?.trim() || null);
+    addAudit(found.data, actor, "registration", "registration_approved", previous, "pending_approval", input.reason?.trim() || null);
+    addAudit(found.data, actor, "registration", "agent_activated", "pending_approval", "active", input.reason?.trim() || null);
     return { ok: true, data: found.data };
   },
 
@@ -271,7 +325,7 @@ export const registrationRepository: RegistrationRepository = {
     const found = getOwnedRegistration(actor, registrationId);
     if (!found.ok) return found;
     if (actor.role !== "agent" || found.data.registrationStatus !== "active") return failure("FORBIDDEN", "Your account is awaiting registration approval. Only onboarding and registration status are available.");
-    return found;
+    return { ok: true, data: applicantRegistrationView(found.data) };
   },
 };
 

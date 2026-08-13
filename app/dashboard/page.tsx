@@ -12,6 +12,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { formatDate, formatMoney } from "@/lib/format";
 import { mockRepository } from "@/lib/mock-repository";
 import { roleLabels } from "@/lib/navigation";
+import { usePreviewUser } from "@/lib/preview-user";
 import type { CaseStatus, DashboardSnapshot, PaymentStatus, UserRole } from "@/lib/types";
 
 const caseStatuses: Array<CaseStatus | "all"> = ["all", "submitted", "under_review", "pending_payment", "active", "completed"];
@@ -19,12 +20,11 @@ const paymentStatuses: Array<PaymentStatus | "all"> = ["all", "not_recorded", "p
 const pageSize = 5;
 
 export default function DashboardPage() {
-  const [role, setRole] = useState<UserRole>("agent");
+  const { role, user, setRole } = usePreviewUser();
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   useEffect(() => { setLoading(true); setFailed(false); mockRepository.getSnapshot(role).then(setSnapshot).catch(() => setFailed(true)).finally(() => setLoading(false)); }, [role]);
-  const user = snapshot?.currentUser ?? { id: "preview", role, displayName: roleLabels[role], email: null, agentId: null };
   return <AppShell user={user} onRoleChange={setRole}><div className="page-content"><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1>{role === "agent" ? "Good morning, Aisha" : "Operations overview"}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div><div className="preview-banner"><span className="preview-dot" /><div><strong>Development preview</strong><span> Role switching uses mock data only. Production authorization will be enforced server-side.</span></div></div>{loading ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <DashboardContent snapshot={snapshot} role={role} />}</div></AppShell>;
 }
 
@@ -63,7 +63,6 @@ function MobileCaseList({ cases, isAgent }: { cases: DashboardSnapshot["cases"];
 function TeamSnapshot({ agents }: { agents: DashboardSnapshot["agents"] }) {
   return <section className="panel side-panel"><div className="panel-header"><div><h2>Team snapshot</h2><p>Agent performance</p></div><Link className="text-link" href="/agents">View all <Icon name="arrow" size={14} /></Link></div><div className="team-list">{agents.map((agent) => <div className="team-item" key={agent.id}><span className="avatar avatar-small">{agent.displayName.split(" ").map((name) => name[0]).join("")}</span><div><strong>{agent.displayName}</strong><span>Level {agent.currentLevel} &middot; {agent.successfulCaseCount} successful cases</span></div><span className="team-sales">{formatMoney(agent.personalSalesSen)}</span></div>)}</div></section>;
 }
-
 
 
 

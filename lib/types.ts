@@ -8,6 +8,8 @@ export type PaymentStatus = "not_recorded" | "pending_verification" | "verified"
 export type CommissionStatus = "calculated" | "scheduled" | "approved" | "paid" | "withheld" | "adjusted" | "reversed";
 export type RegistrationStatus = "draft" | "pending_approval" | "active" | "rejected" | "suspended";
 export type RegistrationFeeStatus = "unpaid" | "pending_verification" | "verified" | "rejected" | "waived" | "refunded";
+export type AgentLevel = 1 | 2 | 3;
+export type PayoutSettlementStatus = "pending" | "settled";
 export type RegistrationDocumentType = "payment_proof";
 export type DocumentType = "electricity_bill" | "supporting_document" | "quotation" | "invoice" | "receipt" | "other";
 export interface CurrentUser { id: ID; role: UserRole; displayName: string; email: string | null; agentId: ID | null; }
@@ -23,8 +25,39 @@ export interface CommissionSummary { id: ID; commissionNumber: string; caseId: I
 export interface CommissionScheduleEntry { id: ID; sequence: number; dueDate: ISODate; amountSen: MoneySen; status: CommissionStatus; paidAt: ISODateTime | null; paymentReference: string | null; note: string | null; }
 export interface AgentCommissionRecord extends CommissionSummary { customerDisplayName: string; eligibilityStatus: "eligible" | "pending"; lastUpdatedAt: ISODateTime; schedule: CommissionScheduleEntry[]; withheldReason: string | null; adjustmentNote: string | null; qualifyingPaymentDate: ISODate | null; }
 export interface CommissionOverview { totalEntitlementSen: MoneySen; paidToDateSen: MoneySen; remainingBalanceSen: MoneySen; upcomingPayoutSen: MoneySen | null; upcomingPayoutDate: ISODate | null; }
-export interface AgentSummary { id: ID; agentCode: string; displayName: string; currentLevel: 1 | 2 | 3; uplineAgentId: ID | null; uplineName: string | null; successfulCaseCount: number; personalSalesSen: MoneySen; referralSalesSen: MoneySen; commissionEarnedSen: MoneySen; status: "active" | "inactive"; }
+export interface AgentQualificationProgress { currentLevel: AgentLevel; successfulCases: { current: number; required: number | null }; directAgents: { current: number; required: number | null }; annualSalesSen: { current: MoneySen; required: MoneySen | null }; eligibleForPromotion: boolean; nextLevel: AgentLevel | null; }
+export interface AgentPromotionAudit { id: ID; agentId: ID; previousLevel: AgentLevel; newLevel: AgentLevel; actorId: ID; actorDisplayName: string; occurredAt: ISODateTime; note: string | null; }
+export interface AgentLevelChangeRequest { id: ID; agentId: ID; previousLevel: AgentLevel; requestedLevel: AgentLevel; requestedById: ID; requestedByDisplayName: string; requestedAt: ISODateTime; status: "pending" | "approved" | "rejected"; reviewedById: ID | null; reviewedByDisplayName: string | null; reviewedAt: ISODateTime | null; reason: string | null; }
+export interface AgentLevelChangeApproval extends AgentLevelChangeRequest { agent: AgentSummary; }
+export interface AgentSummary { id: ID; agentCode: string; displayName: string; currentLevel: AgentLevel; uplineAgentId: ID | null; uplineName: string | null; directAgentCount: number; successfulCaseCount: number; personalSalesSen: MoneySen; referralSalesSen: MoneySen; annualSalesSen: MoneySen; commissionEarnedSen: MoneySen; status: "active" | "inactive"; qualification: AgentQualificationProgress; promotionHistory: AgentPromotionAudit[]; levelChangeRequests: AgentLevelChangeRequest[]; }
+export interface AgentWorkspaceDetail { agent: AgentSummary; sales: CaseSummary[]; commissions: CommissionSummary[]; uplineAgents: AgentSummary[]; downlineAgents: AgentSummary[]; }
+export interface PayoutBankAccount { bankName: string; accountHolderName: string; accountNumberMasked: string; }
+export interface PayoutTransaction { id: ID; payoutMonth: string; agentId: ID; agentName: string; agentCode: string; bankAccount: PayoutBankAccount; commissionId: ID; commissionNumber: string; caseNumber: string; customerDisplayName: string; amountSen: MoneySen; settlementStatus: PayoutSettlementStatus; settledAt: ISODateTime | null; settledById: ID | null; settledByDisplayName: string | null; bankReference: string | null; }
+export interface AgentMonthlyPayout { agentId: ID; agentName: string; agentCode: string; bankAccount: PayoutBankAccount; payoutMonth: string; totalSen: MoneySen; settledSen: MoneySen; pendingSen: MoneySen; transactionCount: number; settledTransactionCount: number; settlementStatus: PayoutSettlementStatus | "partially_settled"; }
+export interface PayoutMonthSummary { payoutMonth: string; totalSen: MoneySen; settledSen: MoneySen; pendingSen: MoneySen; agentCount: number; settledAgentCount: number; transactionCount: number; settledTransactionCount: number; }
 export interface DashboardSnapshot { currentUser: CurrentUser; cases: CaseSummary[]; commissions: CommissionSummary[]; agents: AgentSummary[]; }
+
+export interface AgentProfile {
+  id: ID;
+  profile: RegistrationProfile;
+  agentNumber: string;
+  applicationNumber: string;
+  accountStatus: "active" | "inactive";
+  registrationStatus: RegistrationStatus;
+  feeStatus: RegistrationFeeStatus;
+  emailVerified: boolean;
+  joinedDate: ISODate;
+  referralCode: string;
+  uplineName: string | null;
+  currentLevel: AgentLevel;
+  profileComplete: boolean;
+}
+
+export interface UpdateAgentProfileInput { fullName: string; mobileNumber: string; email: string; }
+
+export type ProfileActionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: { code: "VALIDATION_ERROR" | "FORBIDDEN" | "NOT_FOUND" | "CONFLICT" | "INTERNAL_ERROR"; message: string; fieldErrors?: Record<string, string[]> } };
 
 export interface ReferralInvitation {
   id: ID;
@@ -47,6 +80,13 @@ export interface RegistrationPaymentProof {
   mimeType: string;
   sizeBytes: number;
   uploadedAt: ISODateTime;
+}
+
+export interface RegistrationPaymentProofAccess {
+  fileName: string;
+  mimeType: string;
+  accessToken: string;
+  expiresAt: ISODateTime;
 }
 
 export interface RegistrationInvoice {
@@ -133,6 +173,17 @@ export interface VerifyRegistrationFeeInput {
 
 export interface RejectRegistrationFeeInput { registrationId: ID; reason: string; }
 export interface RegistrationDecisionInput { registrationId: ID; reason?: string; }
+
+export interface RegistrationQueueQuery {
+  search?: string;
+  registrationStatus?: RegistrationStatus | "all";
+  feeStatus?: RegistrationFeeStatus | "all";
+  profileComplete?: "complete" | "incomplete" | "all";
+  emailVerified?: "verified" | "unverified" | "all";
+  submittedFrom?: ISODate;
+  submittedTo?: ISODate;
+  sort?: "priority" | "newest" | "oldest" | "fee_status" | "recently_updated";
+}
 
 export type RegistrationActionResult<T> =
   | { ok: true; data: T }

@@ -104,6 +104,7 @@ Do not choose final brand hex values until the logo/brand palette is available i
 - Row hover is subtle and not the only interaction cue.
 - Primary record identity remains visible at narrow widths.
 - Secondary columns collapse into row detail or mobile cards instead of becoming unreadably narrow.
+- Paginated tables use the shared `TableFooter`: visible-range summary at left; export and page controls at right. New operational tables should adopt this footer and their relevant filters rather than creating a page-specific alternative.
 
 ### Filters
 
