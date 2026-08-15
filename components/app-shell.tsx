@@ -10,6 +10,8 @@ import { navigation, roleLabels } from "@/lib/navigation";
 import type { CurrentUser, UserRole } from "@/lib/types";
 import { Icon } from "./icons";
 import { BrandLogo } from "./brand-logo";
+import { logout as authLogout } from "@/lib/auth-repository";
+import { isSupabaseConfigured } from "@/lib/supabase-browser";
 
 function ProfileMenuIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>; }
 function LogoutMenuIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8"/><path d="M11 12h9M17 8l4 4-4 4"/></svg>; }
@@ -28,7 +30,7 @@ export function AppShell({ user, children, onRoleChange, onboardingOnly = false,
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  const pendingAgent = user.role === "agent" && user.agentId?.startsWith("registration-");
+  const pendingAgent = user.role === "agent" && user.accountStatus !== "active";
   const restricted = Boolean(onboardingOnly || pendingAgent);
   const links = restricted ? [] : navigation.filter((item) => item.roles.includes(user.role));
   const breadcrumb = breadcrumbFor(pathname, restricted);
@@ -37,7 +39,7 @@ export function AppShell({ user, children, onRoleChange, onboardingOnly = false,
     {!hideSidebar && <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""} ${mobileOpen ? "sidebar-mobile-open" : ""}`}>
       <BrandLogo className="brand" />
       {nav}
-      <div className="sidebar-footer">{!restricted && <><div className="preview-note"><span className="preview-dot"/>Preview mode</div><label className="role-select-label" htmlFor="role-switcher">View as</label><select id="role-switcher" value={user.role} onChange={(event) => onRoleChange(event.target.value as UserRole)}>{Object.entries(roleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></>}</div>
+      <div className="sidebar-footer">{!restricted && !isSupabaseConfigured() && <><div className="preview-note"><span className="preview-dot"/>Preview mode</div><label className="role-select-label" htmlFor="role-switcher">View as</label><select id="role-switcher" value={user.role} onChange={(event) => onRoleChange(event.target.value as UserRole)}>{Object.entries(roleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></>}</div>
       {!restricted && <button className="collapse-button" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={() => setCollapsed(!collapsed)}><Icon name="chevron"/><span>{collapsed ? "" : "Collapse sidebar"}</span></button>}
     </aside>}
     {!hideSidebar && mobileOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)}/>}<div className={`shell-main ${hideSidebar ? "shell-main-full" : ""}`}><header className="topbar">{!hideSidebar && <button className="mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Icon name="menu"/></button>}<div className="breadcrumb">{breadcrumb[0]} <span>/</span> <strong>{breadcrumb[1]}</strong></div><UserMenu user={user}/></header><main>{children}</main></div>
@@ -46,6 +48,6 @@ export function AppShell({ user, children, onRoleChange, onboardingOnly = false,
 
 function UserMenu({ user }: { user: CurrentUser }) {
   const avatarSrc = createAvatar(avatarStyle, { seed: user.displayName, backgroundColor: ["d3edf1"], radius: 50, size: 64 }).toDataUri();
-  function logout() { if (window.confirm("Log out of your Smartegy account?")) window.location.href = "/"; }
+  async function logout() { if (!window.confirm("Log out of your Smartegy account?")) return; await authLogout(); window.location.href = "/"; }
   return <details className="user-menu"><summary aria-label={`Account menu for ${user.displayName}`}><Image className="avatar avatar-image" src={avatarSrc} alt="" width={32} height={32} unoptimized/><span className="user-name">{user.displayName}</span><Icon name="chevron" size={14}/></summary><div className="user-menu-popover"><Link href="/settings/profile"><ProfileMenuIcon/><span>Your Profile</span></Link><button type="button" onClick={logout}><LogoutMenuIcon/><span>Log Out</span></button></div></details>;
 }

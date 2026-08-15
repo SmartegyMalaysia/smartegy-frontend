@@ -7,7 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { Badge, ErrorState, LoadingState } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { formatDate, formatMoney } from "@/lib/format";
-import { mockAgentCommissionsRepository } from "@/lib/commission-repository";
+import { agentCommissionsRepository } from "@/lib/commission-repository";
 import type { AgentCommissionRecord, CurrentUser } from "@/lib/types";
 
 const agent: CurrentUser = { id: "user-001", role: "agent", displayName: "Aisha Rahman", email: "aisha@smartegy.example", agentId: "agent-001" };
@@ -16,7 +16,7 @@ export default function CommissionDetailPage() {
   const params = useParams<{ commissionId: string }>();
   const [record, setRecord] = useState<AgentCommissionRecord | null>(null);
   const [state, setState] = useState<"loading" | "error" | "permission">("loading");
-  useEffect(() => { mockAgentCommissionsRepository.getById(agent, params.commissionId).then((result) => { if (result.ok) { setRecord(result.data); setState("loading"); } else setState(result.error.code === "FORBIDDEN" ? "permission" : "error"); }); }, [params.commissionId]);
+  useEffect(() => { agentCommissionsRepository.getById(agent, params.commissionId).then((result) => { if (result.ok) { setRecord(result.data); setState("loading"); } else setState(result.error.code === "FORBIDDEN" ? "permission" : "error"); }); }, [params.commissionId]);
   return <AppShell user={agent} onRoleChange={() => undefined}><main className="page-content commission-detail-page">{state === "loading" && !record ? <LoadingState/> : state === "permission" ? <ErrorState/> : state === "error" || !record ? <ErrorState/> : <CommissionDetail record={record}/>}</main></AppShell>;
 }
 

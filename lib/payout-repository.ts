@@ -19,8 +19,12 @@ function aggregate(payoutMonth: string, items: PayoutTransaction[]) {
   const totalSen = items.reduce((sum, item) => sum + item.amountSen, 0); const settledSen = items.filter((item) => item.settlementStatus === "settled").reduce((sum, item) => sum + item.amountSen, 0); const settledTransactionCount = items.filter((item) => item.settlementStatus === "settled").length;
   return { summary: { payoutMonth, totalSen, settledSen, pendingSen: totalSen - settledSen, agentCount: agentPayouts.length, settledAgentCount: agentPayouts.filter((item) => item.settlementStatus === "settled").length, transactionCount: items.length, settledTransactionCount }, agentPayouts };
 }
-export const payoutRepository: PayoutRepository = {
+export const mockPayoutRepository: PayoutRepository = {
   async getMonth(actor, payoutMonth) { if (!allowed(actor)) return fail("FORBIDDEN", "Only staff and administrators can view payout data."); const items = transactions.filter((item) => item.payoutMonth === payoutMonth); return { ok: true, data: { ...aggregate(payoutMonth, items), transactions: structuredClone(items) } }; },
   async settleTransaction(actor, input) { if (!allowed(actor)) return fail("FORBIDDEN", "Only staff and administrators can settle a payout transaction."); const transaction = transactions.find((item) => item.id === input.transactionId); if (!transaction) return fail("NOT_FOUND", "Payout transaction not found."); if (transaction.settlementStatus === "settled") return fail("CONFLICT", "This payout transaction is already settled."); if (!input.bankReference.trim()) return fail("CONFLICT", "Enter the bank settlement reference."); transaction.settlementStatus = "settled"; transaction.settledAt = new Date().toISOString(); transaction.settledById = actor.id; transaction.settledByDisplayName = actor.displayName; transaction.bankReference = input.bankReference.trim(); return { ok: true, data: structuredClone(transaction) }; },
 };
 export function resetMockPayouts() { transactions = structuredClone(initialTransactions); }
+
+import { isSupabaseConfigured } from "./supabase-browser";
+import { supabasePayoutRepository } from "./supabase-payout-repository";
+export const payoutRepository: PayoutRepository = isSupabaseConfigured() ? supabasePayoutRepository : mockPayoutRepository;

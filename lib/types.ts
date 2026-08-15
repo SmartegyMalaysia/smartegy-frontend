@@ -12,14 +12,14 @@ export type AgentLevel = 1 | 2 | 3;
 export type PayoutSettlementStatus = "pending" | "settled";
 export type RegistrationDocumentType = "payment_proof";
 export type DocumentType = "electricity_bill" | "supporting_document" | "quotation" | "invoice" | "receipt" | "other";
-export interface CurrentUser { id: ID; role: UserRole; displayName: string; email: string | null; agentId: ID | null; }
+export interface CurrentUser { id: ID; role: UserRole; displayName: string; email: string | null; agentId: ID | null; accountStatus?: "invited" | "active" | "inactive"; }
 export interface CaseSummary { id: ID; caseNumber: string; customerDisplayName: string; agentId: ID; agentName: string; status: CaseStatus; paymentStatus: PaymentStatus; saleAmountSen: MoneySen | null; submittedAt: ISODateTime; updatedAt: ISODateTime; }
 export interface CustomerRecord { id: ID; displayName: string; companyRegistrationNumber: string | null; contactName: string | null; email: string | null; phone: string | null; }
 export interface ServiceRecord { siteAddress: string; electricityAccountNumber: string | null; notes: string | null; }
 export interface CaseDocument { id: ID; caseId: ID; type: DocumentType; fileName: string; mimeType: string; sizeBytes: number; uploadedBy: ID; uploadedAt: ISODateTime; }
 export interface CaseActivity { id: ID; action: string; actorDisplayName: string; occurredAt: ISODateTime; summary: string; }
 export interface CaseDetail extends CaseSummary { customer: CustomerRecord; service: ServiceRecord; documents: CaseDocument[]; activity: CaseActivity[]; }
-export interface CaseDocumentInput { type: "electricity_bill" | "supporting_document"; fileName: string; mimeType: string; sizeBytes: number; }
+export interface CaseDocumentInput { type: "electricity_bill" | "supporting_document"; fileName: string; mimeType: string; sizeBytes: number; file?: File; }
 export interface CreateCaseInput { customer: Pick<CustomerRecord, "displayName" | "contactName" | "email" | "phone">; service: Pick<ServiceRecord, "siteAddress" | "notes">; documents: CaseDocumentInput[]; }
 export interface CommissionSummary { id: ID; commissionNumber: string; caseId: ID; caseNumber: string; recipientId: ID | null; recipientName: string; recipientKind: "level_1_agent" | "level_2_agent" | "level_3_agent" | "office"; entitlementSen: MoneySen; firstPaymentSen: MoneySen; deferredBalanceSen: MoneySen; paidToDateSen: MoneySen; nextPaymentDate: ISODate | null; nextPaymentSen: MoneySen | null; status: CommissionStatus; }
 export interface CommissionScheduleEntry { id: ID; sequence: number; dueDate: ISODate; amountSen: MoneySen; status: CommissionStatus; paidAt: ISODateTime | null; paymentReference: string | null; note: string | null; }
@@ -160,7 +160,7 @@ export interface SubmitRegistrationFeeInput {
   paymentDate: ISODate | null;
   paymentReference: string | null;
   paymentRemarks?: string | null;
-  proof: Omit<RegistrationPaymentProof, "id" | "uploadedAt">;
+  proof: Omit<RegistrationPaymentProof, "id" | "uploadedAt"> & { file?: File };
 }
 
 export interface VerifyRegistrationFeeInput {

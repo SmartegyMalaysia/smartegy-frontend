@@ -97,6 +97,7 @@ function addAudit(registration: AgentRegistration, actor: CurrentUser, entityTyp
 }
 
 export interface RegistrationRepository {
+  getPaymentConfig(): Promise<RegistrationActionResult<RegistrationPaymentConfig>>;
   getInvitation(code: string): Promise<RegistrationActionResult<ReferralInvitation>>;
   sendEmailOtp(email: string): Promise<RegistrationActionResult<{ expiresInSeconds: number }>>;
   verifyEmailOtp(email: string, otp: string): Promise<RegistrationActionResult<true>>;
@@ -115,7 +116,8 @@ export interface RegistrationRepository {
   assertActiveAgent(actor: CurrentUser, registrationId: ID): Promise<RegistrationActionResult<AgentRegistration>>;
 }
 
-export const registrationRepository: RegistrationRepository = {
+export const mockRegistrationRepository: RegistrationRepository = {
+  async getPaymentConfig() { return { ok: true, data: mockRegistrationConfig }; },
   async getInvitation(code) {
     const invitation = invitations.find((item) => item.code.toLowerCase() === code.trim().toLowerCase() && item.valid);
     return invitation ? { ok: true, data: invitation } : failure("NOT_FOUND", "This invitation or referral link is invalid or has expired.");
@@ -330,3 +332,10 @@ export const registrationRepository: RegistrationRepository = {
 };
 
 export function resetMockRegistrations() { registrations = [seedRegistration]; mockOtpByEmail.clear(); }
+
+import { isSupabaseConfigured } from "./supabase-browser";
+import { supabaseRegistrationRepository } from "./supabase-registration-repository";
+
+export const registrationRepository: RegistrationRepository = isSupabaseConfigured()
+  ? supabaseRegistrationRepository
+  : mockRegistrationRepository;

@@ -1,7 +1,7 @@
 import { mockDashboard } from "./mock-data";
 import type { AgentCommissionRecord, CommissionOverview, CommissionStatus, CurrentUser, ID } from "./types";
 
-type CommissionResult<T> = { ok: true; data: T } | { ok: false; error: { code: "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR"; message: string } };
+export type CommissionResult<T> = { ok: true; data: T } | { ok: false; error: { code: "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR"; message: string } };
 
 function addMonths(date: string, months: number) { const next = new Date(`${date}T00:00:00Z`); next.setUTCMonth(next.getUTCMonth() + months); return next.toISOString().slice(0, 10); }
 function buildSchedule(id: string, deferredBalanceSen: number, startDate: string, paidSequences: number[] = []): AgentCommissionRecord["schedule"] {
@@ -30,3 +30,7 @@ export const mockAgentCommissionsRepository: AgentCommissionsRepository = {
 };
 
 export const commissionStatuses: Array<CommissionStatus | "all"> = ["all", "calculated", "scheduled", "approved", "paid", "withheld", "adjusted", "reversed"];
+
+import { isSupabaseConfigured } from "./supabase-browser";
+import { supabaseAgentCommissionsRepository } from "./supabase-commission-repository";
+export const agentCommissionsRepository: AgentCommissionsRepository = isSupabaseConfigured() ? supabaseAgentCommissionsRepository : mockAgentCommissionsRepository;

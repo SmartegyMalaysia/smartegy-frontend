@@ -10,7 +10,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { DatePicker } from "@/components/date-picker";
 import { DataTable } from "@/components/data-table";
 import { formatDate, formatMoney } from "@/lib/format";
-import { commissionStatuses, mockAgentCommissionsRepository } from "@/lib/commission-repository";
+import { commissionStatuses, agentCommissionsRepository } from "@/lib/commission-repository";
 import { usePreviewUser } from "@/lib/preview-user";
 import type { AgentCommissionRecord, CommissionOverview, CommissionStatus } from "@/lib/types";
 
@@ -22,7 +22,7 @@ export default function CommissionsPage() {
   const [records, setRecords] = useState<AgentCommissionRecord[]>([]);
   const [overview, setOverview] = useState<CommissionOverview | null>(null);
   const [state, setState] = useState<"loading" | "error" | "permission">("loading");
-  useEffect(() => { Promise.all([mockAgentCommissionsRepository.list(user), mockAgentCommissionsRepository.getOverview(user)]).then(([listResult, overviewResult]) => { if (!listResult.ok) { setState(listResult.error.code === "FORBIDDEN" ? "permission" : "error"); return; } if (!overviewResult.ok) { setState(overviewResult.error.code === "FORBIDDEN" ? "permission" : "error"); return; } setRecords(listResult.data); setOverview(overviewResult.data); setState("loading"); }); }, [user]);
+  useEffect(() => { Promise.all([agentCommissionsRepository.list(user), agentCommissionsRepository.getOverview(user)]).then(([listResult, overviewResult]) => { if (!listResult.ok) { setState(listResult.error.code === "FORBIDDEN" ? "permission" : "error"); return; } if (!overviewResult.ok) { setState(overviewResult.error.code === "FORBIDDEN" ? "permission" : "error"); return; } setRecords(listResult.data); setOverview(overviewResult.data); setState("loading"); }); }, [user]);
   return <AppShell user={user} onRoleChange={setRole}><main className="page-content commissions-page"><div className="page-header"><div><p className="eyebrow">Agent workspace</p><h1>My Commissions</h1><p className="page-description">A transparent view of your earned, paid, and scheduled commissions.</p></div></div>{state === "loading" && !overview ? <LoadingState /> : state === "permission" ? <ErrorState /> : state === "error" || !overview ? <ErrorState /> : <><CommissionOverviewCards overview={overview} /><CommissionRecords records={records} /></>}</main></AppShell>;
 }
 

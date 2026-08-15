@@ -13,7 +13,7 @@ function ownedProfile(actor: CurrentUser) { const profile = profiles.find((item)
 function validate(input: UpdateAgentProfileInput) { const fieldErrors: Record<string, string[]> = {}; if (!input.fullName.trim() || input.fullName.trim().length < 2) fieldErrors.fullName = ["Enter your full name."]; if (!isValidMobileNumber(input.mobileNumber)) fieldErrors.mobileNumber = ["Enter a valid Malaysian mobile number."]; if (!isValidEmail(input.email)) fieldErrors.email = ["Enter a valid email address."]; return fieldErrors; }
 
 export interface AgentProfileRepository { getMine(actor: CurrentUser): Promise<ProfileActionResult<AgentProfile>>; updateMine(actor: CurrentUser, input: UpdateAgentProfileInput & Record<string, unknown>): Promise<ProfileActionResult<AgentProfile>>; requestEmailVerification(actor: CurrentUser): Promise<ProfileActionResult<{ expiresInSeconds: number }>>; verifyEmail(actor: CurrentUser, code: string): Promise<ProfileActionResult<AgentProfile>>; }
-export const agentProfileRepository: AgentProfileRepository = {
+export const mockAgentProfileRepository: AgentProfileRepository = {
   async getMine(actor) { return ownedProfile(actor); },
   async updateMine(actor, input) {
     const found = ownedProfile(actor); if (!found.ok) return found;
@@ -36,3 +36,7 @@ export const agentProfileRepository: AgentProfileRepository = {
   },
 };
 export function resetMockProfiles() { profiles = [structuredClone(activeProfile), structuredClone(pendingProfile)]; emailVerificationCodes.clear(); }
+
+import { isSupabaseConfigured } from "./supabase-browser";
+import { supabaseAgentProfileRepository } from "./supabase-profile-repository";
+export const agentProfileRepository: AgentProfileRepository = isSupabaseConfigured() ? supabaseAgentProfileRepository : mockAgentProfileRepository;

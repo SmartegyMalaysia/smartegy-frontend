@@ -2,7 +2,7 @@ import { mockDashboard } from "./mock-data";
 import { caseDocumentConfig, validateCaseDocument } from "./document-config";
 import type { CaseDetail, CaseDocumentInput, CurrentUser, CreateCaseInput, ID } from "./types";
 
-type CaseResult<T> = { ok: true; data: T } | { ok: false; error: { code: "VALIDATION_ERROR" | "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR"; message: string; fieldErrors?: Record<string, string[]> } };
+export type CaseResult<T> = { ok: true; data: T } | { ok: false; error: { code: "VALIDATION_ERROR" | "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR"; message: string; fieldErrors?: Record<string, string[]> } };
 
 const seededCases = mockDashboard("staff").cases;
 const caseStore = new Map<ID, CaseDetail>(seededCases.map((item) => [item.id, {
@@ -59,3 +59,8 @@ export const mockCasesRepository: CasesRepository = {
 };
 
 export { caseDocumentConfig };
+
+import { isSupabaseConfigured } from "./supabase-browser";
+import { supabaseCasesRepository } from "./supabase-case-repository";
+
+export const casesRepository: CasesRepository = isSupabaseConfigured() ? supabaseCasesRepository : mockCasesRepository;

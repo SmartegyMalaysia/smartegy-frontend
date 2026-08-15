@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CurrentUser, UserRole } from "./types";
+import { getSupabaseBrowserClient } from "./supabase-browser";
 
 const storageKey = "smartegy-preview-role";
 
@@ -13,10 +14,38 @@ const previewUsers: Record<UserRole, CurrentUser> = {
 
 export function usePreviewUser(defaultRole: UserRole = "agent") {
   const [role, setRoleState] = useState<UserRole>(defaultRole);
+  const [user, setUser] = useState<CurrentUser>(previewUsers[defaultRole]);
   useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      let active = true;
+      const load = async () => {
+        const { data: auth } = await supabase.auth.getUser();
+        if (!auth.user || !active) return;
+        const { data: profile } = await supabase.from("profiles").select("id,role,display_name,phone,account_status").eq("id", auth.user.id).maybeSingle();
+        if (!profile || !active) return;
+        const { data: agent } = await supabase.from("agents").select("id").eq("profile_id", profile.id).maybeSingle();
+        const nextUser: CurrentUser = {
+          id: profile.id,
+          role: profile.role as UserRole,
+          displayName: profile.display_name,
+          email: auth.user.email ?? null,
+          agentId: agent?.id ?? null,
+          accountStatus: profile.account_status as CurrentUser["accountStatus"],
+        };
+        setRoleState(nextUser.role);
+        setUser(nextUser);
+      };
+      void load();
+      const { data: listener } = supabase.auth.onAuthStateChange(() => { void load(); });
+      return () => { active = false; listener.subscription.unsubscribe(); };
+    }
     const storedRole = window.localStorage.getItem(storageKey) as UserRole | null;
-    if (storedRole && storedRole in previewUsers) setRoleState(storedRole);
+    if (storedRole && storedRole in previewUsers) { setRoleState(storedRole); setUser(previewUsers[storedRole]); }
   }, []);
-  function setRole(role: UserRole) { window.localStorage.setItem(storageKey, role); setRoleState(role); }
-  return { role, user: previewUsers[role], setRole };
+  function setRole(nextRole: UserRole) {
+    if (getSupabaseBrowserClient()) return;
+    window.localStorage.setItem(storageKey, nextRole); setRoleState(nextRole); setUser(previewUsers[nextRole]);
+  }
+  return { role, user, setRole };
 }

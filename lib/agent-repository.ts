@@ -11,7 +11,7 @@ function admin(actor: CurrentUser) { return actor.role === "admin"; }
 function fail<T>(code: AgentErrorCode, message: string): AgentResult<T> { return { ok: false, error: { code, message } }; }
 function promotionRequirements(agent: AgentSummary) { const qualification = agent.qualification; if (qualification.nextLevel === null) return "Agent is already at the highest level."; const missing: string[] = []; if (qualification.successfulCases.required !== null && qualification.successfulCases.current < qualification.successfulCases.required) missing.push(`${qualification.successfulCases.required - qualification.successfulCases.current} more successful case${qualification.successfulCases.required - qualification.successfulCases.current === 1 ? "" : "s"}`); if (qualification.directAgents.required !== null && qualification.directAgents.current < qualification.directAgents.required) missing.push(`${qualification.directAgents.required - qualification.directAgents.current} more direct agent${qualification.directAgents.required - qualification.directAgents.current === 1 ? "" : "s"}`); if (qualification.annualSalesSen.required !== null && qualification.annualSalesSen.current < qualification.annualSalesSen.required) missing.push("annual sales threshold"); return missing.join(", "); }
 
-export const agentRepository: AgentRepository = {
+export const mockAgentRepository: AgentRepository = {
   async list(actor) { if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can view all agents."); return { ok: true, data: structuredClone(agents) }; },
   async getById(actor, agentId) {
     if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can view agent details.");
@@ -51,3 +51,8 @@ export const agentRepository: AgentRepository = {
 };
 
 export function resetMockAgents() { agents = structuredClone(mockAgents); }
+
+import { isSupabaseConfigured } from "./supabase-browser";
+import { supabaseAgentRepository } from "./supabase-agent-repository";
+
+export const agentRepository: AgentRepository = isSupabaseConfigured() ? supabaseAgentRepository : mockAgentRepository;
