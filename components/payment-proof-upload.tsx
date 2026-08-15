@@ -1,3 +1,4 @@
+import { TextInput, TextArea } from "./form-controls";
 "use client";
 
 import { DragEvent, KeyboardEvent, useRef, useState } from "react";
@@ -26,7 +27,7 @@ export function PaymentProofUpload({ name = "proof", required = false, error, on
   }
 
   return <div className={`payment-upload ${dragging ? "payment-upload-dragging" : ""} ${error ? "payment-upload-error-state" : ""}`}>
-    <input ref={inputRef} className="sr-only" id={name} name={name} type="file" accept="image/*,.pdf" required={required} onChange={(event) => acceptFile(event.target.files?.[0])} />
+    <TextInput ref={inputRef} className="sr-only" id={name} name={name} type="file" accept="image/*,.pdf" required={required} onChange={(event) => acceptFile(event.target.files?.[0])} />
     <div className="payment-upload-dropzone" role="button" tabIndex={0} aria-describedby={error ? `${name}-error` : undefined} onClick={() => inputRef.current?.click()} onKeyDown={handleKeyDown} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
       <span className="payment-upload-icon" aria-hidden="true">↑</span>
       <strong>{file ? file.name : "Drop your proof of payment here"}</strong>

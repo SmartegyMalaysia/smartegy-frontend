@@ -1,3 +1,4 @@
+import { TextInput, TextArea } from "./form-controls";
 "use client";
 
 import { DragEvent, KeyboardEvent, useRef, useState } from "react";
@@ -18,7 +19,7 @@ export function CaseDocumentUpload({ id, type, files, multiple = false, error, u
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inputRef.current?.click(); } }
   function removeFile(index: number) { onFilesChange(files.filter((_, fileIndex) => fileIndex !== index)); onError(null); }
   return <div className={`case-upload ${dragging ? "case-upload-dragging" : ""} ${error ? "case-upload-error" : ""}`}>
-    <input ref={inputRef} className="sr-only" id={id} type="file" accept={caseDocumentConfig.acceptedExtensions} multiple={multiple} onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = ""; }} />
+    <TextInput ref={inputRef} className="sr-only" id={id} type="file" accept={caseDocumentConfig.acceptedExtensions} multiple={multiple} onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = ""; }} />
     <div className="case-upload-dropzone" role="button" tabIndex={0} aria-describedby={error ? `${id}-error` : undefined} onClick={() => inputRef.current?.click()} onKeyDown={handleKeyDown} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
       <span className="payment-upload-icon" aria-hidden="true">↑</span><strong>{files.length ? `${files.length} file${files.length > 1 ? "s" : ""} selected` : "Drop files here or browse"}</strong><span>PDF, JPG, PNG, or WEBP · up to 10 MB each</span>
     </div>

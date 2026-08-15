@@ -275,7 +275,7 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .filter-select-value { overflow: hidden; color: var(--text); font-size: 13px; font-weight: 400; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
 .filter-select summary > svg { flex: 0 0 auto; transform: rotate(90deg); color: var(--muted); }
 .filter-select[open] summary { border-color: var(--brand); box-shadow: 0 0 0 3px #293b8033; }
-.filter-select-menu { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; right: 0; display: grid; gap: 3px; min-width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); box-shadow: 0 12px 24px -16px #0f172a66; }
+.filter-select-menu { position: absolute; z-index: 9999; top: calc(100% + 6px); left: 0; right: 0; display: grid; gap: 3px; min-width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); box-shadow: 0 12px 24px -16px #0f172a66; }
 .filter-select-menu-portal { position: fixed; z-index: 1000; right: auto; min-width: 0; max-width: calc(100vw - 32px); overflow: hidden; animation: popover-enter .14s ease-out both; transform-origin: top left; }
 .filter-select-menu button { width: 100%; min-height: 34px; overflow: hidden; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; text-align: left; text-overflow: ellipsis; white-space: nowrap; font: inherit; font-size: 13px; font-weight: 400; text-transform: capitalize; }
 .filter-select-menu button:hover, .filter-select-menu button:focus-visible, .filter-select-menu .filter-option-selected { background: var(--brand-green-soft); color: var(--brand); outline: none; }
@@ -450,18 +450,40 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .case-create-header, .case-detail-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
 .case-create-header .badge, .case-detail-header .badge { flex: 0 0 auto; margin-bottom: 8px; }
 .case-create-form { display: grid; gap: 16px; }
-.case-form-panel { min-width: 0; }
+.case-form-panel { min-width: 0; overflow: visible; }
 .case-form-body { padding: 4px 20px 20px; }
 .case-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .case-field { min-width: 0; margin-bottom: 16px; }
 .case-field label { display: block; margin-bottom: 8px; color: var(--text); font-size: 13px; font-weight: 700; }
 .case-field label span:not(.required-mark) { color: var(--muted); font-weight: 400; }
-.case-field input, .case-field textarea { display: block; width: 100%; min-width: 0; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; color: var(--text); padding: 10px 12px; font: inherit; }
-.case-field input { min-height: 44px; }
-.case-field textarea { min-height: 44px; resize: vertical; }
+.case-field label .required-mark { color: var(--danger); font-weight: 700; }
+.required-mark { color: var(--danger); font-weight: 700; }
+.toast { position: fixed; top: 20px; left: 50%; z-index: 9999; display: flex; align-items: flex-start; gap: 10px; width: min(420px, calc(100% - 32px)); padding: 13px 38px 16px 13px; border: 0; border-radius: 10px; background: var(--surface); box-shadow: 0 12px 30px #0f172a26; transform: translateX(-50%); }
+.toast-success { border-color: #86efac; }
+.toast-error { border-color: #fca5a5; }
+.toast-pending { border-color: #fcd34d; }
+.toast-icon { display: grid; place-items: center; width: 22px; height: 22px; flex: 0 0 22px; border-radius: 50%; color: white; font-size: 13px; font-weight: 800; }
+.toast-success .toast-icon { background: #16a34a; }
+.toast-error .toast-icon { background: #dc2626; }
+.toast-pending .toast-icon { background: #d97706; }
+.toast-copy { display: grid; gap: 3px; min-width: 0; padding-bottom: 8px; }
+.toast-copy strong { color: var(--text); font-size: 13px; }
+.toast-copy span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.toast-dismiss { position: absolute; top: 10px; right: 9px; display: grid; place-items: center; padding: 5px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+.toast-dismiss:hover { background: var(--surface-subtle); color: var(--text); }
+.toast-progress { position: absolute; right: 12px; bottom: 7px; left: 12px; height: 3px; overflow: hidden; border-radius: 99px; background: var(--surface-subtle); }
+.toast-progress span { display: block; width: 100%; height: 100%; background: currentColor; transform-origin: left center; transition: transform .05s linear; }
+.toast-success .toast-progress span { color: #16a34a; }
+.toast-error .toast-progress span { color: #dc2626; }
+.toast-pending .toast-progress span { color: #d97706; }
+.case-field input, .case-field textarea { display: block; width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: #f8fafc; color: var(--text); padding: 10px 12px; font: inherit; }
+.case-field input { height: 38px; min-height: 38px; }
+.case-field textarea { height: 38px; min-height: 38px; resize: vertical; }
 .case-field input:focus, .case-field textarea:focus { outline: none; border-color: #06b6d4; background: white; box-shadow: 0 0 0 3px #22d3ee33; }
 .case-field-error input, .case-field-error textarea { border-color: var(--danger); background: var(--danger-bg); }
 .case-field-error-message, .case-submit-error { margin: 7px 0 0; color: var(--danger); font-size: 12px; line-height: 1.45; }
+.rejection-reason-error { border-color: var(--danger) !important; background: var(--danger-bg) !important; animation: rejection-shake .5s ease-in-out; }
+@keyframes rejection-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
 .case-documents-panel { overflow: visible; }
 .case-upload-section { padding: 0 20px 22px; }
 .case-upload-section + .case-upload-section { padding-top: 22px; border-top: 1px solid var(--border); }
@@ -469,6 +491,7 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .case-upload-heading h3 { margin-bottom: 4px; }
 .case-upload-heading p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .case-upload-heading h3 span { color: var(--muted); font-size: 13px; font-weight: 400; }
+.case-upload-heading h3 span.required-mark { color: var(--danger); font-weight: 700; }
 .case-required-label, .case-optional-label { flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; font-size: 11px; font-weight: 750; }
 .case-required-label { color: var(--warning); background: var(--warning-bg); }
 .case-optional-label { color: var(--muted); background: var(--surface-subtle); }
