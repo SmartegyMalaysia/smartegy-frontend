@@ -4,8 +4,37 @@ import { createBrowserClient } from "@supabase/ssr";
 // while still sharing the same RPC/table names.
 let browserClient: any = null;
 
+const developerViewStorageKey = "smartegy-developer-view";
+
+export function isDeveloperView() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(developerViewStorageKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function enableDeveloperView() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(developerViewStorageKey, "true");
+  } catch {
+    // Preview mode is optional; continue if browser storage is unavailable.
+  }
+}
+
+export function clearDeveloperView() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(developerViewStorageKey);
+  } catch {
+    // Nothing to clear when browser storage is unavailable.
+  }
+}
+
 export function isSupabaseConfigured() {
-  return process.env.NEXT_PUBLIC_USE_MOCKS !== "true" && Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return !isDeveloperView() && process.env.NEXT_PUBLIC_USE_MOCKS !== "true" && Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
 export function getSupabaseBrowserClient() {

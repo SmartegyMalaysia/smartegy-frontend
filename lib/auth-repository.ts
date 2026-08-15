@@ -1,4 +1,4 @@
-import { getSupabaseBrowserClient, normalizeSupabaseError } from "./supabase-browser";
+import { clearDeveloperView, getSupabaseBrowserClient, normalizeSupabaseError } from "./supabase-browser";
 
 export interface LoginInput {
   email: string;
@@ -77,28 +77,23 @@ export function expireMockPasswordResetForTest() { if (mockResetSession) mockRes
 
 export type AuthResult =
   | { ok: true; message: string }
-  | { ok: false; code: "NOT_CONFIGURED" | "INVALID_INPUT" | "NETWORK_ERROR"; message: string };
+  | { ok: false; code: "NOT_CONFIGURED" | "INVALID_INPUT" | "AUTHENTICATION_FAILED" | "NETWORK_ERROR"; message: string };
 
-/** Replace this implementation with the Supabase Auth adapter when the backend is ready. */
+/** Sign in through the server route so the Supabase session is written to SSR cookies. */
 export async function login(input: LoginInput): Promise<AuthResult> {
   if (!input.email || !input.password) {
     return { ok: false, code: "INVALID_INPUT", message: "Enter your email and password to continue." };
-  }
-
-  const supabase = getSupabaseBrowserClient();
-  if (supabase) {
-    const { error } = await supabase.auth.signInWithPassword({ email: input.email.trim(), password: input.password });
-    if (error) return { ok: false, code: "NETWORK_ERROR", message: normalizeSupabaseError(error).message };
-    return { ok: true, message: "Signed in successfully." };
   }
 
   try {
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify(input),
     });
     const result = (await response.json()) as AuthResult;
+    if (result.ok) clearDeveloperView();
     return result;
   } catch {
     return { ok: false, code: "NETWORK_ERROR", message: "We couldn’t reach the sign-in service. Try again shortly." };

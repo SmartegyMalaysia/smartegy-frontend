@@ -1,12 +1,12 @@
 # Frontend/backend integration status
 
-The frontend uses repository boundaries. Each repository selects a Supabase implementation when `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are configured; otherwise it keeps the existing mock implementation for local UI preview.
+The frontend uses repository boundaries. Each repository selects a Supabase implementation when `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are configured; otherwise it keeps the existing mock implementation for local UI preview. The login form posts to the Next.js `/api/auth/login` route, which exchanges the credentials with Supabase Auth and writes the SSR session cookies.
 
 ## Wired repositories
 
 | Frontend capability | Supabase source | Writes |
 | --- | --- | --- |
-| Authentication | Supabase Auth | password sign-in, reset email, password update, sign-out |
+| Authentication | `/api/auth/login` → Supabase Auth | password sign-in, reset email, password update, sign-out |
 | Registration | `agent_registrations`, registration RPCs, private Storage | OTP, application, profile completion, fee proof, staff review |
 | Cases | `case_overview`, case tables, case RPCs, private Storage | create case, register/upload/finalize documents, submit transition |
 | Dashboard | `case_overview`, `agent_commission_statement`, `agents` | read-only |
@@ -21,6 +21,7 @@ The frontend uses repository boundaries. Each repository selects a Supabase impl
 - Backend case statuses are mapped to the smaller UI status vocabulary where necessary; the database remains authoritative.
 - Agent level enums (`level_1`/`level_2`/`level_3`) map to UI levels `1`/`2`/`3`.
 - The browser never sends a trusted role, commission amount, fee amount, recipient, or upline. Sensitive writes use RPCs and RLS.
+- `Open development preview` enables a tab-scoped mock view for local development; keep this entry point out of production deployments if the preview data should not be exposed.
 
 ## Known contract gaps
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CurrentUser, UserRole } from "./types";
-import { getSupabaseBrowserClient } from "./supabase-browser";
+import { getSupabaseBrowserClient, isDeveloperView } from "./supabase-browser";
 
 const storageKey = "smartegy-preview-role";
 
@@ -16,6 +16,11 @@ export function usePreviewUser(defaultRole: UserRole = "agent") {
   const [role, setRoleState] = useState<UserRole>(defaultRole);
   const [user, setUser] = useState<CurrentUser>(previewUsers[defaultRole]);
   useEffect(() => {
+    if (isDeveloperView()) {
+      const storedRole = window.localStorage.getItem(storageKey) as UserRole | null;
+      if (storedRole && storedRole in previewUsers) { setRoleState(storedRole); setUser(previewUsers[storedRole]); }
+      return;
+    }
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
       let active = true;

@@ -38,22 +38,22 @@ export const supabaseAgentRepository: AgentRepository = {
   async list(actor) {
     if (!permitted(actor)) return errorResult({ code: "42501", message: "Only staff and administrators can view all agents." });
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
-    const { data, error } = await supabase.from("agents").select("*,upline:agents!agents_upline_agent_id_fkey(legal_name)").order("legal_name");
+    const { data, error } = await supabase.from("agents").select("*,upline:agents!upline_agent_id(legal_name)").order("legal_name");
     if (error) return errorResult(error);
     try { return { ok: true, data: await Promise.all((data ?? []).map((row: any) => mapAgent(row, supabase))) }; } catch (error) { return errorResult(error); }
   },
   async getById(actor, agentId) {
     if (!permitted(actor)) return errorResult({ code: "42501", message: "Only staff and administrators can view agent details." });
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
-    const { data, error } = await supabase.from("agents").select("*,upline:agents!agents_upline_agent_id_fkey(legal_name)").eq("id", agentId).single();
+    const { data, error } = await supabase.from("agents").select("*,upline:agents!upline_agent_id(legal_name)").eq("id", agentId).single();
     if (error) return errorResult(error);
     try {
       const agent = await mapAgent(data, supabase);
       const [{ data: sales }, { data: commissions }, { data: uplines }, { data: downlines }] = await Promise.all([
         supabase.from("case_overview").select("*").eq("agent_id", agentId).order("created_at", { ascending: false }),
         supabase.from("agent_commission_statement").select("*").eq("agent_id", agentId).order("due_date"),
-        supabase.from("agents").select("*,upline:agents!agents_upline_agent_id_fkey(legal_name)").eq("id", data.upline_agent_id),
-        supabase.from("agents").select("*,upline:agents!agents_upline_agent_id_fkey(legal_name)").eq("upline_agent_id", agentId),
+        supabase.from("agents").select("*,upline:agents!upline_agent_id(legal_name)").eq("id", data.upline_agent_id),
+        supabase.from("agents").select("*,upline:agents!upline_agent_id(legal_name)").eq("upline_agent_id", agentId),
       ]);
       const mapSale = (row: any) => ({ id: row.id, caseNumber: row.case_number, customerDisplayName: row.customer_name, agentId: row.agent_id, agentName: row.agent_name, status: row.status, paymentStatus: Number(row.outstanding_customer_balance ?? 0) > 0 ? "pending_verification" : "verified", saleAmountSen: row.sale_amount == null ? null : rmToSen(row.sale_amount), submittedAt: row.created_at, updatedAt: row.status_changed_at });
       const mapCommission = (row: any) => ({ id: row.id, commissionNumber: row.id, caseId: row.case_id, caseNumber: row.case_number, recipientId: row.agent_id, recipientName: agent.displayName, recipientKind: row.intended_level === "level_1" ? "level_1_agent" : row.intended_level === "level_2" ? "level_2_agent" : "level_3_agent", entitlementSen: rmToSen(row.amount), firstPaymentSen: row.kind === "initial" ? rmToSen(row.amount) : 0, deferredBalanceSen: row.kind === "deferred" ? rmToSen(row.amount) : 0, paidToDateSen: row.status === "paid" ? rmToSen(row.amount) : 0, nextPaymentDate: row.status === "paid" ? null : row.due_date, nextPaymentSen: row.status === "paid" ? null : rmToSen(row.amount), status: row.status });
@@ -71,7 +71,7 @@ export const supabaseAgentRepository: AgentRepository = {
     if (!permitted(actor)) return errorResult({ code: "42501", message: "Only staff and administrators can request a level change." });
     if (input.direction === "demote") return errorResult({ message: "Demotions are not supported by the backend workflow." });
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
-    const { data: agent, error: agentError } = await supabase.from("agents").select("*,upline:agents!agents_upline_agent_id_fkey(legal_name)").eq("id", input.agentId).single();
+    const { data: agent, error: agentError } = await supabase.from("agents").select("*,upline:agents!upline_agent_id(legal_name)").eq("id", input.agentId).single();
     if (agentError) return errorResult(agentError);
     const requestedLevel = level(agent.current_level) === 1 ? "level_2" : "level_3";
     const { error } = await supabase.rpc("request_agent_promotion", { p_agent_id: input.agentId, p_requested_level: requestedLevel });
@@ -83,7 +83,7 @@ export const supabaseAgentRepository: AgentRepository = {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
     const { error } = await supabase.rpc("review_agent_promotion", { p_request_id: input.requestId, p_approve: input.decision === "approve", p_reason: input.note?.trim() || "Reviewed by administrator" });
     if (error) return errorResult(error);
-    const { data: agent, error: agentError } = await supabase.from("agents").select("*,upline:agents!agents_upline_agent_id_fkey(legal_name)").eq("id", input.agentId).single();
+    const { data: agent, error: agentError } = await supabase.from("agents").select("*,upline:agents!upline_agent_id(legal_name)").eq("id", input.agentId).single();
     if (agentError) return errorResult(agentError);
     return { ok: true, data: await mapAgent(agent, supabase) };
   },
