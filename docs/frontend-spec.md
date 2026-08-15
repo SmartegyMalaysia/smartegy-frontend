@@ -10,6 +10,13 @@ The admin portal can be information-dense. The agent portal should be simpler, w
 
 Use the `interface-design` skill and `.interface-design/system.md` for implementation and review.
 
+### Implementation Conventions
+
+- UI titles, page headings, section headings, dialog titles, and primary action labels must use **Camel Case / Title Case**: capitalise the meaningful words in the title (for example, `Commission Payouts`, `Transaction Reconciliation`, and `Mark Settled`). Do not use sentence case for titles.
+- Reuse the existing shared components for UI elements. Do not add a native HTML/React element directly in a page when an equivalent project component exists (for example, use the shared `Button`, `TextInput`, `Badge`, `DataTable`, `Toast`, or `EmptyState` components).
+- If an equivalent component does not exist, create a reusable component in the shared components directory first. Use that new component on the current page and make future pages reuse it; do not create page-specific duplicates of the same UI pattern.
+- When adding a component, follow the existing component API, styling tokens, accessibility behavior, and state patterns so the component becomes the canonical implementation for that UI pattern.
+
 ## 2. Global Application Structure
 
 ### Primary Navigation

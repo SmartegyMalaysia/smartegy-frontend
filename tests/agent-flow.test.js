@@ -62,6 +62,23 @@ test("staff requests require admin approval before a level changes and create an
   assert.equal(blocked.error.code, "NOT_ELIGIBLE");
 });
 
+test("manual promotions also require admin approval before a level changes", async () => {
+  repository.resetMockAgents();
+  const requested = await repository.agentRepository.manualPromote(staff, { agentId: "agent-002" });
+  assert.equal(requested.ok, true);
+  assert.equal(requested.data.currentLevel, 1);
+  assert.equal(requested.data.levelChangeRequests[0].status, "pending");
+
+  const approvals = await repository.agentRepository.listLevelChangeApprovals(admin);
+  assert.equal(approvals.ok, true);
+  assert.equal(approvals.data[0].id, requested.data.levelChangeRequests[0].id);
+
+  const reviewed = await repository.agentRepository.reviewLevelChange(admin, { agentId: "agent-002", requestId: requested.data.levelChangeRequests[0].id, decision: "approve" });
+  assert.equal(reviewed.ok, true);
+  assert.equal(reviewed.data.currentLevel, 2);
+  assert.equal(reviewed.data.promotionHistory[0].actorId, admin.id);
+});
+
 test("agents cannot request changes and staff cannot approve them", async () => {
   repository.resetMockAgents();
   const result = await repository.agentRepository.requestLevelChange(agent, { agentId: "agent-004", direction: "promote" });

@@ -20,7 +20,7 @@ function breadcrumbFor(pathname: string, restricted: boolean) {
   const match = navigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
   if (!match) return ["Workspace", "Dashboard"];
   if (pathname === match.href) return ["Workspace", match.label];
-  const detailLabel = match.label === "Agents" ? "Agent detail" : match.label === "Registrations" ? "Registration review" : `${match.label.slice(0, -1)} detail`;
+  const detailLabel = match.label === "Agents" ? "Agent Details" : match.label === "Registrations" ? "Registration Review" : `${match.label.slice(0, -1)} Details`;
   return [match.label, detailLabel];
 }
 

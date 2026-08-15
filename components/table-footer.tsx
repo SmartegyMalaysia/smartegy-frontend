@@ -9,7 +9,6 @@ export function TableFooter({
   totalCount,
   onPageChange,
   onExport,
-  exportLabel = "Export",
   pageSize = 5,
 }: {
   currentPage: number;
@@ -18,7 +17,6 @@ export function TableFooter({
   totalCount: number;
   onPageChange: (page: number) => void;
   onExport: () => void;
-  exportLabel?: string;
   pageSize?: number;
 }) {
   const first = visibleCount ? (currentPage - 1) * pageSize + 1 : 0;
@@ -26,7 +24,7 @@ export function TableFooter({
   return <div className="case-table-footer">
     <span className="case-page-summary">Showing {first}–{last} of {totalCount}</span>
     <div className="case-table-actions">
-      <button className="button button-secondary button-sm" type="button" onClick={onExport} disabled={!totalCount}><ExportIcon size={15}/><span>{exportLabel}</span></button>
+      <button className="button button-secondary button-sm" type="button" onClick={onExport} disabled={!totalCount}><ExportIcon size={15}/><span>Export</span></button>
       <div className="pagination" aria-label="Table pagination">
         <button className="pagination-button" type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => onPageChange(currentPage - 1)}>‹</button>
         <span>Page {currentPage} of {totalPages}</span>
