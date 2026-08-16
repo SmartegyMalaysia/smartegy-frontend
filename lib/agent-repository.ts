@@ -3,7 +3,7 @@ import type { AgentLevel, AgentLevelChangeApproval, AgentLevelChangeRequest, Age
 
 type AgentErrorCode = "FORBIDDEN" | "NOT_FOUND" | "NOT_ELIGIBLE" | "CONFLICT";
 export type AgentResult<T> = { ok: true; data: T } | { ok: false; error: { code: AgentErrorCode; message: string } };
-export interface AgentRepository { list(actor: CurrentUser): Promise<AgentResult<AgentSummary[]>>; getById(actor: CurrentUser, agentId: ID): Promise<AgentResult<AgentWorkspaceDetail>>; listLevelChangeApprovals(actor: CurrentUser): Promise<AgentResult<AgentLevelChangeApproval[]>>; requestLevelChange(actor: CurrentUser, input: { agentId: ID; direction: "promote" | "demote"; reason?: string }): Promise<AgentResult<AgentSummary>>; reviewLevelChange(actor: CurrentUser, input: { agentId: ID; requestId: ID; decision: "approve" | "reject"; note?: string }): Promise<AgentResult<AgentSummary>>; }
+export interface AgentRepository { list(actor: CurrentUser): Promise<AgentResult<AgentSummary[]>>; getById(actor: CurrentUser, agentId: ID): Promise<AgentResult<AgentWorkspaceDetail>>; listLevelChangeApprovals(actor: CurrentUser): Promise<AgentResult<AgentLevelChangeApproval[]>>; requestLevelChange(actor: CurrentUser, input: { agentId: ID; direction: "promote" | "demote"; reason?: string }): Promise<AgentResult<AgentSummary>>; manualPromote(actor: CurrentUser, input: { agentId: ID; reason?: string }): Promise<AgentResult<AgentSummary>>; reviewLevelChange(actor: CurrentUser, input: { agentId: ID; requestId: ID; decision: "approve" | "reject"; note?: string }): Promise<AgentResult<AgentSummary>>; }
 
 let agents: AgentSummary[] = structuredClone(mockAgents);
 function permitted(actor: CurrentUser) { return actor.role === "staff" || actor.role === "admin"; }
@@ -38,6 +38,16 @@ export const mockAgentRepository: AgentRepository = {
     if (requestedLevel === null) return fail("NOT_ELIGIBLE", "A Level 1 agent cannot be demoted.");
     const request: AgentLevelChangeRequest = { id: `level-change-${Date.now()}`, agentId: agent.id, previousLevel: agent.currentLevel, requestedLevel, requestedById: actor.id, requestedByDisplayName: actor.displayName, requestedAt: new Date().toISOString(), status: "pending", reviewedById: null, reviewedByDisplayName: null, reviewedAt: null, reason: input.reason?.trim() || null };
     agent.levelChangeRequests.unshift(request); return { ok: true, data: structuredClone(agent) };
+  },
+  async manualPromote(actor, input) {
+    if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can manually promote an agent.");
+    const agent = agents.find((item) => item.id === input.agentId); if (!agent) return fail("NOT_FOUND", "Agent not found.");
+    if (agent.qualification.nextLevel === null) return fail("NOT_ELIGIBLE", "This agent is already at the highest level.");
+    if (agent.levelChangeRequests.some((request) => request.status === "pending")) return fail("CONFLICT", "This agent already has a level-change request awaiting admin review.");
+    const previousLevel = agent.currentLevel; const requestedLevel = agent.qualification.nextLevel;
+    const request: AgentLevelChangeRequest = { id: `level-change-${Date.now()}`, agentId: agent.id, previousLevel, requestedLevel, requestedById: actor.id, requestedByDisplayName: actor.displayName, requestedAt: new Date().toISOString(), status: "pending", reviewedById: null, reviewedByDisplayName: null, reviewedAt: null, reason: input.reason?.trim() || "Manual promotion override." };
+    agent.levelChangeRequests.unshift(request);
+    return { ok: true, data: structuredClone(agent) };
   },
   async reviewLevelChange(actor, input) {
     if (!admin(actor)) return fail("FORBIDDEN", "Only an administrator can approve or reject a level-change request.");

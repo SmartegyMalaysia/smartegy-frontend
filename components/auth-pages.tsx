@@ -1,3 +1,4 @@
+import { TextInput, TextArea } from "./form-controls";
 "use client";
 
 import Link from "next/link";
@@ -35,7 +36,7 @@ export function ForgotPasswordPage() {
 
   return <AuthShell kicker="Password recovery" title="Reset your password" description="Enter your work email and we’ll send instructions to reset your Smartegy password.">
     <form className="auth-form" onSubmit={submit} noValidate>
-      <div className="form-field"><label htmlFor="reset-email">Email address</label><input id="reset-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? "reset-email-error" : undefined} required/>{error && <p id="reset-email-error" className="field-error" role="alert">{error}</p>}</div>
+      <div className="form-field"><label htmlFor="reset-email">Email address</label><TextInput id="reset-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? "reset-email-error" : undefined} required/>{error && <p id="reset-email-error" className="field-error" role="alert">{error}</p>}</div>
       {success && <div className="login-message login-message-info" role="status"><span aria-hidden="true">i</span>{success}</div>}
       {resetPath && <div className="mock-reset-link"><p>Mock preview is enabled for this local build.</p><Link className="button button-secondary" href={resetPath}>Open reset-password preview <Icon name="arrow" size={14}/></Link></div>}
       <button className="login-submit" type="submit" disabled={submitting || cooldown > 0}>{submitting ? "Sending reset link…" : cooldown > 0 ? `Resend available in ${cooldown}s` : "Send reset link"}</button>
@@ -87,5 +88,5 @@ export function ResetPasswordPage() {
 
 function PasswordField({ id, label, value, onChange, visible, onToggle, error }: { id: string; label: string; value: string; onChange: (value: string) => void; visible: boolean; onToggle: () => void; error?: string[] }) {
   const errorId = `${id}-error`;
-  return <div className="form-field"><label htmlFor={id}>{label}</label><div className="password-input"><input id={id} name={id} type={visible ? "text" : "password"} autoComplete="new-password" value={value} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} required/><button className="password-toggle" type="button" onClick={onToggle} aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`} aria-pressed={visible}>{visible ? "Hide" : "Show"}</button></div>{error?.[0] && <p id={errorId} className="field-error" role="alert">{error[0]}</p>}</div>;
+  return <div className="form-field"><label htmlFor={id}>{label}</label><div className="password-input"><TextInput id={id} name={id} type={visible ? "text" : "password"} autoComplete="new-password" value={value} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} required/><button className="password-toggle" type="button" onClick={onToggle} aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`} aria-pressed={visible}>{visible ? "Hide" : "Show"}</button></div>{error?.[0] && <p id={errorId} className="field-error" role="alert">{error[0]}</p>}</div>;
 }
