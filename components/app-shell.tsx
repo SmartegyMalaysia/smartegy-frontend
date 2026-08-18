@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -26,7 +26,14 @@ function breadcrumbFor(pathname: string, restricted: boolean) {
   return [match.label, detailLabel];
 }
 
-export function AppShell({ user, children, onRoleChange, onboardingOnly = false, hideSidebar = false, authLoading = false }: { user: CurrentUser; children: React.ReactNode; onRoleChange: (role: UserRole) => void; onboardingOnly?: boolean; hideSidebar?: boolean; authLoading?: boolean }) {
+const AppShellContext = createContext(false);
+
+export function AppShell(props: { user: CurrentUser; children: React.ReactNode; onRoleChange: (role: UserRole) => void; onboardingOnly?: boolean; hideSidebar?: boolean; authLoading?: boolean }) {
+  const nested = useContext(AppShellContext);
+  return nested ? <>{props.children}</> : <AppShellFrame {...props} />;
+}
+
+function AppShellFrame({ user, children, onRoleChange, onboardingOnly = false, hideSidebar = false, authLoading = false }: { user: CurrentUser; children: React.ReactNode; onRoleChange: (role: UserRole) => void; onboardingOnly?: boolean; hideSidebar?: boolean; authLoading?: boolean }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
@@ -37,7 +44,8 @@ export function AppShell({ user, children, onRoleChange, onboardingOnly = false,
   const links = authLoading || restricted ? [] : navigation.filter((item) => item.roles.includes(user.role));
   const breadcrumb = breadcrumbFor(pathname, authLoading ? false : restricted);
   const nav = <nav aria-label="Primary navigation">{!restricted && <p className="nav-label">Workspace</p>}{links.map((item) => <Link onClick={() => setMobileOpen(false)} className={`nav-link ${pathname === item.href || pathname.startsWith(`${item.href}/`) ? "nav-link-active" : ""}`} href={item.href} key={item.href}><Icon name={item.icon}/><span>{item.label}</span></Link>)}</nav>;
-  return <div className="app-shell" aria-busy={authLoading}>
+  return <AppShellContext.Provider value>
+  <div className="app-shell" aria-busy={authLoading}>
     {!hideSidebar && <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""} ${mobileOpen ? "sidebar-mobile-open" : ""}`}>
       <BrandLogo className="brand" variant="stacked" compactVariant="icon" />
       {nav}
@@ -45,7 +53,8 @@ export function AppShell({ user, children, onRoleChange, onboardingOnly = false,
       {!restricted && !authLoading && <button className="collapse-button" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={() => setCollapsed(!collapsed)}><Icon name="chevron"/><span>{collapsed ? "" : "Collapse sidebar"}</span></button>}
     </aside>}
     {!hideSidebar && mobileOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)}/>}<div className={`shell-main ${hideSidebar ? "shell-main-full" : ""}`}><header className="topbar">{!hideSidebar && <button className="mobile-menu" aria-label="Open navigation" aria-expanded={mobileOpen} title="Open navigation" onClick={() => setMobileOpen(true)}><Icon name="menu"/><span className="mobile-menu-label">Menu</span></button>}<div className="breadcrumb">{breadcrumb[0]} <span>/</span> <strong>{breadcrumb[1]}</strong></div>{authLoading ? <span className="auth-loading-label" aria-live="polite">Loading account…</span> : <UserMenu user={user}/>}</header><main>{children}</main></div>
-  </div>;
+  </div>
+  </AppShellContext.Provider>;
 }
 
 function UserMenu({ user }: { user: CurrentUser }) {

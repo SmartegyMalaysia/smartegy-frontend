@@ -1,10 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, createElement, useContext, useEffect, useState } from "react";
 import type { CurrentUser, UserRole } from "./types";
 import { getSupabaseBrowserClient, isDeveloperView, isSupabaseConfigured } from "./supabase-browser";
 
 const storageKey = "smartegy-preview-role";
+
+type PreviewUserContextValue = {
+  role: UserRole;
+  user: CurrentUser;
+  setRole: (nextRole: UserRole) => void;
+  ready: boolean;
+};
+
+const PreviewUserContext = createContext<PreviewUserContextValue | null>(null);
 
 const previewUsers: Record<UserRole, CurrentUser> = {
   agent: { id: "user-001", role: "agent", displayName: "Aisha Rahman", email: "aisha@smartegy.example", agentId: "agent-001" },
@@ -12,7 +21,7 @@ const previewUsers: Record<UserRole, CurrentUser> = {
   admin: { id: "user-003", role: "admin", displayName: "Mei Tan", email: "mei@smartegy.example", agentId: null },
 };
 
-export function usePreviewUser(defaultRole: UserRole = "agent") {
+function usePreviewUserState(defaultRole: UserRole): PreviewUserContextValue {
   const [role, setRoleState] = useState<UserRole>(defaultRole);
   const [user, setUser] = useState<CurrentUser>(previewUsers[defaultRole]);
   const [ready, setReady] = useState(() => !isSupabaseConfigured());
@@ -57,4 +66,15 @@ export function usePreviewUser(defaultRole: UserRole = "agent") {
     window.localStorage.setItem(storageKey, nextRole); setRoleState(nextRole); setUser(previewUsers[nextRole]);
   }
   return { role, user, setRole, ready };
+}
+
+export function PreviewUserProvider({ children, defaultRole = "agent" }: { children: React.ReactNode; defaultRole?: UserRole }) {
+  const value = usePreviewUserState(defaultRole);
+  return createElement(PreviewUserContext.Provider, { value }, children);
+}
+
+export function usePreviewUser(_defaultRole: UserRole = "agent"): PreviewUserContextValue {
+  const value = useContext(PreviewUserContext);
+  if (!value) throw new Error("usePreviewUser must be used within PreviewUserProvider");
+  return value;
 }

@@ -14,14 +14,24 @@ import { isSupabaseConfigured } from "@/lib/supabase-browser";
 import type { DashboardSnapshot, UserRole } from "@/lib/types";
 
 export default function DashboardPage() {
-  const { role, user, setRole } = usePreviewUser();
+  const { role, user, setRole, ready } = usePreviewUser();
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   useEffect(() => { setPreviewMode(!isSupabaseConfigured()); }, []);
-  useEffect(() => { setLoading(true); setFailed(false); dashboardRepository.getSnapshot(role).then(setSnapshot).catch(() => setFailed(true)).finally(() => setLoading(false)); }, [role, user.id]);
-  return <AppShell user={user} onRoleChange={setRole}><div className="page-content"><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1>{role === "agent" ? `Good morning, ${user.displayName.split(" ")[0]}` : "Operations overview"}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div>{previewMode && <div className="preview-banner"><span className="preview-dot" /><div><strong>Development preview</strong><span> Role switching uses mock data only. Production authorization will be enforced server-side.</span></div></div>}{loading ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <DashboardContent snapshot={snapshot} role={role} />}</div></AppShell>;
+  useEffect(() => {
+    if (!ready) return;
+    let active = true;
+    setLoading(true);
+    setFailed(false);
+    dashboardRepository.getSnapshot(role)
+      .then((nextSnapshot) => { if (active) setSnapshot(nextSnapshot); })
+      .catch(() => { if (active) setFailed(true); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [ready, role, user.id]);
+  return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}><div className="page-content">{!ready ? <LoadingState /> : <><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1>{role === "agent" ? `Good morning, ${user.displayName.split(" ")[0]}` : "Operations overview"}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div>{previewMode && <div className="preview-banner"><span className="preview-dot" /><div><strong>Development preview</strong><span> Role switching uses mock data only. Production authorization will be enforced server-side.</span></div></div>}{loading ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <DashboardContent snapshot={snapshot} role={role} />}</>}</div></AppShell>;
 }
 
 function DashboardContent({ snapshot, role }: { snapshot: DashboardSnapshot; role: UserRole }) {
