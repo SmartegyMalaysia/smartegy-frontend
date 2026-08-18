@@ -6,7 +6,7 @@ export const navigation: NavItem[] = [
   { label: "Agents", href: "/agents", icon: "users", roles: ["staff", "admin"] },
   { label: "Registrations", href: "/registrations", icon: "file", roles: ["staff", "admin"] },
   { label: "Approvals", href: "/approvals", icon: "check", roles: ["admin"] },
-  { label: "Manage Users", href: "/users", icon: "user-settings", roles: ["admin"] },
+  { label: "Users", href: "/users", icon: "user-settings", roles: ["admin"] },
   { label: "Commissions", href: "/commissions", icon: "wallet", roles: ["agent"] },
   { label: "Payouts", href: "/payouts", icon: "wallet", roles: ["staff", "admin"] },
 ];

@@ -12,14 +12,16 @@ import { Icon } from "@/components/icons";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { CaseStatus, DashboardSnapshot, PaymentStatus } from "@/lib/types";
 
-const caseStatuses: Array<CaseStatus | "all"> = ["all", "submitted", "under_review", "pending_payment", "active", "completed"];
+export type CaseQueueFilter = "all" | "new" | "under_review" | "changes_requested" | "quotation_payment" | "installation_monitoring" | "trial_review" | "commission_active" | "completed_cancelled";
+const caseStatuses: CaseQueueFilter[] = ["all", "new", "under_review", "changes_requested", "quotation_payment", "installation_monitoring", "trial_review", "commission_active", "completed_cancelled"];
+const caseStatusLabels: Partial<Record<CaseQueueFilter, string>> = { all: "All case stages", new: "New submissions", under_review: "Under review", changes_requested: "Changes requested", quotation_payment: "Quotation / payment", installation_monitoring: "Installation / monitoring", trial_review: "Trial review", commission_active: "Commission-active", completed_cancelled: "Completed / cancelled" };
 const paymentStatuses: Array<PaymentStatus | "all"> = ["all", "not_recorded", "pending_verification", "verified"];
 const pageSize = 5;
 
 export function CaseQueue({ cases, isAgent, showCount = false, title, description }: { cases: DashboardSnapshot["cases"]; isAgent: boolean; showCount?: boolean; title?: string; description?: string }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<CaseStatus | "all">("all");
+  const [status, setStatus] = useState<CaseQueueFilter>("all");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | "all">("all");
   const [agentFilter, setAgentFilter] = useState("all");
   const [page, setPage] = useState(1);
@@ -27,7 +29,8 @@ export function CaseQueue({ cases, isAgent, showCount = false, title, descriptio
   const filteredCases = cases.filter((item) => {
     const query = search.trim().toLowerCase();
     const matchesSearch = !query || item.caseNumber.toLowerCase().includes(query) || item.customerDisplayName.toLowerCase().includes(query);
-    return matchesSearch && (status === "all" || item.status === status) && (paymentStatus === "all" || item.paymentStatus === paymentStatus) && (agentFilter === "all" || item.agentName === agentFilter);
+    const matchesStage = status === "all" || (status === "new" && ["draft", "submitted"].includes(item.status)) || (status === "under_review" && item.status === "under_review") || (status === "changes_requested" && item.status === "changes_requested") || (status === "quotation_payment" && ["quotation_issued", "awaiting_deposit"].includes(item.status)) || (status === "installation_monitoring" && ["installation_scheduled", "installed_monitoring"].includes(item.status)) || (status === "trial_review" && item.status === "trial_review") || (status === "commission_active" && item.status === "active_installments") || (status === "completed_cancelled" && ["completed", "cancelled"].includes(item.status));
+    return matchesSearch && matchesStage && (paymentStatus === "all" || item.paymentStatus === paymentStatus) && (agentFilter === "all" || item.agentName === agentFilter);
   });
   const totalPages = Math.max(1, Math.ceil(filteredCases.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -51,7 +54,7 @@ export function CaseQueue({ cases, isAgent, showCount = false, title, descriptio
     <div className="panel-header case-table-header"><div><h2>{heading}</h2><p>{supportingText}</p></div>{(isAgent || showCount) && <span className="case-count">{filteredCases.length} of {cases.length} cases</span>}</div>
     <div className="case-filters" aria-label="Case filters">
       <label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); resetPage(); }} placeholder="Case number or customer" /></label>
-      <label><span>Status</span><FilterSelect allLabel="All statuses" value={status} options={caseStatuses} onChange={(value) => { setStatus(value); resetPage(); }} /></label>
+      <label><span>Stage</span><FilterSelect allLabel="All case stages" labels={caseStatusLabels} value={status} options={caseStatuses} onChange={(value) => { setStatus(value); resetPage(); }} /></label>
       <label><span>Payment</span><FilterSelect allLabel="All payment states" value={paymentStatus} options={paymentStatuses} onChange={(value) => { setPaymentStatus(value); resetPage(); }} /></label>
       {!isAgent && <label><span>Agent</span><FilterSelect allLabel="All agents" value={agentFilter} options={agentOptions} onChange={(value) => { setAgentFilter(value); resetPage(); }} /></label>}
       <button className="text-button case-filter-reset" type="button" disabled={!search && status === "all" && paymentStatus === "all" && agentFilter === "all"} onClick={() => { setSearch(""); setStatus("all"); setPaymentStatus("all"); setAgentFilter("all"); resetPage(); }}>Clear filters</button>

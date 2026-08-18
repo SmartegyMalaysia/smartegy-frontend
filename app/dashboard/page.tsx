@@ -10,7 +10,6 @@ import { CaseQueue } from "@/components/case-queue";
 import { dashboardRepository } from "@/lib/mock-repository";
 import { roleLabels } from "@/lib/navigation";
 import { usePreviewUser } from "@/lib/preview-user";
-import { isSupabaseConfigured } from "@/lib/supabase-browser";
 import type { DashboardSnapshot, UserRole } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -18,8 +17,6 @@ export default function DashboardPage() {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
-  useEffect(() => { setPreviewMode(!isSupabaseConfigured()); }, []);
   useEffect(() => {
     if (!ready) return;
     let active = true;
@@ -31,7 +28,7 @@ export default function DashboardPage() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [ready, role, user.id]);
-  return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}><div className="page-content">{!ready ? <LoadingState /> : <><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1>{role === "agent" ? `Good morning, ${user.displayName.split(" ")[0]}` : "Operations overview"}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div>{previewMode && <div className="preview-banner"><span className="preview-dot" /><div><strong>Development preview</strong><span> Role switching uses mock data only. Production authorization will be enforced server-side.</span></div></div>}{loading ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <DashboardContent snapshot={snapshot} role={role} />}</>}</div></AppShell>;
+  return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}><div className="page-content dashboard-page-content">{!ready ? <LoadingState /> : <><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1>{role === "agent" ? `Good morning, ${user.displayName.split(" ")[0]}` : "Operations overview"}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div>{loading ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <DashboardContent snapshot={snapshot} role={role} />}</>}</div></AppShell>;
 }
 
 function DashboardContent({ snapshot, role }: { snapshot: DashboardSnapshot; role: UserRole }) {
@@ -39,7 +36,7 @@ function DashboardContent({ snapshot, role }: { snapshot: DashboardSnapshot; rol
   const activeCases = snapshot.cases.filter((item) => item.status !== "completed");
   const sales = snapshot.cases.reduce((sum, item) => sum + (item.saleAmountSen ?? 0), 0);
   const commissions = snapshot.commissions.reduce((sum, item) => sum + item.entitlementSen, 0);
-  const successfulCases = snapshot.cases.filter((item) => item.status === "completed" || item.status === "active").length;
+  const successfulCases = snapshot.cases.filter((item) => item.status === "completed" || item.status === "active_installments").length;
   const pendingReviews = snapshot.cases.filter((item) => item.status === "submitted" || item.status === "under_review").length;
   const pendingPayments = snapshot.cases.filter((item) => item.paymentStatus === "pending_verification").length;
   const payable = snapshot.commissions.filter((item) => item.status === "scheduled" || item.status === "approved").reduce((sum, item) => sum + item.entitlementSen, 0);

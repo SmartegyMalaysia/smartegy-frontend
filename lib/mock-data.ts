@@ -1,8 +1,8 @@
 import type { AgentLevel, AgentSummary, DashboardSnapshot, UserRole } from "./types";
 export const mockCases = [
-  { id: "case-001", caseNumber: "SMG-00124", customerDisplayName: "Kencana Packaging Sdn Bhd", agentId: "agent-001", agentName: "Aisha Rahman", status: "active" as const, paymentStatus: "verified" as const, saleAmountSen: 2450000, submittedAt: "2026-07-08T02:30:00Z", updatedAt: "2026-08-04T07:00:00Z" },
+  { id: "case-001", caseNumber: "SMG-00124", customerDisplayName: "Kencana Packaging Sdn Bhd", agentId: "agent-001", agentName: "Aisha Rahman", status: "active_installments" as const, paymentStatus: "verified" as const, saleAmountSen: 2450000, submittedAt: "2026-07-08T02:30:00Z", updatedAt: "2026-08-04T07:00:00Z" },
   { id: "case-002", caseNumber: "SMG-00125", customerDisplayName: "Bintang Hardware", agentId: "agent-001", agentName: "Aisha Rahman", status: "under_review" as const, paymentStatus: "pending_verification" as const, saleAmountSen: 1180000, submittedAt: "2026-07-28T06:15:00Z", updatedAt: "2026-08-05T03:20:00Z" },
-  { id: "case-003", caseNumber: "SMG-00126", customerDisplayName: "Lestari Food Industries", agentId: "agent-002", agentName: "Daniel Lim", status: "pending_payment" as const, paymentStatus: "not_recorded" as const, saleAmountSen: 3275000, submittedAt: "2026-07-30T01:05:00Z", updatedAt: "2026-08-03T08:40:00Z" },
+  { id: "case-003", caseNumber: "SMG-00126", customerDisplayName: "Lestari Food Industries", agentId: "agent-002", agentName: "Daniel Lim", status: "awaiting_deposit" as const, paymentStatus: "not_recorded" as const, saleAmountSen: 3275000, submittedAt: "2026-07-30T01:05:00Z", updatedAt: "2026-08-03T08:40:00Z" },
   { id: "case-004", caseNumber: "SMG-00127", customerDisplayName: "Mutiara Office Suites", agentId: "agent-003", agentName: "Nadia Yusuf", status: "submitted" as const, paymentStatus: "not_recorded" as const, saleAmountSen: null, submittedAt: "2026-08-05T09:00:00Z", updatedAt: "2026-08-05T09:00:00Z" },
 ];
 export const mockCommissions = [

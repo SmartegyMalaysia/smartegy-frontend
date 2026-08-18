@@ -24,7 +24,10 @@ const previewUsers: Record<UserRole, CurrentUser> = {
 function usePreviewUserState(defaultRole: UserRole): PreviewUserContextValue {
   const [role, setRoleState] = useState<UserRole>(defaultRole);
   const [user, setUser] = useState<CurrentUser>(previewUsers[defaultRole]);
-  const [ready, setReady] = useState(() => !isSupabaseConfigured());
+  // Keep the first render identical on the server and browser. Configuration,
+  // sessionStorage, and localStorage are browser/runtime state and must only
+  // affect the tree after hydration.
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     if (isDeveloperView()) {
       const storedRole = window.localStorage.getItem(storageKey) as UserRole | null;

@@ -4,7 +4,7 @@ export type ISODateTime = string;
 export type MoneySen = number;
 export type UserRole = "agent" | "staff" | "admin";
 export type AccountStatus = "invited" | "active" | "inactive";
-export type CaseStatus = "submitted" | "under_review" | "pending_payment" | "active" | "completed";
+export type CaseStatus = "draft" | "submitted" | "under_review" | "changes_requested" | "quotation_issued" | "awaiting_deposit" | "installation_scheduled" | "installed_monitoring" | "trial_review" | "active_installments" | "completed" | "cancelled";
 export type PaymentStatus = "not_recorded" | "pending_verification" | "verified";
 export type CommissionStatus = "calculated" | "scheduled" | "approved" | "paid" | "withheld" | "adjusted" | "reversed";
 export type RegistrationStatus = "draft" | "pending_approval" | "active" | "rejected" | "suspended";
@@ -19,9 +19,19 @@ export interface UpdateManageUserInput { displayName: string; phone: string; rol
 export interface CaseSummary { id: ID; caseNumber: string; customerDisplayName: string; agentId: ID; agentName: string; status: CaseStatus; paymentStatus: PaymentStatus; saleAmountSen: MoneySen | null; submittedAt: ISODateTime; updatedAt: ISODateTime; }
 export interface CustomerRecord { id: ID; displayName: string; companyRegistrationNumber: string | null; contactName: string | null; email: string | null; phone: string | null; }
 export interface ServiceRecord { siteAddress: string; electricityAccountNumber: string | null; notes: string | null; }
-export interface CaseDocument { id: ID; caseId: ID; type: DocumentType; fileName: string; mimeType: string; sizeBytes: number; uploadedBy: ID; uploadedAt: ISODateTime; }
+export interface CaseDocument { id: ID; caseId: ID; type: DocumentType; fileName: string; mimeType: string; sizeBytes: number; uploadedBy: ID; uploadedAt: ISODateTime; bucketId?: string; objectPath?: string; visibleToAgent?: boolean; }
 export interface CaseActivity { id: ID; action: string; actorDisplayName: string; occurredAt: ISODateTime; summary: string; }
-export interface CaseDetail extends CaseSummary { customer: CustomerRecord; service: ServiceRecord; documents: CaseDocument[]; activity: CaseActivity[]; }
+export type PaymentScheduleKind = "deposit" | "post_installation" | "installment" | "adjustment";
+export type PaymentScheduleStatus = "scheduled" | "partially_paid" | "paid" | "waived" | "cancelled";
+export type CasePaymentStatus = "pending_verification" | "verified" | "rejected" | "reversed";
+export interface PaymentSchedule { id: ID; caseId: ID; sequence: number; kind: PaymentScheduleKind; dueDate: ISODate; amountDueSen: MoneySen; amountPaidSen: MoneySen; status: PaymentScheduleStatus; }
+export interface CasePayment { id: ID; caseId: ID; amountSen: MoneySen; paymentDate: ISODate; reference: string | null; status: CasePaymentStatus; recordedBy: ID; recordedAt: ISODateTime; verifiedBy: ID | null; verifiedAt: ISODateTime | null; }
+export interface CaseDetail extends CaseSummary { customer: CustomerRecord; service: ServiceRecord; documents: CaseDocument[]; activity: CaseActivity[]; quote?: { saleAmountSen: MoneySen | null; averageMonthlyKwh: number | null; averageTnbRate: number | null; quotedSavingsKwh: number | null; quotedMonthlySavingsSen: MoneySen | null; } | null; verifiedSavings?: { savingsKwh: number | null; monthlySavingsSen: MoneySen | null; verifiedAt: ISODateTime | null; } | null; installationDate?: ISODate | null; monitoringStartedOn?: ISODate | null; trialDecisionOn?: ISODate | null; customerContinues?: boolean | null; installmentTermMonths?: 10 | 20 | null; paymentSchedules?: PaymentSchedule[]; payments?: CasePayment[]; financialDocuments?: Array<{ id: ID; documentNumber: string; type: "invoice" | "receipt"; amountSen: MoneySen; issueDate: ISODate; status: string; createdAt: ISODateTime; }>; commissionIds?: ID[]; }
+export interface UpdateCaseInput { customer?: Partial<Pick<CustomerRecord, "displayName" | "companyRegistrationNumber" | "contactName" | "email" | "phone">>; service?: Partial<Pick<ServiceRecord, "siteAddress" | "notes">>; quote?: Partial<{ saleAmountSen: MoneySen; averageMonthlyKwh: number; averageTnbRate: number; quotedSavingsKwh: number; quotedMonthlySavingsSen: MoneySen }>; }
+export interface GeneratePaymentScheduleInput { depositDue: ISODate; postInstallationDue: ISODate; }
+export interface RecordPaymentInput { amountSen: MoneySen; paymentDate: ISODate; reference?: string | null; }
+export interface VerifyPaymentInput { paymentId: ID; allocations: Array<{ scheduleId: ID; amountSen: MoneySen }>; }
+export interface AcceptTrialInput { installmentStart: ISODate; termMonths: 10 | 20; }
 export interface CaseDocumentInput { type: "electricity_bill" | "supporting_document"; fileName: string; mimeType: string; sizeBytes: number; file?: File; }
 export interface CreateCaseInput { customer: Pick<CustomerRecord, "displayName" | "contactName" | "email" | "phone">; service: Pick<ServiceRecord, "siteAddress" | "notes">; documents: CaseDocumentInput[]; }
 export interface CommissionSummary { id: ID; commissionNumber: string; caseId: ID; caseNumber: string; recipientId: ID | null; recipientName: string; recipientKind: "level_1_agent" | "level_2_agent" | "level_3_agent" | "office"; entitlementSen: MoneySen; firstPaymentSen: MoneySen; deferredBalanceSen: MoneySen; paidToDateSen: MoneySen; nextPaymentDate: ISODate | null; nextPaymentSen: MoneySen | null; status: CommissionStatus; }

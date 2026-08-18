@@ -12,6 +12,9 @@ Use the `interface-design` skill and `.interface-design/system.md` for implement
 
 ### Implementation Conventions
 
+- Prefer the Tailwind CSS color palette for general UI styling and states, using named shades such as `slate-800` (`#1e293b`) and `sky-400` (`#38bdf8`) when a CSS literal is required. Avoid arbitrary one-off colors.
+- Use Smartegy-specific colors such as `--brand`, `--brand-green`, and their related tokens only when the color is intentionally part of Smartegy's brand or a defined semantic state. Do not use the green brand color as a generic active-navigation treatment.
+- Sidebar navigation uses a white active card with a 14–16px radius, a Tailwind `slate-200` border, and a very subtle raised shadow. Active icon and label use Smartegy brand green at roughly 600 weight. Inactive hover uses a full-row Tailwind `slate-100` background without border or shadow, and must never override the active route styling.
 - UI titles, page headings, section headings, dialog titles, and primary action labels must use **Camel Case / Title Case**: capitalise the meaningful words in the title (for example, `Commission Payouts`, `Transaction Reconciliation`, and `Mark Settled`). Do not use sentence case for titles.
 - Reuse the existing shared components for UI elements. Do not add a native HTML/React element directly in a page when an equivalent project component exists (for example, use the shared `Button`, `TextInput`, `Badge`, `DataTable`, `Toast`, or `EmptyState` components).
 - If an equivalent component does not exist, create a reusable component in the shared components directory first. Use that new component on the current page and make future pages reuse it; do not create page-specific duplicates of the same UI pattern.
@@ -24,7 +27,7 @@ Use the `interface-design` skill and `.interface-design/system.md` for implement
 - Dashboard
 - Cases
 - Agents
-- Manage Users (Admin)
+- Users (Admin)
 - Commissions
 - Invoices & Receipts
 - Reports

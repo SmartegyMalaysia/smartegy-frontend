@@ -43,7 +43,7 @@ function AppShellFrame({ user, children, onRoleChange, onboardingOnly = false, h
   const restricted = Boolean(!authLoading && (onboardingOnly || pendingAgent));
   const links = authLoading || restricted ? [] : navigation.filter((item) => item.roles.includes(user.role));
   const breadcrumb = breadcrumbFor(pathname, authLoading ? false : restricted);
-  const nav = <nav aria-label="Primary navigation">{!restricted && <p className="nav-label">Workspace</p>}{links.map((item) => <Link onClick={() => setMobileOpen(false)} className={`nav-link ${pathname === item.href || pathname.startsWith(`${item.href}/`) ? "nav-link-active" : ""}`} href={item.href} key={item.href}><Icon name={item.icon}/><span>{item.label}</span></Link>)}</nav>;
+  const nav = <nav aria-label="Primary navigation" aria-busy={authLoading}>{!restricted && <p className="nav-label">Workspace</p>}{authLoading ? <div className="sidebar-nav-loading" aria-hidden="true"><span /><span /><span /><span /></div> : links.map((item) => <Link onClick={() => setMobileOpen(false)} className={`nav-link ${pathname === item.href || pathname.startsWith(`${item.href}/`) ? "nav-link-active" : ""}`} href={item.href} key={item.href}><Icon name={item.icon}/><span>{item.label}</span></Link>)}</nav>;
   return <AppShellContext.Provider value>
   <div className="app-shell" aria-busy={authLoading}>
     {!hideSidebar && <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""} ${mobileOpen ? "sidebar-mobile-open" : ""}`}>
