@@ -3,6 +3,7 @@ export type ISODate = string;
 export type ISODateTime = string;
 export type MoneySen = number;
 export type UserRole = "agent" | "staff" | "admin";
+export type AccountStatus = "invited" | "active" | "inactive";
 export type CaseStatus = "submitted" | "under_review" | "pending_payment" | "active" | "completed";
 export type PaymentStatus = "not_recorded" | "pending_verification" | "verified";
 export type CommissionStatus = "calculated" | "scheduled" | "approved" | "paid" | "withheld" | "adjusted" | "reversed";
@@ -12,7 +13,9 @@ export type AgentLevel = 1 | 2 | 3;
 export type PayoutSettlementStatus = "pending" | "settled";
 export type RegistrationDocumentType = "payment_proof";
 export type DocumentType = "electricity_bill" | "supporting_document" | "quotation" | "invoice" | "receipt" | "other";
-export interface CurrentUser { id: ID; role: UserRole; displayName: string; email: string | null; agentId: ID | null; accountStatus?: "invited" | "active" | "inactive"; }
+export interface CurrentUser { id: ID; role: UserRole; displayName: string; email: string | null; agentId: ID | null; accountStatus?: AccountStatus; }
+export interface ManageUser { id: ID; displayName: string; email: string | null; phone: string | null; role: UserRole; accountStatus: AccountStatus; agentCode: string | null; lastActiveAt: ISODateTime | null; createdAt: ISODateTime; }
+export interface UpdateManageUserInput { displayName: string; phone: string; role: UserRole; accountStatus: AccountStatus; }
 export interface CaseSummary { id: ID; caseNumber: string; customerDisplayName: string; agentId: ID; agentName: string; status: CaseStatus; paymentStatus: PaymentStatus; saleAmountSen: MoneySen | null; submittedAt: ISODateTime; updatedAt: ISODateTime; }
 export interface CustomerRecord { id: ID; displayName: string; companyRegistrationNumber: string | null; contactName: string | null; email: string | null; phone: string | null; }
 export interface ServiceRecord { siteAddress: string; electricityAccountNumber: string | null; notes: string | null; }
@@ -101,8 +104,8 @@ export interface AgentRegistration {
   id: ID;
   applicationNumber: string;
   profile: RegistrationProfile;
-  referralCode: string;
-  referringAgentId: ID;
+  referralCode: string | null;
+  referringAgentId: ID | null;
   referringAgentName: string;
   registrationStatus: RegistrationStatus;
   feeStatus: RegistrationFeeStatus;

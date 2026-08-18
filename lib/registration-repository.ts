@@ -31,15 +31,15 @@ export const mockRegistrationConfig: RegistrationPaymentConfig = {
 };
 
 const invitations: ReferralInvitation[] = [
-  { id: "invite-001", code: "AISHARAHMAN", referringAgentId: "agent-001", referringAgentName: "Aisha Rahman", expiresAt: null, valid: true },
-  { id: "invite-002", code: "DANIEL2026", referringAgentId: "agent-002", referringAgentName: "Daniel Lim", expiresAt: "2026-12-31T23:59:59Z", valid: true },
+  { id: "invite-001", code: "K7Q2M8", referringAgentId: "agent-001", referringAgentName: "Aisha Rahman", expiresAt: null, valid: true },
+  { id: "invite-002", code: "D4N8LX", referringAgentId: "agent-002", referringAgentName: "Daniel Lim", expiresAt: "2026-12-31T23:59:59Z", valid: true },
 ];
 
 const seedRegistration: AgentRegistration = {
   id: "registration-001",
   applicationNumber: "SMG-REG-0001",
   profile: { fullName: "Nadia Yusuf", email: "nadia@smartegy.example", mobileNumber: "+60123456789" },
-  referralCode: "AISHARAHMAN",
+  referralCode: "K7Q2M8",
   referringAgentId: "agent-001",
   referringAgentName: "Aisha Rahman",
   registrationStatus: "pending_approval",

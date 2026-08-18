@@ -24,6 +24,7 @@ Use the `interface-design` skill and `.interface-design/system.md` for implement
 - Dashboard
 - Cases
 - Agents
+- Manage Users (Admin)
 - Commissions
 - Invoices & Receipts
 - Reports
@@ -63,6 +64,7 @@ Proposed route structure; adjust to the actual Next.js architecture without chan
 | `/cases/[caseId]` | Case detail | All, permission-filtered |
 | `/agents` | Agent list | Staff, Admin |
 | `/agents/[agentId]` | Agent profile and referral details | Permitted users |
+| `/users` | Admin user directory and account access management | Admin |
 | `/registrations` | Registration and RM50 fee-verification queue | Staff, Admin |
 | `/commissions` | Commission list | All, permission-filtered |
 | `/commissions/[commissionId]` | Commission breakdown and schedule | Permitted users |

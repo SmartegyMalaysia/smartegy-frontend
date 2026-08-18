@@ -4,6 +4,7 @@ export function Icon({ name, size = 18 }: { name: string; size?: number }) {
     grid: <><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></>,
     folder: <><path d="M3 6.5h6l2 2h10v9.8A1.7 1.7 0 0 1 19.3 20H4.7A1.7 1.7 0 0 1 3 18.3z"/><path d="M3 8.5h18"/></>,
     users: <><path d="M16 20v-1.6a3.4 3.4 0 0 0-3.4-3.4H6.4A3.4 3.4 0 0 0 3 18.4V20"/><circle cx="9.5" cy="7.5" r="3.5"/><path d="M17 11a3.5 3.5 0 1 0-1.2-6.8M21 20v-1.5a3.4 3.4 0 0 0-2.5-3.3"/></>,
+    "user-settings": <><circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M17.2 14.5a1.7 1.7 0 0 0 2.4 0l.5-.5 1.2 1.2-.5.5a1.7 1.7 0 0 0 0 2.4l.5.5-1.2 1.2-.5-.5a1.7 1.7 0 0 0-2.4 0l-.5.5-1.2-1.2.5-.5a1.7 1.7 0 0 0 0-2.4l-.5-.5 1.2-1.2z"/><circle cx="18.4" cy="16.9" r="1.1"/></>,
     wallet: <><path d="M4 6h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14"/><path d="M21 10h-5a2 2 0 0 0 0 4h5M16 12h.01"/></>,
     file: <><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></>,
     chart: <><path d="M4 19V5M4 19h17"/><path d="m7 15 3-4 3 2 5-7"/></>,

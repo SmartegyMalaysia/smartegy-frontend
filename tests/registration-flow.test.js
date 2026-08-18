@@ -27,7 +27,7 @@ test("mock OTP verification gates application creation and accepts proof without
   assert.equal(invalidOtp.ok, false);
   const verified = await repository.registrationRepository.verifyEmailOtp("new@example.com", "123456");
   assert.equal(verified.ok, true);
-  const created = await repository.registrationRepository.createApplication({ fullName: "New Applicant", email: "new@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "password123", referralCode: "AISHARAHMAN", acceptedTerms: true });
+  const created = await repository.registrationRepository.createApplication({ fullName: "New Applicant", email: "new@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "password123", referralCode: "K7Q2M8", acceptedTerms: true });
   const submitted = await repository.registrationRepository.submitFee(applicant(created.data.id), { registrationId: created.data.id, paymentDate: null, paymentReference: null, paymentRemarks: "Paid via online banking", proof: { fileName: "proof.png", mimeType: "image/png", sizeBytes: 1200 } });
   assert.equal(submitted.ok, true);
   assert.equal(submitted.data.paymentDate, null);
@@ -35,23 +35,23 @@ test("mock OTP verification gates application creation and accepts proof without
 });
 
 test("valid invitation signup locks the confirmed upline and invalid codes fail", async () => {
-  const invitation = await repository.registrationRepository.getInvitation("AISHARAHMAN");
+  const invitation = await repository.registrationRepository.getInvitation("K7Q2M8");
   assert.equal(invitation.ok, true);
-  const created = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "password123", referralCode: "AISHARAHMAN", acceptedTerms: true });
+  const created = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "password123", referralCode: "K7Q2M8", acceptedTerms: true });
   assert.equal(created.ok, true);
   assert.equal(created.data.referringAgentName, "Aisha Rahman");
-  assert.equal(created.data.referralCode, "AISHARAHMAN");
+  assert.equal(created.data.referralCode, "K7Q2M8");
   const invalid = await repository.registrationRepository.getInvitation("NOT-VALID");
   assert.equal(invalid.ok, false);
-  const mismatched = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "different123", referralCode: "AISHARAHMAN", acceptedTerms: true });
+  const mismatched = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "different123", referralCode: "K7Q2M8", acceptedTerms: true });
   assert.equal(mismatched.ok, false);
-  const invalidMobile = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "12345", password: "password123", passwordConfirmation: "password123", referralCode: "AISHARAHMAN", acceptedTerms: true });
+  const invalidMobile = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "12345", password: "password123", passwordConfirmation: "password123", referralCode: "K7Q2M8", acceptedTerms: true });
   assert.equal(invalidMobile.ok, false);
   assert.deepEqual(invalidMobile.error.fieldErrors.mobileNumber, ["Enter a valid mobile number, for example 012345678."]);
 });
 
 test("premature activation is blocked, self-verification is forbidden, and verified payment activates complete applications", async () => {
-  const created = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "password123", referralCode: "AISHARAHMAN", acceptedTerms: true });
+  const created = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "password123", referralCode: "K7Q2M8", acceptedTerms: true });
   const id = created.data.id;
   const actor = applicant(id);
   const premature = await repository.registrationRepository.approveRegistration(staff, { registrationId: id });
@@ -69,7 +69,7 @@ test("premature activation is blocked, self-verification is forbidden, and verif
 });
 
 test("rejected proof can be resubmitted, but pending proof cannot be duplicated", async () => {
-  const created = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "password123", referralCode: "AISHARAHMAN", acceptedTerms: true });
+  const created = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "password123", referralCode: "K7Q2M8", acceptedTerms: true });
   const actor = applicant(created.data.id);
   const first = await repository.registrationRepository.submitFee(actor, { registrationId: created.data.id, paymentDate: "2026-08-09", paymentReference: "WRONG", proof: { fileName: "wrong.png", mimeType: "image/png", sizeBytes: 1000 } });
   assert.equal(first.data.feeStatus, "pending_verification");

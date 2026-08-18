@@ -34,7 +34,7 @@ export function LoginPage() {
     <main className="login-page">
       <section className="login-intro" aria-labelledby="intro-title">
         <div className="login-intro-inner">
-          <BrandLogo className="login-brand" />
+          <BrandLogo className="login-brand" variant="horizontal-tagline" />
           <div className="intro-copy">
             <p className="login-kicker">Operations workspace</p>
             <h1 id="intro-title">Turn energy savings into a simpler operation.</h1>

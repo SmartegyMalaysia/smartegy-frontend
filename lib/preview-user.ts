@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CurrentUser, UserRole } from "./types";
-import { getSupabaseBrowserClient, isDeveloperView } from "./supabase-browser";
+import { getSupabaseBrowserClient, isDeveloperView, isSupabaseConfigured } from "./supabase-browser";
 
 const storageKey = "smartegy-preview-role";
 
@@ -15,10 +15,12 @@ const previewUsers: Record<UserRole, CurrentUser> = {
 export function usePreviewUser(defaultRole: UserRole = "agent") {
   const [role, setRoleState] = useState<UserRole>(defaultRole);
   const [user, setUser] = useState<CurrentUser>(previewUsers[defaultRole]);
+  const [ready, setReady] = useState(() => !isSupabaseConfigured());
   useEffect(() => {
     if (isDeveloperView()) {
       const storedRole = window.localStorage.getItem(storageKey) as UserRole | null;
       if (storedRole && storedRole in previewUsers) { setRoleState(storedRole); setUser(previewUsers[storedRole]); }
+      setReady(true);
       return;
     }
     const supabase = getSupabaseBrowserClient();
@@ -26,9 +28,9 @@ export function usePreviewUser(defaultRole: UserRole = "agent") {
       let active = true;
       const load = async () => {
         const { data: auth } = await supabase.auth.getUser();
-        if (!auth.user || !active) return;
+        if (!auth.user || !active) { if (active) setReady(true); return; }
         const { data: profile } = await supabase.from("profiles").select("id,role,display_name,phone,account_status").eq("id", auth.user.id).maybeSingle();
-        if (!profile || !active) return;
+        if (!profile || !active) { if (active) setReady(true); return; }
         const { data: agent } = await supabase.from("agents").select("id").eq("profile_id", profile.id).maybeSingle();
         const nextUser: CurrentUser = {
           id: profile.id,
@@ -40,6 +42,7 @@ export function usePreviewUser(defaultRole: UserRole = "agent") {
         };
         setRoleState(nextUser.role);
         setUser(nextUser);
+        setReady(true);
       };
       void load();
       const { data: listener } = supabase.auth.onAuthStateChange(() => { void load(); });
@@ -47,10 +50,11 @@ export function usePreviewUser(defaultRole: UserRole = "agent") {
     }
     const storedRole = window.localStorage.getItem(storageKey) as UserRole | null;
     if (storedRole && storedRole in previewUsers) { setRoleState(storedRole); setUser(previewUsers[storedRole]); }
+    setReady(true);
   }, []);
   function setRole(nextRole: UserRole) {
     if (getSupabaseBrowserClient()) return;
     window.localStorage.setItem(storageKey, nextRole); setRoleState(nextRole); setUser(previewUsers[nextRole]);
   }
-  return { role, user, setRole };
+  return { role, user, setRole, ready };
 }

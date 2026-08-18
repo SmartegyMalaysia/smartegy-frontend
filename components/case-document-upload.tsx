@@ -1,6 +1,6 @@
-import { TextInput, TextArea } from "./form-controls";
 "use client";
 
+import { TextInput, TextArea } from "./form-controls";
 import { DragEvent, KeyboardEvent, useRef, useState } from "react";
 import { caseDocumentConfig, validateCaseDocument } from "@/lib/document-config";
 import type { CaseDocumentInput } from "@/lib/types";

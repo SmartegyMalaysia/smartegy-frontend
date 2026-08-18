@@ -1,6 +1,6 @@
-import { TextInput, TextArea } from "./form-controls";
 "use client";
 
+import { TextInput, TextArea } from "./form-controls";
 import { DragEvent, KeyboardEvent, useRef, useState } from "react";
 
 export function PaymentProofUpload({ name = "proof", required = false, error, onFileChange }: { name?: string; required?: boolean; error?: string; onFileChange?: (file: File | null) => void }) {

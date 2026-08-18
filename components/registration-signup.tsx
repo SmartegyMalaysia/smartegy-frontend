@@ -1,6 +1,6 @@
-import { TextInput, TextArea } from "./form-controls";
 "use client";
 
+import { TextInput, TextArea } from "./form-controls";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Badge, ErrorState, LoadingState } from "./ui";
 import { BrandLogo } from "./brand-logo";
@@ -13,12 +13,14 @@ import type { AgentRegistration, CurrentUser, ReferralInvitation } from "@/lib/t
 
 type RegistrationStage = "registration" | "otp_verification" | "payment" | "payment_submitted";
 const flowStorageKey = "smartegy-registration-flow";
-type AccountDetails = { fullName: string; email: string; mobileNumber: string; password: string; passwordConfirmation: string };
+type AccountDetails = { fullName: string; email: string; mobileNumber: string; password: string; passwordConfirmation: string; referralCode: string };
 
 function actorFor(registrationId: string): CurrentUser { return { id: `user-${registrationId}`, role: "agent", displayName: "New applicant", email: null, agentId: registrationId }; }
 
-export function RegistrationSignup({ referralCode }: { referralCode: string }) {
+export function RegistrationSignup({ referralCode }: { referralCode?: string }) {
+  const suppliedReferralCode = referralCode?.trim() ?? "";
   const [invitation, setInvitation] = useState<ReferralInvitation | null>(null);
+  const [referralInput, setReferralInput] = useState(suppliedReferralCode);
   const [registration, setRegistration] = useState<AgentRegistration | null>(null);
   const [stage, setStage] = useState<RegistrationStage>("registration");
   const [applicantEmail, setApplicantEmail] = useState("");
@@ -32,13 +34,14 @@ export function RegistrationSignup({ referralCode }: { referralCode: string }) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [paymentConfig, setPaymentConfig] = useState<RegistrationPaymentConfig>(mockRegistrationConfig);
-  const storageId = useMemo(() => `${flowStorageKey}:${referralCode.toLowerCase()}`, [referralCode]);
+  const storageId = useMemo(() => `${flowStorageKey}:${suppliedReferralCode.toLowerCase()}`, [suppliedReferralCode]);
 
   useEffect(() => {
-    Promise.all([registrationRepository.getInvitation(referralCode), registrationRepository.getPaymentConfig()]).then(async ([result, configResult]) => {
-      if (!result.ok) { setInvitationError(result.error.message); return; }
+    const invitationRequest = suppliedReferralCode ? registrationRepository.getInvitation(suppliedReferralCode) : Promise.resolve(null);
+    Promise.all([invitationRequest, registrationRepository.getPaymentConfig()]).then(async ([result, configResult]) => {
+      if (result && !result.ok) { setInvitationError(result.error.message); return; }
       if (configResult.ok) setPaymentConfig(configResult.data);
-      setInvitation(result.data);
+      if (result?.ok) { setInvitation(result.data); setReferralInput(result.data.code); }
       const saved = sessionStorage.getItem(storageId);
       if (!saved) return;
       try {
@@ -51,7 +54,7 @@ export function RegistrationSignup({ referralCode }: { referralCode: string }) {
         setApplicantEmail(loaded.data.profile.email);
       } catch { sessionStorage.removeItem(storageId); }
     }).catch(() => setFailed(true)).finally(() => setLoading(false));
-  }, [referralCode, storageId]);
+  }, [suppliedReferralCode, storageId]);
 
   useEffect(() => {
     if (!resendCooldown) return;
@@ -77,13 +80,21 @@ export function RegistrationSignup({ referralCode }: { referralCode: string }) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!invitation || submitting) return;
+    if (submitting) return;
     const form = new FormData(event.currentTarget);
     setError(null);
     setFieldErrors({});
 
     if (stage === "registration") {
-      const details = { fullName: String(form.get("fullName") ?? ""), email: String(form.get("email") ?? ""), mobileNumber: String(form.get("mobileNumber") ?? ""), password: String(form.get("password") ?? ""), passwordConfirmation: String(form.get("passwordConfirmation") ?? "") };
+      const referralCodeValue = String(form.get("referralCode") ?? "").trim();
+      let resolvedInvitation = invitation;
+      if (referralCodeValue && (!resolvedInvitation || resolvedInvitation.code.toLowerCase() !== referralCodeValue.toLowerCase())) {
+        const invitationResult = await registrationRepository.getInvitation(referralCodeValue);
+        if (!invitationResult.ok) { setFieldErrors({ referralCode: ["This invitation or referral code is invalid or expired."] }); return; }
+        resolvedInvitation = invitationResult.data;
+        setInvitation(resolvedInvitation);
+      }
+      const details = { fullName: String(form.get("fullName") ?? ""), email: String(form.get("email") ?? ""), mobileNumber: String(form.get("mobileNumber") ?? ""), password: String(form.get("password") ?? ""), passwordConfirmation: String(form.get("passwordConfirmation") ?? ""), referralCode: resolvedInvitation?.code ?? referralCodeValue };
       const accountErrors = validateAccountForm(form);
       if (Object.keys(accountErrors).length) { setError("Check the highlighted fields and try again."); setFieldErrors(accountErrors); return; }
       setAccountDetails(details);
@@ -98,7 +109,7 @@ export function RegistrationSignup({ referralCode }: { referralCode: string }) {
       setSubmitting(true);
       const verified = await registrationRepository.verifyEmailOtp(applicantEmail, otp);
       if (!verified.ok) { setError(verified.error.message); setFieldErrors(verified.error.fieldErrors ?? {}); setSubmitting(false); return; }
-      const created = await registrationRepository.createApplication({ ...accountDetails, referralCode: invitation.code, acceptedTerms: true });
+       const created = await registrationRepository.createApplication({ ...accountDetails, acceptedTerms: true });
       if (created.ok) saveFlow("payment", created.data);
       else { setError(created.error.message); setFieldErrors(created.error.fieldErrors ?? {}); }
       setSubmitting(false);
@@ -127,26 +138,29 @@ export function RegistrationSignup({ referralCode }: { referralCode: string }) {
   const paymentState = stage === "payment" || stage === "payment_submitted";
   const maskedEmail = applicantEmail.replace(/^(.{2}).*(@.*)$/, "$1•••$2");
   return <main className="registration-page">
-    <div className="registration-header"><BrandLogo className="registration-brand" /><p>Already registered? <a href="/">Sign in</a></p></div>
+    <div className="registration-header"><BrandLogo className="registration-brand" variant="horizontal" /><p>Already registered? <a href="/">Sign in</a></p></div>
     <div className="registration-container">
-      {loading ? <LoadingState /> : failed ? <ErrorState /> : invitationError ? <div className="state-card"><div className="state-icon state-icon-danger">!</div><h3>Invitation unavailable</h3><p>{invitationError}</p><a className="button button-secondary" href="/">Return to sign in</a></div> : invitation ? <>
+      {loading ? <LoadingState /> : failed ? <ErrorState /> : invitationError ? <div className="state-card"><div className="state-icon state-icon-danger">!</div><h3>Invitation unavailable</h3><p>{invitationError}</p><a className="button button-secondary" href="/">Return to sign in</a></div> : <>
+        {invitation && <>
         <div className="registration-intro"><p className="eyebrow">Agent registration · {paymentState ? "Step 2 of 2" : "Step 1 of 2"}</p><h1>{paymentState ? "Complete your registration" : "Create your Smartegy account"}</h1><p>{paymentState ? "Make the RM50 transfer, then submit your proof of payment for staff review." : "Set up your account and verify your email to continue."}</p><div className="referral-confirmation"><span className="referral-check" aria-hidden="true">✓</span><div><strong>Referred by {invitation.referringAgentName}</strong><span>Invitation code {invitation.code} · Confirmed upline</span></div><Badge status="verified" /></div></div>
+        </>}
+        {!invitation && <div className="registration-intro"><p className="eyebrow">Agent registration - Step 1 of 2</p><h1>Create your Smartegy account</h1><p>Set up your account and verify your email to continue.</p></div>}
         <form className="registration-card" onSubmit={handleSubmit} noValidate>
           <div className="onboarding-progress" aria-label="Registration progress"><span className={`onboarding-step ${stage === "registration" ? "active" : "completed"}`}><b>1</b> Account &amp; email</span><span className="onboarding-line" /><span className={`onboarding-step ${stage === "otp_verification" ? "active" : stage === "payment" || stage === "payment_submitted" ? "completed" : ""}`}><b>2</b> OTP Verification</span><span className="onboarding-line" /><span className={`onboarding-step ${paymentState ? "active" : ""}`}><b>3</b> Payment proof</span></div>
           {error && <div className="login-message login-message-error" role="alert"><span aria-hidden="true">!</span>{error}</div>}
-          {stage === "registration" && <RegistrationFields fieldErrors={fieldErrors} />}
+          {stage === "registration" && <RegistrationFields fieldErrors={fieldErrors} referralCode={referralInput} referralLocked={Boolean(suppliedReferralCode)} onReferralCodeChange={setReferralInput} />}
           {stage === "otp_verification" && <OtpStep email={maskedEmail} fieldErrors={fieldErrors} resendCooldown={resendCooldown} onResend={resendOtp} />}
           {paymentState && registration && <PaymentStep registration={registration} paymentConfig={paymentConfig} uploadError={uploadError} onUploadChange={setUploadError} />}
           {stage !== "payment_submitted" && <button className="button button-primary registration-submit" type="submit" disabled={submitting}>{submitting ? "Please wait…" : stage === "registration" ? <>Send OTP <Icon name="arrow" size={16} /></> : stage === "otp_verification" ? <>Verify OTP <Icon name="arrow" size={16} /></> : <>Submit payment proof <Icon name="arrow" size={16} /></>}</button>}
           {stage === "payment_submitted" && <div className="payment-submitted-state" role="status"><p className="success-copy">Payment submitted and pending staff verification. Your account will be activated after your registration and payment have been approved.</p></div>}
         </form>
-      </> : null}
+      </>}
     </div>
   </main>;
 }
 
-function RegistrationFields({ fieldErrors }: { fieldErrors: Record<string, string[]> }) {
-  return <><div className="form-section-heading"><h2>Initial information</h2><p>Complete these six details to receive an email OTP.</p></div><div className="registration-form-grid"><Field id="fullName" label="Full name" error={fieldErrors.fullName}><TextInput id="fullName" name="fullName" type="text" autoComplete="name" required /></Field><Field id="email" label="Email address" error={fieldErrors.email}><TextInput id="email" name="email" type="email" autoComplete="email" required /></Field><Field id="mobileNumber" label="Mobile number" error={fieldErrors.mobileNumber}><TextInput id="mobileNumber" name="mobileNumber" type="tel" autoComplete="tel" placeholder="e.g. 012345678" required /></Field><Field id="referralCode" label="Invitation / referral code"><TextInput id="referralCode" value="Confirmed from invitation link" readOnly /></Field><Field id="password" label="Password" error={fieldErrors.password}><TextInput id="password" name="password" type="password" autoComplete="new-password" minLength={8} required /></Field><Field id="passwordConfirmation" label="Confirm password" error={fieldErrors.passwordConfirmation}><TextInput id="passwordConfirmation" name="passwordConfirmation" type="password" autoComplete="new-password" minLength={8} required /></Field></div><p className="field-help">Your confirmed upline cannot be changed by the applicant.</p><label className={`terms-row ${fieldErrors.acceptedTerms ? "terms-row-error" : ""}`}><TextInput name="acceptedTerms" type="checkbox" required aria-describedby={fieldErrors.acceptedTerms ? "acceptedTerms-error" : undefined} /><span>I accept the <a href="#terms">Terms of Use</a> and <a href="#privacy">Privacy Notice</a>.</span></label>{fieldErrors.acceptedTerms && <p id="acceptedTerms-error" className="field-error" role="alert">{fieldErrors.acceptedTerms[0]}</p>}</>;
+function RegistrationFields({ fieldErrors, referralCode, referralLocked, onReferralCodeChange }: { fieldErrors: Record<string, string[]>; referralCode: string; referralLocked: boolean; onReferralCodeChange: (value: string) => void }) {
+  return <><div className="form-section-heading"><h2>Initial information</h2><p>Complete these six details to receive an email OTP.</p></div><div className="registration-form-grid"><Field id="fullName" label="Full name" error={fieldErrors.fullName}><TextInput id="fullName" name="fullName" type="text" autoComplete="name" required /></Field><Field id="email" label="Email address" error={fieldErrors.email}><TextInput id="email" name="email" type="email" autoComplete="email" required /></Field><Field id="mobileNumber" label="Mobile number" error={fieldErrors.mobileNumber}><TextInput id="mobileNumber" name="mobileNumber" type="tel" autoComplete="tel" placeholder="e.g. 012345678" required /></Field><Field id="referralCode" label="Invitation / referral code (optional)" error={fieldErrors.referralCode}><TextInput id="referralCode" name="referralCode" value={referralCode} onChange={(event) => onReferralCodeChange(event.target.value)} readOnly={referralLocked} /><p className="field-help">{referralLocked ? "This referral was supplied by your invitation link." : "Leave blank to register directly with Smartegy."}</p></Field><Field id="password" label="Password" error={fieldErrors.password}><TextInput id="password" name="password" type="password" autoComplete="new-password" minLength={8} required /></Field><Field id="passwordConfirmation" label="Confirm password" error={fieldErrors.passwordConfirmation}><TextInput id="passwordConfirmation" name="passwordConfirmation" type="password" autoComplete="new-password" minLength={8} required /></Field></div><label className={`terms-row ${fieldErrors.acceptedTerms ? "terms-row-error" : ""}`}><TextInput name="acceptedTerms" type="checkbox" required aria-describedby={fieldErrors.acceptedTerms ? "acceptedTerms-error" : undefined} /><span>I accept the <a href="#terms">Terms of Use</a> and <a href="#privacy">Privacy Notice</a>.</span></label>{fieldErrors.acceptedTerms && <p id="acceptedTerms-error" className="field-error" role="alert">{fieldErrors.acceptedTerms[0]}</p>}</>;
 }
 
 function OtpStep({ email, fieldErrors, resendCooldown, onResend }: { email: string; fieldErrors: Record<string, string[]>; resendCooldown: number; onResend: () => void }) {
