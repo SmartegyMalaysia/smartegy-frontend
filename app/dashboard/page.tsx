@@ -14,9 +14,13 @@ import type { DashboardSnapshot, UserRole } from "@/lib/types";
 
 export default function DashboardPage() {
   const { role, user, setRole, ready } = usePreviewUser();
+  const [timeGreeting, setTimeGreeting] = useState("Good morning");
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setTimeGreeting(getTimeGreeting());
+  }, []);
   useEffect(() => {
     if (!ready) return;
     let active = true;
@@ -27,8 +31,15 @@ export default function DashboardPage() {
       .catch(() => { if (active) setFailed(true); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [ready, user]);
-  return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}><div className="page-content dashboard-page-content">{!ready ? <LoadingState /> : <><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1>{role === "agent" ? `Good morning, ${user.displayName.split(" ")[0]}` : "Operations overview"}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div>{loading ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <DashboardContent snapshot={snapshot} role={role} actor={user} />}</>}</div></AppShell>;
+  }, [ready, role, user.id]);
+  return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}><div className="page-content dashboard-page-content">{!ready ? <LoadingState /> : <><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1 className={timeGreeting === "Good evening" ? "dashboard-greeting-evening" : undefined}>{timeGreeting}, {user.displayName.split(" ")[0]}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div>{loading ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <DashboardContent snapshot={snapshot} role={role} />}</>}</div></AppShell>;
+}
+
+function getTimeGreeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }
 
 function DashboardContent({ snapshot, role, actor }: { snapshot: DashboardSnapshot; role: UserRole; actor: import("@/lib/types").CurrentUser }) {
