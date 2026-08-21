@@ -75,19 +75,21 @@ Detailed differences between Staff and Admin must be confirmed before production
 6. Staff update the case as it moves through quotation, acceptance, installation, payment, and completion.
 7. Related invoices, receipts, payments, and commissions are linked to the case.
 
-Proposed case statuses:
+Case statuses:
 
-- `submitted`
+- `draft`
 - `under_review`
-- `quotation_prepared`
-- `pending_customer_acceptance`
-- `pending_installation`
-- `pending_payment`
-- `active`
+- `changes_requested`
+- `quotation_issued`
+- `awaiting_deposit`
+- `installation_scheduled`
+- `installed_monitoring`
+- `trial_review`
+- `active_installments`
 - `completed`
 - `cancelled`
 
-The final list and allowed transitions require client confirmation before backend enforcement.
+Submission moves a case directly from `draft` to `under_review`; completion happens automatically after all instalments are paid.
 
 ### 5.2 Customer Payment Verification
 

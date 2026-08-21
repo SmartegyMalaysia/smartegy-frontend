@@ -24,6 +24,7 @@ export function RegistrationReviewPage({ applicationNumber }: { applicationNumbe
   const [action, setAction] = useState<ReviewAction | null>(null);
   const [paymentReason, setPaymentReason] = useState("");
   const [verification, setVerification] = useState<VerifyRegistrationFeeInput | null>(null);
+  useEffect(() => { setAction(null); setVerification(null); setPaymentReason(""); }, [applicationNumber]);
   const load = useCallback(async () => { setLoading(true); setError(null); const result = await registrationRepository.getByApplicationNumber(user, applicationNumber); if (result.ok) setRegistration(result.data); else setError(result.error.message); setLoading(false); }, [applicationNumber, user]);
   useEffect(() => { void load(); }, [load]);
   async function run(resultPromise: Promise<RegistrationActionResult<AgentRegistration>>, success: string) { const result = await resultPromise; if (result.ok) { setRegistration(result.data); setToast({ title: "Action completed", subtitle: success, tone: "success" }); setAction(null); setPaymentReason(""); } else setToast({ title: "Action failed", subtitle: result.error.message, tone: "error" }); }

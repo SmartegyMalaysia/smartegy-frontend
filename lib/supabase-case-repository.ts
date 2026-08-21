@@ -6,6 +6,18 @@ function failure<T>(error: { code?: string | null; message?: string | null }): C
 function moneyToSen(value: unknown) { return value == null ? null : Math.round(Number(value) * 100); }
 function moneyToRm(value: number | null | undefined) { return value == null ? null : value / 100; }
 function status(value: string) { return value as CaseStatus; }
+function automaticAllocations(schedules: CaseDetail["paymentSchedules"], amountSen: number) {
+  let remaining = amountSen;
+  const allocations: Array<{ scheduleId: ID; amountSen: number }> = [];
+  for (const schedule of schedules ?? []) {
+    const balance = schedule.amountDueSen - schedule.amountPaidSen;
+    if (balance <= 0 || remaining <= 0) continue;
+    const amount = Math.min(balance, remaining);
+    allocations.push({ scheduleId: schedule.id, amountSen: amount });
+    remaining -= amount;
+  }
+  return remaining === 0 ? allocations : null;
+}
 
 async function loadCase(caseId: string): Promise<CaseDetail> {
   const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error("Supabase is not configured");
@@ -30,9 +42,9 @@ async function loadCase(caseId: string): Promise<CaseDetail> {
   return {
     id: row.id, caseNumber: row.case_number, customerDisplayName: row.customer_name, agentId: row.agent_id, agentName: row.agent_name, status: status(row.status), paymentStatus: scheduleRows.length ? (outstanding <= 0 ? "verified" : "pending_verification") : "not_recorded", saleAmountSen: moneyToSen(row.sale_amount), submittedAt: row.created_at, updatedAt: row.status_changed_at,
     customer: { id: baseCase.customer_id, displayName: row.customer_name, companyRegistrationNumber: row.registration_number, contactName: row.contact_name, email: customer?.email ?? null, phone: customer?.phone ?? null },
-    service: { siteAddress: customer?.site_address ?? customer?.billing_address ?? "", electricityAccountNumber: null, notes: null },
+    service: { siteAddress: customer?.site_address ?? customer?.billing_address ?? "", electricityAccountNumber: null, notes: baseCase.service_notes ?? null },
     documents: docs,
-    activity: (history ?? []).map((event: any) => ({ id: String(event.id), action: "status_changed", actorDisplayName: event.changed_by ?? "System", occurredAt: event.changed_at, summary: `${event.from_status ?? "Created"} → ${event.to_status}${event.reason ? ` — ${event.reason}` : ""}` })),
+    activity: (history ?? []).map((event: any) => ({ id: String(event.id), action: "status_changed", actorDisplayName: event.changed_by ?? "System", occurredAt: event.changed_at, summary: `${event.from_status ?? "Created"} → ${event.to_status}${event.reason ? ` — ${event.reason}` : ""}`, reason: event.reason ?? null })),
     quote: { saleAmountSen: moneyToSen(row.sale_amount), averageMonthlyKwh: baseCase.average_monthly_kwh == null ? null : Number(baseCase.average_monthly_kwh), averageTnbRate: baseCase.average_tnb_rate == null ? null : Number(baseCase.average_tnb_rate), quotedSavingsKwh: baseCase.quoted_savings_kwh == null ? null : Number(baseCase.quoted_savings_kwh), quotedMonthlySavingsSen: moneyToSen(baseCase.quoted_monthly_savings_rm) },
     verifiedSavings: { savingsKwh: baseCase.verified_savings_kwh == null ? null : Number(baseCase.verified_savings_kwh), monthlySavingsSen: moneyToSen(baseCase.verified_monthly_savings_rm), verifiedAt: baseCase.savings_verified_at ?? null },
     installationDate: baseCase.installation_date, monitoringStartedOn: baseCase.monitoring_started_on, trialDecisionOn: baseCase.trial_decision_on, customerContinues: baseCase.customer_continues, installmentTermMonths: baseCase.installment_term_months,
@@ -64,16 +76,46 @@ export const supabaseCasesRepository: CasesRepository = {
   async getById(_actor, caseId) { try { return { ok: true, data: await loadCase(caseId) }; } catch (error) { return failure(error as any); } },
   async create(actor, input: CreateCaseInput, onUploadProgress) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" }); if (!actor.agentId) return failure<CaseDetail>({ code: "42501", message: "An active Agent account is required." });
-    const { data: created, error } = await supabase.rpc("create_case", { p_customer: { legal_name: input.customer.displayName, contact_name: input.customer.contactName || input.customer.displayName, email: input.customer.email, phone: input.customer.phone, billing_address: input.service.siteAddress || "Not provided", site_address: input.service.siteAddress }, p_case: {}, p_agent_id: actor.agentId }); if (error) return failure(error); const caseId = (created as any).id; onUploadProgress?.(10);
+    const { data: created, error } = await supabase.rpc("create_case", { p_customer: { legal_name: input.customer.displayName, contact_name: input.customer.contactName || input.customer.displayName, email: input.customer.email, phone: input.customer.phone, billing_address: input.service.siteAddress || "Not provided", site_address: input.service.siteAddress, service_notes: input.service.notes }, p_case: {}, p_agent_id: actor.agentId }); if (error) return failure(error); const caseId = (created as any).id; onUploadProgress?.(10);
     for (let index = 0; index < input.documents.length; index += 1) { const document = input.documents[index]; const { data: registered, error: registerError } = await supabase.rpc("register_case_document", { p_case_id: caseId, p_type: document.type === "supporting_document" ? "supporting" : "electricity_bill", p_filename: document.fileName, p_mime_type: document.mimeType, p_visible_to_agent: true }); if (registerError) return failure(registerError); const metadata = (registered as any[])[0] ?? registered as any; if (!document.file) return failure({ message: `File data is missing for ${document.fileName}.` }); const { error: uploadError } = await supabase.storage.from(metadata.bucket_id).upload(metadata.object_path, document.file, { contentType: document.mimeType, upsert: false }); if (uploadError) return failure(uploadError); const { error: finalizeError } = await supabase.rpc("finalize_case_document", { p_document_id: metadata.document_id ?? metadata.id, p_size_bytes: document.sizeBytes }); if (finalizeError) return failure(finalizeError); onUploadProgress?.(20 + Math.round(((index + 1) / input.documents.length) * 75)); }
-    const transitioned = await supabase.rpc("transition_case", { p_case_id: caseId, p_to: "submitted", p_reason: null }); if (transitioned.error) return failure(transitioned.error); return { ok: true, data: await loadCase(caseId) };
+    const transitioned = await supabase.rpc("transition_case", { p_case_id: caseId, p_to: "under_review", p_reason: null }); if (transitioned.error) return failure(transitioned.error); return { ok: true, data: await loadCase(caseId) };
   },
-  async update(_actor, caseId, input: UpdateCaseInput) { const customer = input.customer ?? {}; const quote = input.quote ?? {}; return rpcCase(_actor, "update_case_details", { p_case_id: caseId, p_customer: { legal_name: customer.displayName, registration_number: customer.companyRegistrationNumber, contact_name: customer.contactName, email: customer.email, phone: customer.phone, site_address: input.service?.siteAddress }, p_case: { ...(quote.saleAmountSen == null ? {} : { sale_amount: moneyToRm(quote.saleAmountSen) }), ...(quote.averageMonthlyKwh == null ? {} : { average_monthly_kwh: quote.averageMonthlyKwh }), ...(quote.averageTnbRate == null ? {} : { average_tnb_rate: quote.averageTnbRate }), ...(quote.quotedSavingsKwh == null ? {} : { quoted_savings_kwh: quote.quotedSavingsKwh }), ...(quote.quotedMonthlySavingsSen == null ? {} : { quoted_monthly_savings_rm: moneyToRm(quote.quotedMonthlySavingsSen) }) } }, caseId); },
+  async update(_actor, caseId, input: UpdateCaseInput) { const customer = input.customer ?? {}; const quote = input.quote ?? {}; return rpcCase(_actor, "update_case_details", { p_case_id: caseId, p_customer: { legal_name: customer.displayName, registration_number: customer.companyRegistrationNumber, contact_name: customer.contactName, email: customer.email, phone: customer.phone, site_address: input.service?.siteAddress }, p_case: { ...(input.service?.notes == null ? {} : { service_notes: input.service.notes }), ...(quote.saleAmountSen == null ? {} : { sale_amount: moneyToRm(quote.saleAmountSen) }), ...(quote.averageMonthlyKwh == null ? {} : { average_monthly_kwh: quote.averageMonthlyKwh }), ...(quote.averageTnbRate == null ? {} : { average_tnb_rate: quote.averageTnbRate }), ...(quote.quotedSavingsKwh == null ? {} : { quoted_savings_kwh: quote.quotedSavingsKwh }), ...(quote.quotedMonthlySavingsSen == null ? {} : { quoted_monthly_savings_rm: moneyToRm(quote.quotedMonthlySavingsSen) }) } }, caseId); },
+  async deleteCase(_actor, caseId) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return failure<{ id: string }>({ message: "Supabase is not configured" });
+    const { data: documents, error: documentsError } = await supabase.from("case_documents").select("bucket_id,object_path").eq("case_id", caseId);
+    if (documentsError) return failure<{ id: string }>(documentsError);
+    const { data, error } = await supabase.rpc("delete_case", { p_case_id: caseId });
+    if (error) return failure<{ id: string }>(error);
+    for (const bucket of Array.from(new Set((documents ?? []).map((document: any) => document.bucket_id)))) {
+      const paths = (documents ?? []).filter((document: any) => document.bucket_id === bucket).map((document: any) => document.object_path);
+      if (!paths.length) continue;
+      await supabase.storage.from(bucket).remove(paths);
+    }
+    return { ok: true, data: { id: (data as string | null) ?? caseId } };
+  },
   async transition(_actor, caseId, to, reason) { return rpcCase(_actor, "transition_case", { p_case_id: caseId, p_to: to, p_reason: reason ?? null }, caseId); },
   async requestChanges(actor, caseId, reason) { return this.transition(actor, caseId, "changes_requested", reason); },
   async cancel(actor, caseId, reason) { return this.transition(actor, caseId, "cancelled", reason); },
   async generatePaymentSchedule(_actor, caseId, input: GeneratePaymentScheduleInput) { return rpcCase(_actor, "generate_initial_payment_schedule", { p_case_id: caseId, p_deposit_due: input.depositDue, p_post_installation_due: input.postInstallationDue }, caseId); },
   async recordPayment(_actor, caseId, input: RecordPaymentInput) { return rpcCase(_actor, "record_payment", { p_case_id: caseId, p_amount: input.amountSen / 100, p_paid_on: input.paymentDate, p_reference: input.reference ?? null, p_proof_document_id: null }, caseId); },
+  async recordAndVerifyPayment(actor, caseId, input: RecordPaymentInput) {
+    let current: CaseDetail;
+    try { current = await loadCase(caseId); } catch (error) { return failure<CaseDetail>(error as any); }
+    const allocations = automaticAllocations(current.paymentSchedules, input.amountSen);
+    if (!allocations) return failure<CaseDetail>({ code: "VALIDATION_ERROR", message: "Payment amount exceeds the outstanding schedule balance." });
+    const pending = current.payments?.find((payment) => payment.status === "pending_verification");
+    if (pending) {
+      if (pending.amountSen !== input.amountSen) return failure<CaseDetail>({ code: "VALIDATION_ERROR", message: "The pending payment amount cannot be changed after it has been recorded." });
+      return this.verifyPayment(actor, { paymentId: pending.id, allocations });
+    }
+    const recorded = await this.recordPayment(actor, caseId, input);
+    if (!recorded.ok) return recorded;
+    const payment = recorded.data.payments?.find((item) => item.status === "pending_verification");
+    if (!payment) return failure<CaseDetail>({ message: "The payment could not be prepared for confirmation." });
+    return this.verifyPayment(actor, { paymentId: payment.id, allocations });
+  },
   async verifyPayment(_actor, input: VerifyPaymentInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" }); const { data: payment, error } = await supabase.rpc("verify_payment", { p_payment_id: input.paymentId, p_allocations: input.allocations.map((allocation) => ({ schedule_id: allocation.scheduleId, amount: allocation.amountSen / 100 })) }); if (error) return failure(error); const paymentCase = (payment as any)?.case_id; if (!paymentCase) return failure<CaseDetail>({ message: "Verified payment did not return its case." }); return { ok: true, data: await loadCase(paymentCase) }; },
   async recordInstallation(_actor, caseId, installationDate) { return rpcCase(_actor, "record_installation", { p_case_id: caseId, p_installation_date: installationDate }, caseId); },
   async verifySavings(_actor, caseId, savingsKwh, monthlySavingsSen) { return rpcCase(_actor, "verify_case_savings", { p_case_id: caseId, p_savings_kwh: savingsKwh, p_monthly_savings_rm: monthlySavingsSen / 100 }, caseId); },

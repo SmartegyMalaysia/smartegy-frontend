@@ -1,14 +1,14 @@
 "use client";
 
-import { TextInput, TextArea } from "./form-controls";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "./app-shell";
+import { TextInput } from "./form-controls";
 import { Badge, EmptyState, ErrorState, LoadingState, PermissionDenied } from "./ui";
 import { DataTable } from "./data-table";
 import { ExportIcon } from "./export-icon";
 import { FilterSelect } from "./filter-select";
-import { DatePicker } from "./date-picker";
+import { DateRangePicker } from "./date-range-picker";
 import { registrationRepository } from "@/lib/registration-repository";
 import { usePreviewUser } from "@/lib/preview-user";
 import type { AgentRegistration, RegistrationFeeStatus, RegistrationQueueQuery, RegistrationStatus } from "@/lib/types";
@@ -40,12 +40,13 @@ export function RegistrationQueuePage() {
 }
 
 function QueueFilters({ query, update, reset, hasFilters }: { query: RegistrationQueueQuery; update: (key: keyof RegistrationQueueQuery, value: string) => void; reset: () => void; hasFilters: boolean }) {
-  return <div className="case-filters registration-case-filters" aria-label="Registration queue filters"><label><span>Search</span><TextInput type="search" value={query.search ?? ""} onChange={(event) => update("search", event.target.value)} placeholder="Application, name, email, mobile, or referrer" /></label><label><span>Registration</span><FilterSelect allLabel="All registration statuses" value={query.registrationStatus ?? "all"} options={registrationStatuses} onChange={(value) => update("registrationStatus", value)} /></label><label><span>Fee</span><FilterSelect allLabel="All fee statuses" value={query.feeStatus ?? "all"} options={feeStatuses} onChange={(value) => update("feeStatus", value)} /></label><label><span>Profile</span><FilterSelect allLabel="All profile states" value={query.profileComplete ?? "all"} options={profileStatuses} labels={{ all: "All profiles", complete: "Complete", incomplete: "Incomplete" }} onChange={(value) => update("profileComplete", value)} /></label><div className="commission-filter-field"><span>Submitted from</span><DatePicker id="registration-submitted-from" value={query.submittedFrom ?? ""} placeholder="DD/MM/YYYY" onChange={(value) => update("submittedFrom", value)} /></div><div className="commission-filter-field"><span>Submitted to</span><DatePicker id="registration-submitted-to" value={query.submittedTo ?? ""} placeholder="DD/MM/YYYY" onChange={(value) => update("submittedTo", value)} /></div><button className="text-button case-filter-reset" type="button" onClick={reset} disabled={!hasFilters}>Clear filters</button></div>;
+  return <div className="case-filters registration-case-filters" aria-label="Registration queue filters"><label><span>Search</span><TextInput type="search" value={query.search ?? ""} onChange={(event) => update("search", event.target.value)} placeholder="Application, name, email, mobile, or referrer" /></label><label><span>Registration</span><FilterSelect allLabel="All registration statuses" value={query.registrationStatus ?? "all"} options={registrationStatuses} onChange={(value) => update("registrationStatus", value)} /></label><label><span>Fee</span><FilterSelect allLabel="All fee statuses" value={query.feeStatus ?? "all"} options={feeStatuses} onChange={(value) => update("feeStatus", value)} /></label><label><span>Profile</span><FilterSelect allLabel="All profile states" value={query.profileComplete ?? "all"} options={profileStatuses} labels={{ all: "All profiles", complete: "Complete", incomplete: "Incomplete" }} onChange={(value) => update("profileComplete", value)} /></label><DateRangePicker id="registration-submitted-range" title="Submitted date" from={query.submittedFrom ?? ""} to={query.submittedTo ?? ""} onFromChange={(value) => update("submittedFrom", value)} onToChange={(value) => update("submittedTo", value)} /><button className="text-button case-filter-reset" type="button" onClick={reset} disabled={!hasFilters}>Clear filters</button></div>;
 }
 
 function ReadinessBadge({ complete, completeLabel, incompleteLabel }: { complete: boolean; completeLabel: string; incompleteLabel: string }) { return <span className={`badge ${complete ? "badge-success" : "badge-warning"}`}><span className="badge-dot" aria-hidden="true" />{complete ? completeLabel : incompleteLabel}</span>; }
+
 function RegistrationRow({ registration }: { registration: AgentRegistration }) {
   const router = useRouter();
   const open = () => router.push(`/registrations/${encodeURIComponent(registration.applicationNumber)}`);
-  return <tr className="case-table-row" tabIndex={0} role="link" aria-label={`Review registration for ${registration.profile.fullName}`} onClick={open} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }}><td><span className="table-primary">{registration.applicationNumber}</span></td><td>{registration.profile.fullName}</td><td>{registration.profile.mobileNumber}</td><td>{registration.profile.email}</td><td>{registration.referringAgentName}</td><td><Badge status={registration.feeStatus}/></td><td><ReadinessBadge complete={registration.profileComplete} completeLabel="Complete" incompleteLabel="Incomplete"/></td></tr>;
+  return <tr className="case-table-row" tabIndex={0} role="link" aria-label={`Review registration for ${registration.profile.fullName}`} onClick={open} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }}><td><span className="table-primary">{registration.applicationNumber}</span></td><td>{registration.profile.fullName}</td><td>{registration.profile.mobileNumber}</td><td>{registration.profile.email}</td><td>{registration.referringAgentName}</td><td><Badge status={registration.feeStatus} /></td><td><ReadinessBadge complete={registration.profileComplete} completeLabel="Complete" incompleteLabel="Incomplete" /></td></tr>;
 }

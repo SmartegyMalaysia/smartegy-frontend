@@ -28,7 +28,7 @@ test("case submission requires the latest electricity bill", async () => {
 test("agent can submit with only the required bill and stores its metadata", async () => {
   const result = await repository.mockCasesRepository.create(agent, input([{ type: "electricity_bill", fileName: "bill.pdf", mimeType: "application/pdf", sizeBytes: 1200 }]));
   assert.equal(result.ok, true);
-  assert.equal(result.data.status, "submitted");
+  assert.equal(result.data.status, "under_review");
   assert.equal(result.data.documents.length, 1);
   assert.equal(result.data.documents[0].type, "electricity_bill");
 });

@@ -32,7 +32,7 @@ export default function DashboardPage() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [ready, role, user.id]);
-  return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}><div className="page-content dashboard-page-content">{!ready ? <LoadingState /> : <><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1 className={timeGreeting === "Good evening" ? "dashboard-greeting-evening" : undefined}>{timeGreeting}, {user.displayName.split(" ")[0]}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div>{loading ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <DashboardContent snapshot={snapshot} role={role} />}</>}</div></AppShell>;
+  return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}><div className="page-content dashboard-page-content">{!ready ? <LoadingState /> : <><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1 className="dashboard-greeting">{timeGreeting}, {user.displayName.split(" ")[0]}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div>{loading && !snapshot ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <div aria-busy={loading}><DashboardContent snapshot={snapshot} role={role} actor={user} /></div>}</>}</div></AppShell>;
 }
 
 function getTimeGreeting(date = new Date()) {
@@ -48,7 +48,7 @@ function DashboardContent({ snapshot, role, actor }: { snapshot: DashboardSnapsh
   const sales = snapshot.cases.reduce((sum, item) => sum + (item.saleAmountSen ?? 0), 0);
   const commissions = snapshot.commissions.reduce((sum, item) => sum + item.entitlementSen, 0);
   const successfulCases = snapshot.cases.filter((item) => item.status === "completed" || item.status === "active_installments").length;
-  const pendingReviews = snapshot.cases.filter((item) => item.status === "submitted" || item.status === "under_review").length;
+  const pendingReviews = snapshot.cases.filter((item) => item.status === "under_review").length;
   const pendingPayments = snapshot.cases.filter((item) => item.paymentStatus === "pending_verification").length;
   const payable = snapshot.commissions.filter((item) => item.status === "scheduled" || item.status === "approved").reduce((sum, item) => sum + item.entitlementSen, 0);
   const paid = snapshot.commissions.filter((item) => item.status === "paid").reduce((sum, item) => sum + item.paidToDateSen, 0);

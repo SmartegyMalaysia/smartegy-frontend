@@ -4,7 +4,7 @@ export type ISODateTime = string;
 export type MoneySen = number;
 export type UserRole = "agent" | "staff" | "admin";
 export type AccountStatus = "invited" | "active" | "inactive";
-export type CaseStatus = "draft" | "submitted" | "under_review" | "changes_requested" | "quotation_issued" | "awaiting_deposit" | "installation_scheduled" | "installed_monitoring" | "trial_review" | "active_installments" | "completed" | "cancelled";
+export type CaseStatus = "draft" | "under_review" | "changes_requested" | "quotation_issued" | "awaiting_deposit" | "installation_scheduled" | "installed_monitoring" | "trial_review" | "active_installments" | "completed" | "cancelled";
 export type PaymentStatus = "not_recorded" | "pending_verification" | "verified";
 export type CommissionStatus = "calculated" | "scheduled" | "approved" | "paid" | "withheld" | "adjusted" | "reversed";
 export type RegistrationStatus = "draft" | "pending_approval" | "active" | "rejected" | "suspended";
@@ -20,7 +20,7 @@ export interface CaseSummary { id: ID; caseNumber: string; customerDisplayName: 
 export interface CustomerRecord { id: ID; displayName: string; companyRegistrationNumber: string | null; contactName: string | null; email: string | null; phone: string | null; }
 export interface ServiceRecord { siteAddress: string; electricityAccountNumber: string | null; notes: string | null; }
 export interface CaseDocument { id: ID; caseId: ID; type: DocumentType; fileName: string; mimeType: string; sizeBytes: number; uploadedBy: ID; uploadedAt: ISODateTime; bucketId?: string; objectPath?: string; visibleToAgent?: boolean; }
-export interface CaseActivity { id: ID; action: string; actorDisplayName: string; occurredAt: ISODateTime; summary: string; }
+export interface CaseActivity { id: ID; action: string; actorDisplayName: string; occurredAt: ISODateTime; summary: string; reason?: string | null; }
 export type PaymentScheduleKind = "deposit" | "post_installation" | "installment" | "adjustment";
 export type PaymentScheduleStatus = "scheduled" | "partially_paid" | "paid" | "waived" | "cancelled";
 export type CasePaymentStatus = "pending_verification" | "verified" | "rejected" | "reversed";

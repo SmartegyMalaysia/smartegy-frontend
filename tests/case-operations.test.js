@@ -20,14 +20,20 @@ const case004Agent = { id: "user-004", role: "agent", displayName: "Nadia Yusuf"
 
 test("case action visibility gives staff and admin the same normal processing actions", () => {
   assert.deepEqual(workflow.caseActionLabels("under_review", "staff"), workflow.caseActionLabels("under_review", "admin"));
-  assert.ok(workflow.caseActionLabels("under_review", "staff").some((action) => action.label === "Request changes" && action.requiresReason));
-  assert.equal(workflow.caseActionLabels("changes_requested", "agent")[0].label, "Resubmit for review");
-  assert.equal(workflow.caseActionLabels("completed", "staff").length, 0);
+  assert.ok(workflow.caseActionLabels("under_review", "staff").some((action) => action.label === "Request Changes" && action.requiresReason));
+  const awaitingDeposit = workflow.caseActionLabels("awaiting_deposit", "staff");
+  assert.ok(awaitingDeposit.some((action) => action.label === "Record Deposit" && action.variant === "primary"));
+  assert.ok(!awaitingDeposit.some((action) => action.label === "Record Installation"));
+  const depositPaid = workflow.caseActionLabels("awaiting_deposit", "staff", true, true);
+  assert.ok(!depositPaid.some((action) => action.label === "Record Deposit"));
+  assert.ok(depositPaid.some((action) => action.label === "Record Installation"));
+  assert.equal(workflow.caseActionLabels("changes_requested", "agent")[0].label, "Resubmit for Review");
+  assert.ok(!workflow.caseActionLabels("completed", "staff").some((action) => action.label === "Delete Case"));
+  assert.ok(workflow.caseActionLabels("draft", "agent").some((action) => action.label === "Delete Case"));
+  assert.ok(!workflow.caseActionLabels("under_review", "agent").some((action) => action.label === "Delete Case"));
 });
 
 test("request changes requires a reason and agents can edit and resubmit", async () => {
-  const started = await repository.mockCasesRepository.transition(staff, "case-004", "under_review");
-  assert.equal(started.ok, true);
   const missingReason = await repository.mockCasesRepository.requestChanges(staff, "case-004", "");
   assert.equal(missingReason.ok, false);
   const requested = await repository.mockCasesRepository.requestChanges(staff, "case-004", "Upload a clearer electricity bill.");
@@ -45,14 +51,13 @@ test("operational prerequisites lead to one commission calculation and block pre
   assert.equal(result.ok, true);
   result = await repository.mockCasesRepository.generatePaymentSchedule(staff, "case-002", { depositDue: "2026-08-20", postInstallationDue: "2026-08-25" });
   assert.equal(result.ok, true);
-  result = await repository.mockCasesRepository.transition(staff, "case-002", "awaiting_deposit");
-  assert.equal(result.ok, true);
-  const deposit = await repository.mockCasesRepository.recordPayment(staff, "case-002", { amountSen: 1000, paymentDate: "2026-08-20" });
+  assert.equal(result.data.status, "awaiting_deposit");
+  const deposit = await repository.mockCasesRepository.recordAndVerifyPayment(staff, "case-002", { amountSen: 1000, paymentDate: "2026-08-20" });
   assert.equal(deposit.ok, true);
-  result = await repository.mockCasesRepository.verifyPayment(staff, { paymentId: deposit.data.payments[0].id, allocations: [{ scheduleId: deposit.data.paymentSchedules[0].id, amountSen: 1000 }] });
-  assert.equal(result.ok, true);
-  const postInstall = await repository.mockCasesRepository.recordPayment(staff, "case-002", { amountSen: 2000, paymentDate: "2026-08-25" });
-  result = await repository.mockCasesRepository.verifyPayment(staff, { paymentId: postInstall.data.payments[1].id, allocations: [{ scheduleId: postInstall.data.paymentSchedules[1].id, amountSen: 2000 }] });
+  assert.equal(deposit.data.payments[0].status, "verified");
+  assert.equal(deposit.data.paymentSchedules[0].amountPaidSen, 1000);
+  const postInstall = await repository.mockCasesRepository.recordAndVerifyPayment(staff, "case-002", { amountSen: 2000, paymentDate: "2026-08-25" });
+  result = postInstall;
   assert.equal(result.ok, true);
   result = await repository.mockCasesRepository.transition(staff, "case-002", "installation_scheduled");
   assert.equal(result.ok, true);
@@ -68,6 +73,10 @@ test("operational prerequisites lead to one commission calculation and block pre
   assert.equal(result.data.commissionIds.length, 1);
   const incomplete = await repository.mockCasesRepository.transition(staff, "case-002", "completed");
   assert.equal(incomplete.ok, false);
+  const remainingInstallments = result.data.paymentSchedules.filter((schedule) => schedule.kind === "installment").reduce((sum, schedule) => sum + schedule.amountDueSen - schedule.amountPaidSen, 0);
+  const finalPayment = await repository.mockCasesRepository.recordAndVerifyPayment(staff, "case-002", { amountSen: remainingInstallments, paymentDate: "2026-10-01" });
+  assert.equal(finalPayment.ok, true);
+  assert.equal(finalPayment.data.status, "completed");
 });
 
 test("cancellation requires a reason and is irreversible", async () => {
@@ -78,4 +87,10 @@ test("cancellation requires a reason and is irreversible", async () => {
   assert.equal(cancelled.data.status, "cancelled");
   const retry = await repository.mockCasesRepository.transition(staff, "case-003", "under_review");
   assert.equal(retry.ok, false);
+});
+
+test("quotation requires sale amount and quoted monthly savings", async () => {
+  const result = await repository.mockCasesRepository.transition(staff, "case-004", "quotation_issued");
+  assert.equal(result.ok, false);
+  assert.equal(result.error.message, "Sale amount and quoted monthly savings are required before quotation.");
 });
