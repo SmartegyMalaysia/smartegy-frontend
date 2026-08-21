@@ -9,13 +9,16 @@ function validate(input: UpdateAgentProfileInput) { const fieldErrors: Record<st
 
 async function load(actor: CurrentUser): Promise<AgentProfile> {
   const supabase = getSupabaseBrowserClient(); if (!supabase) throw new Error("Supabase is not configured");
-  const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error("You must be signed in.");
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", auth.user.id).single(); if (profileError) throw profileError;
-  const { data: agent, error: agentError } = await supabase.from("agents").select("*").eq("profile_id", auth.user.id).maybeSingle(); if (agentError) throw agentError;
+  const [{ data: profile, error: profileError }, { data: agent, error: agentError }] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", actor.id).single(),
+    supabase.from("agents").select("*").eq("profile_id", actor.id).maybeSingle(),
+  ]); if (profileError) throw profileError; if (agentError) throw agentError;
   if (!agent) throw new Error("Your agent profile could not be found.");
-  const { data: registration } = await supabase.from("agent_registrations").select("*").eq("agent_id", agent.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const { data: referral, error: referralError } = await supabase.from("referral_invitations").select("code").eq("referring_agent_id", agent.id).eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(); if (referralError) throw referralError;
-  return { id: agent.id, profile: { fullName: profile.display_name, email: auth.user.email ?? agent.email, mobileNumber: profile.phone ?? agent.phone ?? "" }, agentNumber: agent.agent_code, applicationNumber: registration?.application_number ?? "Not available", accountStatus: profile.account_status === "active" ? "active" : "inactive", registrationStatus: registration?.registration_status ?? (agent.is_active ? "active" : "pending_approval"), feeStatus: registration?.fee_status === "verified" ? "verified" : registration?.fee_status ?? (agent.fee_status === "paid" ? "verified" : "unpaid"), emailVerified: Boolean(auth.user.email_confirmed_at), joinedDate: agent.joined_on, referralCode: referral?.code ?? "", uplineName: null, currentLevel: agent.current_level === "level_3" ? 3 : agent.current_level === "level_2" ? 2 : 1, profileComplete: Boolean(registration?.profile_complete ?? profile.display_name) };
+  const [{ data: registration }, { data: referral, error: referralError }] = await Promise.all([
+    supabase.from("agent_registrations").select("*").eq("agent_id", agent.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("referral_invitations").select("code").eq("referring_agent_id", agent.id).eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]); if (referralError) throw referralError;
+  return { id: agent.id, profile: { fullName: profile.display_name, email: actor.email ?? agent.email, mobileNumber: profile.phone ?? agent.phone ?? "" }, agentNumber: agent.agent_code, applicationNumber: registration?.application_number ?? "Not available", accountStatus: profile.account_status === "active" ? "active" : "inactive", registrationStatus: registration?.registration_status ?? (agent.is_active ? "active" : "pending_approval"), feeStatus: registration?.fee_status === "verified" ? "verified" : registration?.fee_status ?? (agent.fee_status === "paid" ? "verified" : "unpaid"), emailVerified: Boolean(actor.emailVerified), joinedDate: agent.joined_on, referralCode: referral?.code ?? "", uplineName: null, currentLevel: agent.current_level === "level_3" ? 3 : agent.current_level === "level_2" ? 2 : 1, profileComplete: Boolean(registration?.profile_complete ?? profile.display_name) };
 }
 
 export const supabaseAgentProfileRepository: AgentProfileRepository = {

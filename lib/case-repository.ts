@@ -1,9 +1,11 @@
 import { mockDashboard } from "./mock-data";
 import { caseDocumentConfig, validateCaseDocument } from "./document-config";
-import type { AcceptTrialInput, CaseDetail, CaseDocumentInput, CasePayment, CurrentUser, CreateCaseInput, GeneratePaymentScheduleInput, ID, RecordPaymentInput, UpdateCaseInput, VerifyPaymentInput, CaseStatus } from "./types";
+import type { AcceptTrialInput, CaseDetail, CaseDocumentInput, CasePayment, CaseSummary, CurrentUser, CreateCaseInput, GeneratePaymentScheduleInput, ID, RecordPaymentInput, UpdateCaseInput, VerifyPaymentInput, CaseStatus, PaymentStatus } from "./types";
 
 type CaseErrorCode = "VALIDATION_ERROR" | "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR" | "CONFLICT";
 export type CaseResult<T> = { ok: true; data: T } | { ok: false; error: { code: CaseErrorCode; message: string; fieldErrors?: Record<string, string[]> } };
+export interface CaseDirectoryQuery { search?: string; stage?: "new" | "under_review" | "changes_requested" | "quotation_payment" | "installation_monitoring" | "trial_review" | "commission_active" | "completed_cancelled"; paymentStatus?: PaymentStatus; agentId?: ID; page?: number; pageSize?: number; sortBy?: "updated" | "newest" | "amount"; sortDirection?: "asc" | "desc"; }
+export interface CaseDirectoryPage { items: CaseSummary[]; totalItems: number; totalPages: number; agentOptions: Array<{ value: ID; label: string }>; }
 
 const seededCases = mockDashboard("staff").cases;
 const now = () => new Date().toISOString();
@@ -43,6 +45,8 @@ function staffOnly<T>(actor: CurrentUser) { return staffRoles.has(actor.role) ? 
 function recordActivity(item: CaseDetail, actor: CurrentUser, action: string, summary: string, reason?: string) { item.activity = [...item.activity, { id: `activity-${item.id}-${item.activity.length + 1}`, action, actorDisplayName: actor.displayName, occurredAt: now(), summary: reason ? `${summary} — ${reason}` : summary }]; item.updatedAt = now(); }
 
 export interface CasesRepository {
+  listPage(actor: CurrentUser, query: CaseDirectoryQuery): Promise<CaseResult<CaseDirectoryPage>>;
+  export(actor: CurrentUser, query: CaseDirectoryQuery): Promise<CaseResult<true>>;
   getById(actor: CurrentUser, caseId: ID): Promise<CaseResult<CaseDetail>>;
   create(actor: CurrentUser, input: CreateCaseInput, onUploadProgress?: (progress: number) => void): Promise<CaseResult<CaseDetail>>;
   update(actor: CurrentUser, caseId: ID, input: UpdateCaseInput): Promise<CaseResult<CaseDetail>>;
@@ -62,6 +66,17 @@ type ISODate = string;
 type MoneySen = number;
 
 export const mockCasesRepository: CasesRepository = {
+  async listPage(actor, query) {
+    const all = Array.from(caseStore.values()).filter((item) => actor.role !== "agent" || item.agentId === actor.agentId);
+    const term = query.search?.trim().toLowerCase() ?? "";
+    const stageMatch = (item: CaseSummary) => !query.stage || (query.stage === "new" ? ["draft", "submitted"].includes(item.status) : query.stage === "under_review" ? item.status === "under_review" : query.stage === "changes_requested" ? item.status === "changes_requested" : query.stage === "quotation_payment" ? ["quotation_issued", "awaiting_deposit"].includes(item.status) : query.stage === "installation_monitoring" ? ["installation_scheduled", "installed_monitoring"].includes(item.status) : query.stage === "trial_review" ? item.status === "trial_review" : query.stage === "commission_active" ? item.status === "active_installments" : ["completed", "cancelled"].includes(item.status));
+    const filtered = all.filter((item) => (!term || `${item.caseNumber} ${item.customerDisplayName} ${item.agentName}`.toLowerCase().includes(term)) && stageMatch(item) && (!query.paymentStatus || item.paymentStatus === query.paymentStatus) && (!query.agentId || item.agentId === query.agentId));
+    const direction = query.sortDirection === "asc" ? 1 : -1;
+    const sorted = [...filtered].sort((a, b) => (query.sortBy === "amount" ? (a.saleAmountSen ?? 0) - (b.saleAmountSen ?? 0) : query.sortBy === "newest" ? a.submittedAt.localeCompare(b.submittedAt) : a.updatedAt.localeCompare(b.updatedAt)) * direction);
+    const pageSize = Math.min(10000, Math.max(1, query.pageSize ?? 5)); const page = Math.max(1, query.page ?? 1);
+    return { ok: true, data: { items: sorted.slice((page - 1) * pageSize, page * pageSize).map((item) => ({ ...item })), totalItems: sorted.length, totalPages: Math.max(1, Math.ceil(sorted.length / pageSize)), agentOptions: Array.from(new Map(all.map((item) => [item.agentId, { value: item.agentId, label: item.agentName }])).values()).sort((a, b) => a.label.localeCompare(b.label)) } };
+  },
+  async export(actor, query) { const result = await this.listPage(actor, { ...query, page: 1, pageSize: 10000 }); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-cases.csv", [["Case", "Customer", "Agent", "Amount", "Status", "Payment", "Updated"], ...result.data.items.map((item) => [item.caseNumber, item.customerDisplayName, item.agentName, item.saleAmountSen == null ? "" : item.saleAmountSen / 100, item.status, item.paymentStatus, item.updatedAt])]); return { ok: true, data: true }; },
   async getById(actor, caseId) {
     await new Promise((resolve) => setTimeout(resolve, 30));
     const found = caseStore.get(caseId);

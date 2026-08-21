@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { AuthShell } from "./auth-shell";
 import { Icon } from "./icons";
 import { isValidEmail, PASSWORD_MIN_LENGTH, PASSWORD_RESET_COOLDOWN_SECONDS, getMockResetLinkState, requestPasswordReset, resetPassword } from "@/lib/auth-repository";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -34,11 +35,11 @@ export function ForgotPasswordPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); await sendRequest(); }
 
-  return <AuthShell kicker="Password recovery" title="Reset your password" description="Enter your work email and we’ll send instructions to reset your Smartegy password.">
+  return <AuthShell kicker="Password recovery" title="Reset your password" description="Enter your work email and we’ll send password reset instructions.">
     <form className="auth-form" onSubmit={submit} noValidate>
       <div className="form-field"><label htmlFor="reset-email">Email address</label><TextInput id="reset-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? "reset-email-error" : undefined} required/>{error && <p id="reset-email-error" className="field-error" role="alert">{error}</p>}</div>
       {success && <div className="login-message login-message-info" role="status"><span aria-hidden="true">i</span>{success}</div>}
-      {resetPath && <div className="mock-reset-link"><p>Mock preview is enabled for this local build.</p><Link className="button button-secondary" href={resetPath}>Open reset-password preview <Icon name="arrow" size={14}/></Link></div>}
+      {resetPath && <div className="mock-reset-link"><p>Mock preview is enabled for this local build.</p><Link className="button button-secondary" href={resetPath}>Open reset password preview <Icon name="arrow" size={14}/></Link></div>}
       <button className="login-submit" type="submit" disabled={submitting || cooldown > 0}>{submitting ? "Sending reset link…" : cooldown > 0 ? `Resend available in ${cooldown}s` : "Send reset link"}</button>
     </form>
     <div className="auth-footer-links"><Link href="/">Return to sign in</Link>{success && <button className="text-button" type="button" onClick={sendRequest} disabled={submitting || cooldown > 0}>Resend reset link</button>}</div>
@@ -48,6 +49,7 @@ export function ForgotPasswordPage() {
 export function ResetPasswordPage() {
   const params = useSearchParams();
   const token = params.get("token") ?? (params.get("mock") === "valid" ? "mock-valid" : "");
+  const code = params.get("code");
   const [linkState, setLinkState] = useState<ReturnType<typeof getMockResetLinkState> | "loading">("loading");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -58,7 +60,21 @@ export function ResetPasswordPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => { setLinkState(getMockResetLinkState(token)); }, [token]);
+  useEffect(() => {
+    let active = true;
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) { setLinkState(getMockResetLinkState(token)); return () => { active = false; }; }
+    const validateRecoverySession = async () => {
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) { if (active) setLinkState("invalid"); return; }
+      }
+      const { data } = await supabase.auth.getSession();
+      if (active) setLinkState(data.session ? "ready" : "invalid");
+    };
+    void validateRecoverySession();
+    return () => { active = false; };
+  }, [code, token]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,8 +87,8 @@ export function ResetPasswordPage() {
     setSubmitting(false);
   }
 
-  if (linkState === "loading") return <AuthShell kicker="Password recovery" title="Check your reset link" description="Validating your password-reset link…"><div className="auth-loading" aria-label="Validating reset link">Loading…</div></AuthShell>;
-  if (linkState !== "ready" || success) return <AuthShell kicker="Password recovery" title={success ? "Password changed" : "Reset link unavailable"} description={success ? "Your Smartegy password has been updated successfully." : "This password-reset link cannot be used."}><div className={success ? "auth-success-panel" : "auth-error-panel"} role="status"><span aria-hidden="true">{success ? "✓" : "!"}</span><p>{success ? "You can now sign in with your new password." : error ?? (linkState === "expired" ? "This link has expired." : linkState === "used" ? "This link has already been used." : "Request a new reset link to continue.")}</p></div><Link className="login-submit auth-action-link" href={success ? "/" : "/forgot-password"}>{success ? "Continue to sign in" : "Request a new reset link"}</Link></AuthShell>;
+  if (linkState === "loading") return <AuthShell kicker="Password recovery" title="Check your reset link" description="Validating your password reset link…"><div className="auth-loading" aria-label="Validating reset link">Loading…</div></AuthShell>;
+  if (linkState !== "ready" || success) return <AuthShell kicker="Password recovery" title={success ? "Password changed" : "Reset link unavailable"} description={success ? "Your Smartegy password has been updated successfully." : "This password reset link cannot be used."}><div className={success ? "auth-success-panel" : "auth-error-panel"} role="status"><span aria-hidden="true">{success ? "✓" : "!"}</span><p>{success ? "You can now sign in with your new password." : error ?? (linkState === "expired" ? "This link has expired." : linkState === "used" ? "This link has already been used." : "Request a new reset link to continue.")}</p></div><Link className="login-submit auth-action-link" href={success ? "/" : "/forgot-password"}>{success ? "Continue to sign in" : "Request a new reset link"}</Link></AuthShell>;
 
   return <AuthShell kicker="Password recovery" title="Choose a new password" description="Use a strong password you do not reuse elsewhere.">
     <form className="auth-form" onSubmit={submit} noValidate>

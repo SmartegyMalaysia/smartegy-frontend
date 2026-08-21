@@ -1,7 +1,7 @@
 "use client";
 
-import { TextInput, TextArea } from "@/components/form-controls";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { TextInput } from "@/components/form-controls";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Button, EmptyState, ErrorState, LoadingState, PermissionDenied, StatCard } from "@/components/ui";
 import { DataTable } from "@/components/data-table";
@@ -10,13 +10,11 @@ import { ExportIcon } from "@/components/export-icon";
 import { FilterSelect } from "@/components/filter-select";
 import { TableFooter } from "@/components/table-footer";
 import { Toast, type ToastTone } from "@/components/toast";
-import { downloadCsv } from "@/lib/export-csv";
 import { formatDate, formatMoney } from "@/lib/format";
-import { payoutRepository } from "@/lib/payout-repository";
+import { payoutRepository, type PayoutMonthData } from "@/lib/payout-repository";
 import { usePreviewUser } from "@/lib/preview-user";
-import type { AgentMonthlyPayout, PayoutMonthSummary, PayoutSettlementStatus, PayoutTransaction } from "@/lib/types";
+import type { AgentMonthlyPayout, CurrentUser, PayoutSettlementStatus, PayoutTransaction } from "@/lib/types";
 
-type MonthData = { summary: PayoutMonthSummary; agentPayouts: AgentMonthlyPayout[]; transactions: PayoutTransaction[] };
 const pageSize = 5;
 const payoutStatuses: Array<AgentMonthlyPayout["settlementStatus"] | "all"> = ["all", "pending", "partially_settled", "settled"];
 const transactionStatuses: Array<PayoutSettlementStatus | "all"> = ["all", "pending", "settled"];
@@ -24,92 +22,35 @@ const transactionStatuses: Array<PayoutSettlementStatus | "all"> = ["all", "pend
 export default function PayoutsPage() {
   const { user, setRole } = usePreviewUser("staff");
   const [month, setMonth] = useState("2026-09");
-  const [data, setData] = useState<MonthData | null>(null);
+  const [data, setData] = useState<PayoutMonthData | null>(null);
   const [state, setState] = useState<"loading" | "error" | "permission" | "ready">("loading");
   const [selected, setSelected] = useState<PayoutTransaction | null>(null);
   const [reference, setReference] = useState("");
   const [toast, setToast] = useState<{ title: string; subtitle: string; tone: ToastTone } | null>(null);
-
-  const load = useCallback(async () => {
-    setState("loading");
-    const result = await payoutRepository.getMonth(user, month);
-    if (result.ok) { setData(result.data); setState("ready"); }
-    else setState(result.error.code === "FORBIDDEN" ? "permission" : "error");
-  }, [month, user]);
-
+  const [exporting, setExporting] = useState(false);
+  const load = useCallback(async () => { setState("loading"); const result = await payoutRepository.getMonth(user, month); if (result.ok) { setData(result.data); setState("ready"); } else setState(result.error.code === "FORBIDDEN" ? "permission" : "error"); }, [month, user]);
   useEffect(() => { void load(); }, [load]);
-
-  async function settle() {
-    if (!selected) return;
-    const scrollPosition = { left: window.scrollX, top: window.scrollY };
-    const result = await payoutRepository.settleTransaction(user, { transactionId: selected.id, bankReference: reference });
-    if (result.ok) {
-      setToast({ title: "Payout Settled", subtitle: `${selected.commissionNumber} was marked settled.`, tone: "success" });
-      setSelected(null);
-      setReference("");
-      await load();
-      window.requestAnimationFrame(() => window.scrollTo(scrollPosition.left, scrollPosition.top));
-    }
-    else setToast({ title: "Settlement Failed", subtitle: result.error.message, tone: "error" });
-  }
-
-  return <AppShell user={user} onRoleChange={setRole}><main className="page-content payouts-page">
-    <div className="page-header"><div><p className="eyebrow">Staff Finance Operations</p><h1>Commission Payouts</h1><p className="page-description">Prepare monthly agent payouts, export bank totals, and manually reconcile settled transactions.</p></div></div>
-    {state === "loading" ? <LoadingState/> : state === "permission" ? <PermissionDenied/> : state === "error" || !data ? <ErrorState onRetry={load}/> : <>
-      <div className="payout-month-control"><div className="payout-month-field"><span>Payout Month</span><DatePicker id="payout-month" mode="month" value={month} surface="white" onChange={setMonth}/></div><Button variant="secondary" size="sm" onClick={() => exportPayouts(data.agentPayouts, month)} disabled={!data.agentPayouts.length}><ExportIcon size={15}/>Export Monthly Transactions</Button></div>
-      {toast && <Toast title={toast.title} subtitle={toast.subtitle} tone={toast.tone} onDismiss={() => setToast(null)} />}
-      <PayoutSummary summary={data.summary}/>
-      <AgentPayoutTable payouts={data.agentPayouts} month={month}/>
-      <TransactionTable transactions={data.transactions} month={month} onSettle={setSelected}/>
-    </>}
-    {selected && <SettlementDialog transaction={selected} reference={reference} setReference={setReference} onCancel={() => { setSelected(null); setReference(""); }} onConfirm={settle}/>} 
-  </main></AppShell>;
+  const exportMonth = useCallback(async () => { setExporting(true); const result = await payoutRepository.exportMonth(user, month); setExporting(false); setToast(result.ok ? { title: "Payout Export Ready", subtitle: `The ${month} agent payout export was downloaded.`, tone: "success" } : { title: "Export Failed", subtitle: result.error.message, tone: "error" }); }, [month, user]);
+  async function settle() { if (!selected) return; const result = await payoutRepository.settleTransaction(user, { transactionId: selected.id, bankReference: reference, payoutMonth: month }); if (result.ok) { setSelected(null); setReference(""); setToast({ title: "Payout Settled", subtitle: `${selected.caseNumber} payout was marked settled.`, tone: "success" }); await load(); } else setToast({ title: "Settlement Failed", subtitle: result.error.message, tone: "error" }); }
+  return <AppShell user={user} onRoleChange={setRole}><main className="page-content payouts-page"><div className="page-header"><div><p className="eyebrow">Staff Finance Operations</p><h1>Commission Payouts</h1><p className="page-description">Prepare monthly agent payouts, export bank totals, and manually reconcile settled transactions.</p></div></div>{state === "loading" ? <LoadingState/> : state === "permission" ? <PermissionDenied/> : state === "error" || !data ? <ErrorState onRetry={load}/> : <><div className="payout-month-control"><div className="payout-month-field"><span>Payout Month</span><DatePicker id="payout-month" mode="month" value={month} surface="white" onChange={setMonth}/></div><Button variant="secondary" size="sm" onClick={() => void exportMonth()} disabled={exporting || !data.agentPayouts.length}><ExportIcon size={15}/>{exporting ? "Exporting..." : "Export Monthly Transactions"}</Button></div>{toast && <Toast title={toast.title} subtitle={toast.subtitle} tone={toast.tone} onDismiss={() => setToast(null)} />}<PayoutSummary summary={data.summary}/><AgentPayoutTable actor={user} month={month} payouts={data.agentPayouts} onExport={exportMonth}/><TransactionTable actor={user} month={month} transactions={data.transactions} onSettle={setSelected} onExport={exportMonth}/></>}</main>{selected && <SettlementDialog transaction={selected} reference={reference} setReference={setReference} onCancel={() => { setSelected(null); setReference(""); }} onConfirm={settle}/>}</AppShell>;
 }
 
-function AgentPayoutTable({ payouts, month }: { payouts: AgentMonthlyPayout[]; month: string }) {
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<AgentMonthlyPayout["settlementStatus"] | "all">("all");
-  const [page, setPage] = useState(1);
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return payouts.filter((payout) => (!query || [payout.agentName, payout.agentCode, payout.bankAccount.bankName, payout.bankAccount.accountHolderName].some((value) => value.toLowerCase().includes(query))) && (status === "all" || payout.settlementStatus === status));
-  }, [payouts, search, status]);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const reset = () => { setSearch(""); setStatus("all"); setPage(1); };
-  return <section className="panel payout-panel">
-    <div className="panel-header"><div><h2>Agent Monthly Payouts</h2><p>One total per agent for the selected month. Bank details are restricted to authorised staff.</p></div><span className="case-count">{filtered.length} agents</span></div>
-    <div className="case-filters payout-table-filters" aria-label="Agent Monthly Payout Filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Agent, ID, or bank"/></label><label><span>Payout Status</span><FilterSelect allLabel="All Payout Statuses" value={status} options={payoutStatuses} labels={{ all: "All Statuses", partially_settled: "Partially Settled" }} onChange={(value) => { setStatus(value); setPage(1); }}/></label><button className="text-button case-filter-reset" type="button" disabled={!search && status === "all"} onClick={reset}>Clear Filters</button></div>
-    {visible.length ? <DataTable caption="Agent Monthly Payouts" headers={["Agent", "Bank Destination", "Monthly Total", "Settled", "Pending", "Transactions", "Payout Status"]}>{visible.map((payout) => <AgentPayoutRow key={payout.agentId} payout={payout}/>)}</DataTable> : <EmptyState title="No Matching Payouts" description="Try changing or clearing the filters."/>}
-    <TableFooter currentPage={currentPage} totalPages={totalPages} visibleCount={visible.length} totalCount={filtered.length} onPageChange={setPage} onExport={() => exportPayouts(filtered, month)}/>
-  </section>;
+function AgentPayoutTable({ actor, month, payouts, onExport }: { actor: CurrentUser; month: string; payouts: AgentMonthlyPayout[]; onExport: () => void }) {
+  const [search, setSearch] = useState(""); const [status, setStatus] = useState<AgentMonthlyPayout["settlementStatus"] | "all">("all"); const [page, setPage] = useState(1); const [remote, setRemote] = useState<PayoutMonthData | null>(null);
+  const skippedInitialLoad = useRef(false);
+  useEffect(() => { if (!skippedInitialLoad.current && !search && status === "all" && page === 1) { skippedInitialLoad.current = true; return; } let active = true; void payoutRepository.getMonth(actor, month, { search, settlementStatus: status === "all" ? undefined : status, page, pageSize, view: "agents" }).then((result) => { if (active && result.ok) setRemote(result.data); }); return () => { active = false; }; }, [actor, month, page, search, status]);
+  const source = remote?.agentPayouts ?? payouts; const totalPages = Math.max(1, Math.ceil(source.length / pageSize)); const currentPage = Math.min(page, totalPages); const visible = source.slice((currentPage - 1) * pageSize, currentPage * pageSize); const reset = () => { setSearch(""); setStatus("all"); setPage(1); };
+  return <section className="panel payout-panel"><div className="panel-header"><div><h2>Agent Monthly Payouts</h2><p>One total per agent for the selected month. Bank details are restricted to authorised staff.</p></div><span className="case-count">{source.length} agents</span></div><div className="case-filters payout-table-filters" aria-label="Agent Monthly Payout Filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Agent, ID, or bank"/></label><label><span>Payout Status</span><FilterSelect allLabel="All Payout Statuses" value={status} options={payoutStatuses} labels={{ all: "All Statuses", partially_settled: "Partially Settled" }} onChange={(value) => { setStatus(value as AgentMonthlyPayout["settlementStatus"] | "all"); setPage(1); }}/></label><button className="text-button case-filter-reset" type="button" disabled={!search && status === "all"} onClick={reset}>Clear Filters</button></div>{visible.length ? <DataTable caption="Agent Monthly Payouts" headers={["Agent", "Bank Destination", "Monthly Total", "Settled", "Pending", "Transactions", "Payout Status"]}>{visible.map((payout) => <AgentPayoutRow key={payout.agentId} payout={payout}/>)}</DataTable> : <EmptyState title="No Matching Payouts" description="Try changing or clearing the filters."/>}<TableFooter currentPage={currentPage} totalPages={totalPages} visibleCount={visible.length} totalCount={source.length} onPageChange={setPage} onExport={onExport}/></section>;
 }
 
-function TransactionTable({ transactions, month, onSettle }: { transactions: PayoutTransaction[]; month: string; onSettle: (transaction: PayoutTransaction) => void }) {
-  const [search, setSearch] = useState("");
-  const [agent, setAgent] = useState("all");
-  const [status, setStatus] = useState<PayoutSettlementStatus | "all">("all");
-  const [page, setPage] = useState(1);
-  const agentOptions = useMemo(() => Array.from(new Set(transactions.map((transaction) => transaction.agentName))).toSorted(), [transactions]);
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return transactions.filter((transaction) => (!query || [transaction.agentName, transaction.agentCode, transaction.commissionNumber, transaction.caseNumber, transaction.customerDisplayName].some((value) => value.toLowerCase().includes(query))) && (agent === "all" || transaction.agentName === agent) && (status === "all" || transaction.settlementStatus === status));
-  }, [transactions, search, agent, status]);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const reset = () => { setSearch(""); setAgent("all"); setStatus("all"); setPage(1); };
-  return <section className="panel payout-panel">
-    <div className="panel-header"><div><h2>Transaction Reconciliation</h2><p>After bank processing, mark each commission payout transaction as settled.</p></div><span className="case-count">{filtered.length} transactions</span></div>
-    <div className="case-filters payout-table-filters" aria-label="Transaction Reconciliation Filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Agent, commission, case, or customer"/></label><label><span>Agent</span><FilterSelect allLabel="All Agents" value={agent} options={["all", ...agentOptions]} onChange={(value) => { setAgent(value); setPage(1); }}/></label><label><span>Settlement</span><FilterSelect allLabel="All Settlement States" value={status} options={transactionStatuses} onChange={(value) => { setStatus(value); setPage(1); }}/></label><button className="text-button case-filter-reset" type="button" disabled={!search && agent === "all" && status === "all"} onClick={reset}>Clear Filters</button></div>
-    {visible.length ? <DataTable caption="Payout Transaction Reconciliation" headers={["Agent", "Commission", "Case", "Amount", "Settlement", "Bank Reference", "Action"]}>{visible.map((transaction) => <tr key={transaction.id}><td><span className="table-primary">{transaction.agentName}</span><span className="table-secondary">{transaction.agentCode}</span></td><td>{transaction.commissionNumber}</td><td>{transaction.caseNumber}<span className="table-secondary">{transaction.customerDisplayName}</span></td><td className="commission-money">{formatMoney(transaction.amountSen)}</td><td><Badge status={transaction.settlementStatus}/>{transaction.settledAt && <span className="table-secondary">{formatDate(transaction.settledAt)}</span>}</td><td>{transaction.bankReference ?? <span className="muted-cell">Not recorded</span>}</td><td>{transaction.settlementStatus === "pending" ? <Button size="sm" className="agent-promote-button" onClick={() => onSettle(transaction)}>Mark Settled</Button> : <span className="muted-cell">Settled</span>}</td></tr>)}</DataTable> : <EmptyState title="No Matching Transactions" description="Try changing or clearing the filters."/>}
-    <TableFooter currentPage={currentPage} totalPages={totalPages} visibleCount={visible.length} totalCount={filtered.length} onPageChange={setPage} onExport={() => exportTransactions(filtered, month)}/>
-  </section>;
+function TransactionTable({ actor, month, transactions, onSettle, onExport }: { actor: CurrentUser; month: string; transactions: PayoutTransaction[]; onSettle: (transaction: PayoutTransaction) => void; onExport: () => void }) {
+  const [search, setSearch] = useState(""); const [agent, setAgent] = useState("all"); const [status, setStatus] = useState<PayoutSettlementStatus | "all">("all"); const [page, setPage] = useState(1); const [remote, setRemote] = useState<PayoutMonthData | null>(null);
+  const skippedInitialLoad = useRef(false);
+  useEffect(() => { if (!skippedInitialLoad.current && !search && agent === "all" && status === "all" && page === 1) { skippedInitialLoad.current = true; return; } let active = true; void payoutRepository.getMonth(actor, month, { search, agentId: agent === "all" ? undefined : agent, settlementStatus: status === "all" ? undefined : status, page, pageSize, view: "transactions" }).then((result) => { if (active && result.ok) setRemote(result.data); }); return () => { active = false; }; }, [actor, agent, month, page, search, status]);
+  const source = remote?.transactions ?? transactions; const totalItems = remote?.totalItems ?? source.length; const totalPages = remote?.totalPages ?? Math.max(1, Math.ceil(totalItems / pageSize)); const currentPage = Math.min(page, totalPages); const agentOptions = Array.from(new Map(transactions.map((item) => [item.agentId, { value: item.agentId, label: item.agentName }])).values()); const reset = () => { setSearch(""); setAgent("all"); setStatus("all"); setPage(1); };
+  return <section className="panel payout-panel"><div className="panel-header"><div><h2>Transaction Reconciliation</h2><p>After bank processing, mark each commission payout transaction as settled.</p></div><span className="case-count">{totalItems} transactions</span></div><div className="case-filters payout-table-filters" aria-label="Transaction Reconciliation Filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Agent, case, or customer"/></label><label><span>Agent</span><FilterSelect allLabel="All Agents" value={agent} options={["all", ...agentOptions.map((item) => item.value)]} labels={Object.fromEntries(agentOptions.map((item) => [item.value, item.label]))} onChange={(value) => { setAgent(value); setPage(1); }}/></label><label><span>Settlement</span><FilterSelect allLabel="All Settlement States" value={status} options={transactionStatuses} onChange={(value) => { setStatus(value as PayoutSettlementStatus | "all"); setPage(1); }}/></label><button className="text-button case-filter-reset" type="button" disabled={!search && agent === "all" && status === "all"} onClick={reset}>Clear Filters</button></div>{source.length ? <DataTable caption="Payout Transaction Reconciliation" headers={["Agent", "Case", "Amount", "Settlement", "Bank Reference", "Action"]}>{source.map((transaction) => <tr key={transaction.id}><td><span className="table-primary">{transaction.agentName}</span><span className="table-secondary">{transaction.agentCode}</span></td><td>{transaction.caseNumber}<span className="table-secondary">{transaction.customerDisplayName}</span></td><td className="commission-money">{formatMoney(transaction.amountSen)}</td><td><Badge status={transaction.settlementStatus}/>{transaction.settledAt && <span className="table-secondary">{formatDate(transaction.settledAt)}</span>}</td><td>{transaction.bankReference ?? <span className="muted-cell">Not recorded</span>}</td><td>{transaction.settlementStatus === "pending" ? <Button size="sm" className="agent-promote-button" onClick={() => onSettle(transaction)}>Mark Settled</Button> : <span className="muted-cell">Settled</span>}</td></tr>)}</DataTable> : <EmptyState title="No Matching Transactions" description="Try changing or clearing the filters."/>}<TableFooter currentPage={currentPage} totalPages={totalPages} visibleCount={source.length} totalCount={totalItems} onPageChange={setPage} onExport={onExport}/></section>;
 }
 
-function exportPayouts(payouts: AgentMonthlyPayout[], month: string) { downloadCsv(`smartegy-payouts-${month}.csv`, [["Agent", "Agent ID", "Bank", "Account holder", "Account number", "Payout month", "Monthly payout total", "Pending total", "Settlement status"], ...payouts.map((payout) => [payout.agentName, payout.agentCode, payout.bankAccount.bankName, payout.bankAccount.accountHolderName, payout.bankAccount.accountNumberMasked, payout.payoutMonth, formatMoney(payout.totalSen), formatMoney(payout.pendingSen), payout.settlementStatus])]); }
-function exportTransactions(transactions: PayoutTransaction[], month: string) { downloadCsv(`smartegy-payout-transactions-${month}.csv`, [["Agent", "Agent ID", "Commission", "Case", "Customer", "Amount", "Settlement status", "Bank reference", "Settled at"], ...transactions.map((transaction) => [transaction.agentName, transaction.agentCode, transaction.commissionNumber, transaction.caseNumber, transaction.customerDisplayName, formatMoney(transaction.amountSen), transaction.settlementStatus, transaction.bankReference ?? "", transaction.settledAt ?? ""])]); }
-function PayoutSummary({ summary }: { summary: PayoutMonthSummary }) { return <div className="stat-grid payout-summary"><StatCard label="Monthly Payout Total" value={formatMoney(summary.totalSen)} detail={`${summary.agentCount} agents`}/><StatCard label="Pending Settlement" value={formatMoney(summary.pendingSen)} detail={`${summary.transactionCount - summary.settledTransactionCount} transactions remaining`} accent/><StatCard label="Settled" value={formatMoney(summary.settledSen)} detail={`${summary.settledAgentCount} fully settled agents`}/><StatCard label="Transactions" value={String(summary.transactionCount)} detail={`${summary.settledTransactionCount} settled`}/></div>; }
-function AgentPayoutRow({ payout }: { payout: AgentMonthlyPayout }) { const label = payout.settlementStatus === "partially_settled" ? "Partially settled" : payout.settlementStatus; return <tr><td><span className="table-primary">{payout.agentName}</span><span className="table-secondary">{payout.agentCode}</span></td><td>{payout.bankAccount.bankName}<span className="table-secondary">{payout.bankAccount.accountHolderName} · {payout.bankAccount.accountNumberMasked}</span></td><td className="commission-money">{formatMoney(payout.totalSen)}</td><td className="commission-money">{formatMoney(payout.settledSen)}</td><td className="commission-money">{formatMoney(payout.pendingSen)}</td><td>{payout.settledTransactionCount}/{payout.transactionCount}</td><td>{label === "Partially settled" ? <span className="badge badge-warning"><span className="badge-dot"/>Partially settled</span> : <Badge status={payout.settlementStatus}/>}</td></tr>; }
-function SettlementDialog({ transaction, reference, setReference, onCancel, onConfirm }: { transaction: PayoutTransaction; reference: string; setReference: (value: string) => void; onCancel: () => void; onConfirm: () => void }) { return <div className="dialog-backdrop" role="presentation"><div className="dialog" role="dialog" aria-modal="true" aria-labelledby="settlement-dialog-title"><h2 id="settlement-dialog-title">Mark Payout Settled?</h2><p>This records {formatMoney(transaction.amountSen)} for {transaction.agentName} ({transaction.commissionNumber}) as settled. It does not initiate a bank transfer.</p><label className="settlement-field" htmlFor="bank-reference">Bank Settlement Reference<TextInput id="bank-reference" value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Bank transaction reference" autoFocus/></label><div className="dialog-actions"><Button variant="secondary" onClick={onCancel}>Cancel</Button><Button className="agent-promote-button" disabled={!reference.trim()} onClick={onConfirm}>Mark Settled</Button></div></div></div>; }
+function PayoutSummary({ summary }: { summary: PayoutMonthData["summary"] }) { return <div className="stat-grid payout-summary"><StatCard label="Monthly Payout Total" value={formatMoney(summary.totalSen)} detail={`${summary.agentCount} agents`}/><StatCard label="Pending Settlement" value={formatMoney(summary.pendingSen)} detail={`${summary.transactionCount - summary.settledTransactionCount} transactions remaining`} accent/><StatCard label="Settled" value={formatMoney(summary.settledSen)} detail={`${summary.settledAgentCount} fully settled agents`}/><StatCard label="Transactions" value={String(summary.transactionCount)} detail={`${summary.settledTransactionCount} settled`}/></div>; }
+function AgentPayoutRow({ payout }: { payout: AgentMonthlyPayout }) { const label = payout.settlementStatus === "partially_settled" ? "Partially settled" : payout.settlementStatus; return <tr><td><span className="table-primary">{payout.agentName}</span><span className="table-secondary">{payout.agentCode}</span></td><td>{payout.bankAccount.bankName}<span className="table-secondary">{payout.bankAccount.accountHolderName} - {payout.bankAccount.accountNumberMasked}</span></td><td className="commission-money">{formatMoney(payout.totalSen)}</td><td className="commission-money">{formatMoney(payout.settledSen)}</td><td className="commission-money">{formatMoney(payout.pendingSen)}</td><td>{payout.settledTransactionCount}/{payout.transactionCount}</td><td>{label === "Partially settled" ? <span className="badge badge-warning"><span className="badge-dot"/>Partially settled</span> : <Badge status={payout.settlementStatus}/>}</td></tr>; }
+function SettlementDialog({ transaction, reference, setReference, onCancel, onConfirm }: { transaction: PayoutTransaction; reference: string; setReference: (value: string) => void; onCancel: () => void; onConfirm: () => void }) { return <div className="dialog-backdrop" role="presentation"><div className="dialog" role="dialog" aria-modal="true" aria-labelledby="settlement-dialog-title"><h2 id="settlement-dialog-title">Mark Payout Settled?</h2><p>This records {formatMoney(transaction.amountSen)} for {transaction.agentName} on case {transaction.caseNumber} as settled. It does not initiate a bank transfer.</p><label className="settlement-field" htmlFor="bank-reference">Bank Settlement Reference<TextInput id="bank-reference" value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Bank transaction reference" autoFocus/></label><div className="dialog-actions"><Button variant="secondary" onClick={onCancel}>Cancel</Button><Button className="agent-promote-button" disabled={!reference.trim()} onClick={onConfirm}>Mark Settled</Button></div></div></div>; }

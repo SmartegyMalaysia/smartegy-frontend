@@ -26,7 +26,7 @@ export default function DashboardPage() {
     let active = true;
     setLoading(true);
     setFailed(false);
-    dashboardRepository.getSnapshot(role)
+    dashboardRepository.getSnapshot(user)
       .then((nextSnapshot) => { if (active) setSnapshot(nextSnapshot); })
       .catch(() => { if (active) setFailed(true); })
       .finally(() => { if (active) setLoading(false); });
@@ -42,7 +42,7 @@ function getTimeGreeting(date = new Date()) {
   return "Good evening";
 }
 
-function DashboardContent({ snapshot, role }: { snapshot: DashboardSnapshot; role: UserRole }) {
+function DashboardContent({ snapshot, role, actor }: { snapshot: DashboardSnapshot; role: UserRole; actor: import("@/lib/types").CurrentUser }) {
   const isAgent = role === "agent";
   const activeCases = snapshot.cases.filter((item) => item.status !== "completed");
   const sales = snapshot.cases.reduce((sum, item) => sum + (item.saleAmountSen ?? 0), 0);
@@ -54,7 +54,7 @@ function DashboardContent({ snapshot, role }: { snapshot: DashboardSnapshot; rol
   const paid = snapshot.commissions.filter((item) => item.status === "paid").reduce((sum, item) => sum + item.paidToDateSen, 0);
   return <>
     {isAgent ? <><>{/* Current qualification is intentionally hidden from the home dashboard. */}</><div className="stat-grid"><StatCard label="Active cases" value={String(activeCases.length)} detail="Current case queue" accent /><StatCard label="Successful cases" value={String(successfulCases)} detail="Completed or active" /><StatCard label="Personal sales" value={formatMoney(sales)} detail="From available case records" /><StatCard label="Commissions earned" value={formatMoney(commissions)} detail="From commission entries" /></div></> : <>{/* <section className="focus-panel admin-focus"><div><p className="eyebrow">Operational priority</p><h2>Cases needing attention</h2><p className="focus-copy">{pendingReviews} case{pendingReviews === 1 ? "" : "s"} and {pendingPayments} payment{pendingPayments === 1 ? "" : "s"} are waiting for an update.</p><div className="priority-list"><span><i className="priority-dot warning" />Pending review <strong>{pendingReviews}</strong></span><span><i className="priority-dot danger" />Payment verification <strong>{pendingPayments}</strong></span></div></div><div className="focus-side"><span className="priority-number">{String(pendingReviews + pendingPayments).padStart(2, "0")}</span><span>Open priorities</span><Link href="/cases">Open queue <Icon name="arrow" size={14} /></Link></div></section> */}<div className="stat-grid"><StatCard label="Total cases" value={String(snapshot.cases.length)} detail="Available to your role" accent /><StatCard label="Sales this month" value={formatMoney(sales)} detail="From available case records" /><StatCard label="Commission payable" value={formatMoney(payable)} detail="Scheduled or approved" /><StatCard label="Paid commissions" value={formatMoney(paid)} detail="Paid commission entries" /></div></>}
-    <div className="dashboard-grid dashboard-grid-agent"><CaseQueue cases={snapshot.cases} isAgent={isAgent} />{/* Team snapshot is intentionally hidden until its replacement is defined. */}</div>
+    <div className="dashboard-grid dashboard-grid-agent"><CaseQueue actor={actor} isAgent={isAgent} />{/* Team snapshot is intentionally hidden until its replacement is defined. */}</div>
   </>;
 }
 

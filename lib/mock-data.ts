@@ -6,8 +6,8 @@ export const mockCases = [
   { id: "case-004", caseNumber: "SMG-00127", customerDisplayName: "Mutiara Office Suites", agentId: "agent-003", agentName: "Nadia Yusuf", status: "submitted" as const, paymentStatus: "not_recorded" as const, saleAmountSen: null, submittedAt: "2026-08-05T09:00:00Z", updatedAt: "2026-08-05T09:00:00Z" },
 ];
 export const mockCommissions = [
-  { id: "com-001", commissionNumber: "COM-00031", caseId: "case-001", caseNumber: "SMG-00124", recipientId: "agent-001", recipientName: "Aisha Rahman", recipientKind: "level_1_agent" as const, entitlementSen: 134750, firstPaymentSen: 104832, deferredBalanceSen: 29918, paidToDateSen: 104832, nextPaymentDate: "2026-09-15", nextPaymentSen: 1760, status: "paid" as const },
-  { id: "com-002", commissionNumber: "COM-00032", caseId: "case-001", caseNumber: "SMG-00124", recipientId: "agent-002", recipientName: "Daniel Lim", recipientKind: "level_2_agent" as const, entitlementSen: 73500, firstPaymentSen: 26208, deferredBalanceSen: 47292, paidToDateSen: 0, nextPaymentDate: "2026-09-15", nextPaymentSen: 2782, status: "scheduled" as const },
+  { id: "com-001", caseId: "case-001", caseNumber: "SMG-00124", recipientId: "agent-001", recipientName: "Aisha Rahman", recipientKind: "level_1_agent" as const, entitlementSen: 134750, firstPaymentSen: 104832, deferredBalanceSen: 29918, paidToDateSen: 104832, nextPaymentDate: "2026-09-15", nextPaymentSen: 1760, status: "paid" as const },
+  { id: "com-002", caseId: "case-001", caseNumber: "SMG-00124", recipientId: "agent-002", recipientName: "Daniel Lim", recipientKind: "level_2_agent" as const, entitlementSen: 73500, firstPaymentSen: 26208, deferredBalanceSen: 47292, paidToDateSen: 0, nextPaymentDate: "2026-09-15", nextPaymentSen: 2782, status: "scheduled" as const },
 ];
 export const buildQualification = (level: AgentLevel, successfulCases: number, directAgents: number, annualSalesSen: number) => {
   const nextLevel: AgentLevel | null = level === 1 ? 2 : level === 2 ? 3 : null;

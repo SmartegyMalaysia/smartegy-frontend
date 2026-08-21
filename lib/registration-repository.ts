@@ -107,6 +107,7 @@ export interface RegistrationRepository {
   completeProfile(actor: CurrentUser, registrationId: ID, input: CompleteRegistrationProfileInput): Promise<RegistrationActionResult<AgentRegistration>>;
   submitFee(actor: CurrentUser, input: SubmitRegistrationFeeInput): Promise<RegistrationActionResult<AgentRegistration>>;
   listForStaff(actor: CurrentUser, query?: RegistrationQueueQuery): Promise<RegistrationActionResult<AgentRegistration[]>>;
+  exportForStaff(actor: CurrentUser, query?: RegistrationQueueQuery): Promise<RegistrationActionResult<true>>;
   getByApplicationNumber(actor: CurrentUser, applicationNumber: string): Promise<RegistrationActionResult<AgentRegistration>>;
   getPaymentProof(actor: CurrentUser, registrationId: ID): Promise<RegistrationActionResult<RegistrationPaymentProofAccess>>;
   verifyFee(actor: CurrentUser, input: VerifyRegistrationFeeInput): Promise<RegistrationActionResult<AgentRegistration>>;
@@ -244,6 +245,7 @@ export const mockRegistrationRepository: RegistrationRepository = {
     });
     return { ok: true, data: sorted };
   },
+  async exportForStaff(actor, query = {}) { const result = await this.listForStaff(actor, query); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-registrations.csv", [["Application", "Name", "Mobile", "Email", "Upline agent", "Registration", "Fee", "Profile", "Submitted"], ...result.data.map((item) => [item.applicationNumber, item.profile.fullName, item.profile.mobileNumber, item.profile.email, item.referringAgentName, item.registrationStatus, item.feeStatus, item.profileComplete ? "Complete" : "Incomplete", item.submittedAt ?? ""])]); return { ok: true, data: true }; },
 
   async getByApplicationNumber(actor, applicationNumber) {
     const allowed = staffOnly<AgentRegistration>(actor);

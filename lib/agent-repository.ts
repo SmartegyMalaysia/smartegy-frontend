@@ -3,7 +3,12 @@ import type { AgentLevel, AgentLevelChangeApproval, AgentLevelChangeRequest, Age
 
 type AgentErrorCode = "FORBIDDEN" | "NOT_FOUND" | "NOT_ELIGIBLE" | "CONFLICT";
 export type AgentResult<T> = { ok: true; data: T } | { ok: false; error: { code: AgentErrorCode; message: string } };
-export interface AgentRepository { list(actor: CurrentUser): Promise<AgentResult<AgentSummary[]>>; getById(actor: CurrentUser, agentId: ID): Promise<AgentResult<AgentWorkspaceDetail>>; listLevelChangeApprovals(actor: CurrentUser): Promise<AgentResult<AgentLevelChangeApproval[]>>; requestLevelChange(actor: CurrentUser, input: { agentId: ID; direction: "promote" | "demote"; reason?: string }): Promise<AgentResult<AgentSummary>>; manualPromote(actor: CurrentUser, input: { agentId: ID; reason?: string }): Promise<AgentResult<AgentSummary>>; reviewLevelChange(actor: CurrentUser, input: { agentId: ID; requestId: ID; decision: "approve" | "reject"; note?: string }): Promise<AgentResult<AgentSummary>>; }
+export type AgentQualificationFilter = "all" | "eligible" | "in_progress";
+export interface AgentDirectoryQuery { search?: string; level?: AgentLevel; uplineAgentId?: ID; status?: "active" | "inactive"; qualification?: AgentQualificationFilter; page?: number; pageSize?: number; }
+export interface AgentDirectoryFilterOptions { levels: AgentLevel[]; statuses: Array<"active" | "inactive">; qualifications: Array<Exclude<AgentQualificationFilter, "all">>; uplines: Array<{ value: ID; label: string }>; }
+export interface AgentDirectoryPage { items: AgentSummary[]; totalItems: number; totalPages: number; filterOptions: AgentDirectoryFilterOptions; }
+export interface AgentApprovalQuery { search?: string; status?: AgentLevelChangeApproval["status"]; type?: "promotion" | "demotion"; }
+export interface AgentRepository { list(actor: CurrentUser): Promise<AgentResult<AgentSummary[]>>; listPage(actor: CurrentUser, query: AgentDirectoryQuery): Promise<AgentResult<AgentDirectoryPage>>; getById(actor: CurrentUser, agentId: ID): Promise<AgentResult<AgentWorkspaceDetail>>; listLevelChangeApprovals(actor: CurrentUser, query?: AgentApprovalQuery): Promise<AgentResult<AgentLevelChangeApproval[]>>; exportLevelChangeApprovals(actor: CurrentUser, query?: AgentApprovalQuery): Promise<AgentResult<true>>; requestLevelChange(actor: CurrentUser, input: { agentId: ID; direction: "promote" | "demote"; reason?: string }): Promise<AgentResult<AgentSummary>>; manualPromote(actor: CurrentUser, input: { agentId: ID; reason?: string }): Promise<AgentResult<AgentSummary>>; reviewLevelChange(actor: CurrentUser, input: { agentId: ID; requestId: ID; decision: "approve" | "reject"; note?: string }): Promise<AgentResult<AgentSummary>>; }
 
 let agents: AgentSummary[] = structuredClone(mockAgents);
 function permitted(actor: CurrentUser) { return actor.role === "staff" || actor.role === "admin"; }
@@ -13,6 +18,23 @@ function promotionRequirements(agent: AgentSummary) { const qualification = agen
 
 export const mockAgentRepository: AgentRepository = {
   async list(actor) { if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can view all agents."); return { ok: true, data: structuredClone(agents) }; },
+  async listPage(actor, query) {
+    if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can view all agents.");
+    const search = query.search?.trim().toLowerCase() ?? "";
+    const matches = agents.filter((agent) => {
+      const eligible = agent.qualification.eligibleForPromotion;
+      return (!search || [agent.displayName, agent.agentCode, agent.uplineName ?? ""].some((value) => value.toLowerCase().includes(search)))
+        && (query.level === undefined || agent.currentLevel === query.level)
+        && (query.uplineAgentId === undefined || agent.uplineAgentId === query.uplineAgentId)
+        && (query.status === undefined || agent.status === query.status)
+        && (query.qualification === undefined || query.qualification === "all" || (query.qualification === "eligible" ? eligible : !eligible));
+    }).toSorted((a, b) => Number(b.qualification.eligibleForPromotion) - Number(a.qualification.eligibleForPromotion) || a.displayName.localeCompare(b.displayName));
+    const pageSize = Math.min(Math.max(query.pageSize ?? 5, 1), 100);
+    const totalItems = matches.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const page = Math.min(Math.max(query.page ?? 1, 1), totalPages);
+    return { ok: true, data: { items: structuredClone(matches.slice((page - 1) * pageSize, page * pageSize)), totalItems, totalPages, filterOptions: { levels: [1, 2, 3], statuses: ["active", "inactive"], qualifications: ["eligible", "in_progress"], uplines: agents.filter((agent) => agent.status === "active").map((agent) => ({ value: agent.id, label: agent.displayName })).toSorted((a, b) => a.label.localeCompare(b.label)) } } };
+  },
   async getById(actor, agentId) {
     if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can view agent details.");
     const agent = agents.find((item) => item.id === agentId); if (!agent) return fail("NOT_FOUND", "Agent not found.");
@@ -20,15 +42,17 @@ export const mockAgentRepository: AgentRepository = {
     while (uplineId) { const upline = agents.find((item) => item.id === uplineId); if (!upline) break; uplineAgents.push(structuredClone(upline)); uplineId = upline.uplineAgentId; }
     return { ok: true, data: { agent: structuredClone(agent), sales: structuredClone(mockCases.filter((sale) => sale.agentId === agent.id)), commissions: structuredClone(mockCommissions.filter((commission) => commission.recipientId === agent.id)), uplineAgents, downlineAgents: structuredClone(agents.filter((item) => item.uplineAgentId === agent.id)) } };
   },
-  async listLevelChangeApprovals(actor) {
+  async listLevelChangeApprovals(actor, query = {}) {
     if (!admin(actor)) return fail("FORBIDDEN", "Only an administrator can view level-change approvals.");
     const approvals = agents.flatMap((agent) => agent.levelChangeRequests.map((request) => ({ ...request, agent: structuredClone(agent) }))).toSorted((a, b) => {
       if (a.status === "pending" && b.status !== "pending") return -1;
       if (a.status !== "pending" && b.status === "pending") return 1;
       return b.requestedAt.localeCompare(a.requestedAt);
     });
-    return { ok: true, data: approvals };
+    const term = query.search?.trim().toLowerCase() ?? "";
+    return { ok: true, data: approvals.filter((item) => (!term || `${item.id} ${item.agent.displayName} ${item.agent.agentCode} ${item.requestedByDisplayName}`.toLowerCase().includes(term)) && (!query.status || item.status === query.status) && (!query.type || (query.type === "promotion" ? item.requestedLevel > item.previousLevel : item.requestedLevel < item.previousLevel))) };
   },
+  async exportLevelChangeApprovals(actor, query = {}) { const result = await this.listLevelChangeApprovals(actor, query); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-level-change-approvals.csv", [["Type", "Agent", "Level Change", "Qualification", "Requested By", "Requested", "Status"], ...result.data.map((item) => [item.requestedLevel > item.previousLevel ? "Promotion" : "Demotion", item.agent.displayName, `Level ${item.previousLevel} to Level ${item.requestedLevel}`, item.reason ?? "", item.requestedByDisplayName, item.requestedAt, item.status])]); return { ok: true, data: true }; },
   async requestLevelChange(actor, input) {
     if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can request a level change.");
     const agent = agents.find((item) => item.id === input.agentId); if (!agent) return fail("NOT_FOUND", "Agent not found.");
