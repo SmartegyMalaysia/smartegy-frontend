@@ -297,7 +297,6 @@ export type CommissionRecipientKind =
 
 export interface CommissionSummary {
   id: ID;
-  commissionNumber: string;
   caseId: ID;
   caseNumber: string;
   recipientId: ID | null;

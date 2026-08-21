@@ -1,6 +1,6 @@
 import { getSupabaseBrowserClient, normalizeSupabaseError } from "./supabase-browser";
 import type { AgentLevel, AgentLevelChangeApproval, AgentLevelChangeRequest, AgentPromotionAudit, AgentSummary, AgentWorkspaceDetail, CurrentUser, ID } from "./types";
-import type { AgentRepository, AgentResult } from "./agent-repository";
+import type { AgentApprovalQuery, AgentDirectoryPage, AgentDirectoryQuery, AgentRepository, AgentResult } from "./agent-repository";
 
 function level(value: unknown): AgentLevel { return value === "level_3" ? 3 : value === "level_2" ? 2 : 1; }
 function rmToSen(value: unknown) { return Math.round(Number(value ?? 0) * 100); }
@@ -34,13 +34,70 @@ async function mapAgent(row: any, supabase: any): Promise<AgentSummary> {
   return summary;
 }
 
+function mapDirectoryAgent(row: any): AgentSummary {
+  const currentLevel = level(row.current_level);
+  const item = row.qualification ?? {};
+  const required = (value: unknown) => value == null ? null : Number(value);
+  return {
+    id: row.id,
+    agentCode: row.agent_code,
+    displayName: row.display_name,
+    currentLevel,
+    uplineAgentId: row.upline_agent_id,
+    uplineName: row.upline_name ?? null,
+    directAgentCount: Number(row.direct_agent_count ?? 0),
+    successfulCaseCount: Number(row.successful_case_count ?? 0),
+    personalSalesSen: rmToSen(row.personal_sales),
+    referralSalesSen: rmToSen(row.referral_sales),
+    annualSalesSen: rmToSen(row.annual_sales),
+    commissionEarnedSen: rmToSen(row.commission_earned),
+    status: row.status === "active" ? "active" : "inactive",
+    qualification: {
+      currentLevel,
+      successfulCases: { current: Number(item.successful_cases?.current ?? 0), required: required(item.successful_cases?.required) },
+      directAgents: { current: Number(item.direct_agents?.current ?? 0), required: required(item.direct_agents?.required) },
+      annualSalesSen: { current: rmToSen(item.annual_sales?.current), required: item.annual_sales?.required == null ? null : rmToSen(item.annual_sales.required) },
+      eligibleForPromotion: Boolean(item.eligible_for_promotion),
+      nextLevel: item.next_level ? level(item.next_level) : null,
+    },
+    promotionHistory: [],
+    levelChangeRequests: [],
+  };
+}
+
+function mapDirectoryPage(payload: any): AgentDirectoryPage {
+  return {
+    items: (payload?.items ?? []).map(mapDirectoryAgent),
+    totalItems: Number(payload?.total_items ?? 0),
+    totalPages: Math.max(1, Number(payload?.total_pages ?? 1)),
+    filterOptions: {
+      levels: (payload?.filter_options?.levels ?? []).map((value: string) => Number(value) as AgentLevel),
+      statuses: payload?.filter_options?.statuses ?? ["active", "inactive"],
+      qualifications: payload?.filter_options?.qualifications ?? ["eligible", "in_progress"],
+      uplines: payload?.filter_options?.uplines ?? [],
+    },
+  };
+}
+
 export const supabaseAgentRepository: AgentRepository = {
   async list(actor) {
+    const result = await this.listPage(actor, { page: 1, pageSize: 100 });
+    return result.ok ? { ok: true, data: result.data.items } : result;
+  },
+  async listPage(actor, query) {
     if (!permitted(actor)) return errorResult({ code: "42501", message: "Only staff and administrators can view all agents." });
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
-    const { data, error } = await supabase.from("agents").select("*,upline:agents!upline_agent_id(legal_name)").order("legal_name");
+    const { data, error } = await supabase.rpc("list_agent_directory", {
+      p_search: query.search?.trim() || null,
+      p_level: query.level ? `level_${query.level}` : null,
+      p_upline_agent_id: query.uplineAgentId ?? null,
+      p_status: query.status ?? null,
+      p_qualification: query.qualification && query.qualification !== "all" ? query.qualification : null,
+      p_page: query.page ?? 1,
+      p_page_size: query.pageSize ?? 5,
+    });
     if (error) return errorResult(error);
-    try { return { ok: true, data: await Promise.all((data ?? []).map((row: any) => mapAgent(row, supabase))) }; } catch (error) { return errorResult(error); }
+    return { ok: true, data: mapDirectoryPage(data) };
   },
   async getById(actor, agentId) {
     if (!permitted(actor)) return errorResult({ code: "42501", message: "Only staff and administrators can view agent details." });
@@ -56,16 +113,21 @@ export const supabaseAgentRepository: AgentRepository = {
         supabase.from("agents").select("*,upline:agents!upline_agent_id(legal_name)").eq("upline_agent_id", agentId),
       ]);
       const mapSale = (row: any) => ({ id: row.id, caseNumber: row.case_number, customerDisplayName: row.customer_name, agentId: row.agent_id, agentName: row.agent_name, status: row.status, paymentStatus: Number(row.outstanding_customer_balance ?? 0) > 0 ? "pending_verification" : "verified", saleAmountSen: row.sale_amount == null ? null : rmToSen(row.sale_amount), submittedAt: row.created_at, updatedAt: row.status_changed_at });
-      const mapCommission = (row: any) => ({ id: row.id, commissionNumber: row.id, caseId: row.case_id, caseNumber: row.case_number, recipientId: row.agent_id, recipientName: agent.displayName, recipientKind: row.intended_level === "level_1" ? "level_1_agent" : row.intended_level === "level_2" ? "level_2_agent" : "level_3_agent", entitlementSen: rmToSen(row.amount), firstPaymentSen: row.kind === "initial" ? rmToSen(row.amount) : 0, deferredBalanceSen: row.kind === "deferred" ? rmToSen(row.amount) : 0, paidToDateSen: row.status === "paid" ? rmToSen(row.amount) : 0, nextPaymentDate: row.status === "paid" ? null : row.due_date, nextPaymentSen: row.status === "paid" ? null : rmToSen(row.amount), status: row.status });
+      const mapCommission = (row: any) => ({ id: row.id, caseId: row.case_id, caseNumber: row.case_number, recipientId: row.agent_id, recipientName: agent.displayName, recipientKind: row.intended_level === "level_1" ? "level_1_agent" : row.intended_level === "level_2" ? "level_2_agent" : "level_3_agent", entitlementSen: rmToSen(row.amount), firstPaymentSen: row.kind === "initial" ? rmToSen(row.amount) : 0, deferredBalanceSen: row.kind === "deferred" ? rmToSen(row.amount) : 0, paidToDateSen: row.status === "paid" ? rmToSen(row.amount) : 0, nextPaymentDate: row.status === "paid" ? null : row.due_date, nextPaymentSen: row.status === "paid" ? null : rmToSen(row.amount), status: row.status });
       return { ok: true, data: { agent, sales: (sales ?? []).map(mapSale), commissions: (commissions ?? []).map(mapCommission), uplineAgents: await Promise.all((uplines ?? []).map((row: any) => mapAgent(row, supabase))), downlineAgents: await Promise.all((downlines ?? []).map((row: any) => mapAgent(row, supabase))) } as AgentWorkspaceDetail };
     } catch (error) { return errorResult(error); }
   },
-  async listLevelChangeApprovals(actor) {
+  async listLevelChangeApprovals(actor, query: AgentApprovalQuery = {}) {
     if (!admin(actor)) return errorResult({ code: "42501", message: "Only an administrator can view level-change approvals." });
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
-    const { data, error } = await supabase.from("promotion_requests").select("*,agent:agents!promotion_requests_agent_id_fkey(*)").order("requested_at", { ascending: false });
+    const { data, error } = await supabase.rpc("list_level_change_approvals", { p_search: query.search?.trim() || null, p_status: query.status ?? null, p_type: query.type ?? null });
     if (error) return errorResult(error);
-    try { return { ok: true, data: await Promise.all((data ?? []).map(async (row: any) => mapRequest(row, await mapAgent(row.agent, supabase)))) }; } catch (error) { return errorResult(error); }
+    try { const rows = Array.isArray(data) ? data : []; const mapped = await Promise.all(rows.map(async (row: any) => mapRequest(row, await mapAgent(row.agent, supabase)))); return { ok: true, data: mapped }; } catch (error) { return errorResult(error); }
+  },
+  async exportLevelChangeApprovals(actor, query: AgentApprovalQuery = {}) {
+    if (!admin(actor)) return errorResult({ code: "42501", message: "Only an administrator can export level-change approvals." });
+    const params = new URLSearchParams(); if (query.search) params.set("search", query.search); if (query.status) params.set("status", query.status); if (query.type) params.set("type", query.type);
+    try { const response = await fetch(`/api/exports/approvals?${params.toString()}`, { credentials: "same-origin" }); if (!response.ok) return errorResult({ code: response.status === 403 ? "42501" : "PGRST000", message: "Unable to export approvals." }); const blob = await response.blob(); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "smartegy-level-change-approvals.csv"; link.click(); URL.revokeObjectURL(link.href); return { ok: true, data: true }; } catch (error) { return errorResult(error as any); }
   },
   async requestLevelChange(actor, input) {
     if (!permitted(actor)) return errorResult({ code: "42501", message: "Only staff and administrators can request a level change." });

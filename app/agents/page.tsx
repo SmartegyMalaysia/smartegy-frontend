@@ -1,41 +1,69 @@
 "use client";
-import { TextInput, TextArea } from "@/components/form-controls";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Badge, EmptyState, ErrorState, LoadingState, PermissionDenied } from "@/components/ui";
 import { DataTable } from "@/components/data-table";
 import { FilterSelect } from "@/components/filter-select";
-import { ExportIcon } from "@/components/export-icon";
+import { TextInput } from "@/components/form-controls";
 import { formatMoney } from "@/lib/format";
-import { agentRepository } from "@/lib/agent-repository";
+import { agentRepository, type AgentDirectoryPage, type AgentQualificationFilter } from "@/lib/agent-repository";
 import { usePreviewUser } from "@/lib/preview-user";
 import type { AgentLevel, AgentSummary } from "@/lib/types";
 
-const levels = ["all", "1", "2", "3"];
-const statuses: Array<"all" | "active" | "inactive"> = ["all", "active", "inactive"];
-const qualificationStates: Array<"all" | "eligible" | "in_progress"> = ["all", "eligible", "in_progress"];
 const pageSize = 5;
+const allValue = "all";
 
 export default function AgentsPage() {
-  const { user, setRole } = usePreviewUser("staff");
-  const [agents, setAgents] = useState<AgentSummary[]>([]);
+  const { user, setRole, ready } = usePreviewUser("staff");
+  const [data, setData] = useState<AgentDirectoryPage | null>(null);
   const [state, setState] = useState<"loading" | "error" | "permission" | "ready">("loading");
-  const [search, setSearch] = useState(""); const [level, setLevel] = useState<AgentLevel | "all">("all"); const [upline, setUpline] = useState("all"); const [status, setStatus] = useState<"all" | "active" | "inactive">("all"); const [qualification, setQualification] = useState<(typeof qualificationStates)[number]>("all"); const [page, setPage] = useState(1);
-  const load = useCallback(async () => { setState("loading"); const result = await agentRepository.list(user); if (result.ok) { setAgents(result.data); setState("ready"); } else setState(result.error.code === "FORBIDDEN" ? "permission" : "error"); }, [user]);
-  useEffect(() => { void load(); }, [load]);
-  const uplineOptions = useMemo(() => ["all", ...Array.from(new Set(agents.map((agent) => agent.uplineName).filter((name): name is string => Boolean(name)))).sort()], [agents]);
-  const filtered = useMemo(() => agents.filter((agent) => { const query = search.trim().toLowerCase(); return (!query || agent.displayName.toLowerCase().includes(query) || agent.agentCode.toLowerCase().includes(query) || agent.uplineName?.toLowerCase().includes(query)) && (level === "all" || agent.currentLevel === level) && (upline === "all" || agent.uplineName === upline) && (status === "all" || agent.status === status) && (qualification === "all" || (qualification === "eligible" ? agent.qualification.eligibleForPromotion : !agent.qualification.eligibleForPromotion)); }).toSorted((a, b) => Number(b.qualification.eligibleForPromotion) - Number(a.qualification.eligibleForPromotion) || a.displayName.localeCompare(b.displayName)), [agents, level, qualification, search, status, upline]);
-  useEffect(() => { setPage(1); }, [search, level, upline, status, qualification]);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize)); const currentPage = Math.min(page, totalPages); const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize); const hasFilters = Boolean(search) || level !== "all" || upline !== "all" || status !== "all" || qualification !== "all";
-  const clearFilters = () => { setSearch(""); setLevel("all"); setUpline("all"); setStatus("all"); setQualification("all"); };
-  function exportAgents() { const rows = [["Agent", "Agent ID", "Level", "Upline", "Successful cases", "Direct agents", "Personal sales", "Referral sales", "Commission earned", "Case qualification", "Recruit qualification", "Sales qualification", "Eligibility", "Status"], ...filtered.map((agent) => { const qualification = agent.qualification; return [agent.displayName, agent.agentCode, `Level ${agent.currentLevel}`, agent.uplineName ?? "Direct registration", agent.successfulCaseCount, agent.directAgentCount, formatMoney(agent.personalSalesSen), formatMoney(agent.referralSalesSen), formatMoney(agent.commissionEarnedSen), qualification.successfulCases.required === null ? "Not required" : `${qualification.successfulCases.current}/${qualification.successfulCases.required} cases`, qualification.directAgents.required === null ? "Not required" : `${qualification.directAgents.current}/${qualification.directAgents.required} direct agents`, qualification.annualSalesSen.required === null ? "Not required" : `${formatMoney(qualification.annualSalesSen.current)} / ${formatMoney(qualification.annualSalesSen.required)}`, qualification.eligibleForPromotion ? `Ready for Level ${qualification.nextLevel}` : qualification.nextLevel === null ? "Highest level" : "In progress", agent.status]; })]; const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n"); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "smartegy-agents.csv"; link.click(); URL.revokeObjectURL(link.href); }
-  return <AppShell user={user} onRoleChange={setRole}><main className="page-content agents-page"><div className="page-header"><div><p className="eyebrow">Staff operations</p><h1>Agents</h1><p className="page-description">Review agent performance, qualification progress, and level-change eligibility.</p></div></div>{state === "loading" ? <LoadingState/> : state === "permission" ? <PermissionDenied/> : state === "error" ? <ErrorState onRetry={load}/> : <section className="panel recent-panel case-table-panel"><div className="panel-header case-table-header"><div><h2>All agents</h2><p>Open an agent to review details or apply a manual promotion override.</p></div><span className="case-count">{filtered.length} agents</span></div><div className="case-filters agent-filters" aria-label="Agent filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Agent name, ID, or upline" /></label><label><span>Level</span><FilterSelect allLabel="All levels" value={String(level)} options={levels} labels={{ all: "All levels", 1: "Level 1", 2: "Level 2", 3: "Level 3" }} onChange={(value) => setLevel(value === "all" ? "all" : Number(value) as AgentLevel)}/></label><label><span>Upline</span><FilterSelect allLabel="All uplines" value={upline} options={uplineOptions} onChange={setUpline}/></label><label><span>Status</span><FilterSelect allLabel="All statuses" value={status} options={statuses} onChange={setStatus}/></label><label><span>Qualification</span><FilterSelect allLabel="All qualification states" value={qualification} options={qualificationStates} labels={{ all: "All states", eligible: "Ready to promote", in_progress: "In progress" }} onChange={setQualification}/></label><button className="text-button case-filter-reset" type="button" disabled={!hasFilters} onClick={clearFilters}>Clear filters</button></div>{filtered.length ? <><div className="desktop-case-table agent-table"><DataTable caption="All Smartegy agents" headers={["Agent", "Level", "Upline", "Successful Cases", "Direct Agents", "Personal Sales", "Referral Sales", "Commission Earned", "Eligibility"]}>{visible.map((agent) => <AgentRow key={agent.id} agent={agent}/>)}</DataTable></div><div className="case-table-footer"><span className="case-page-summary">Showing {(currentPage - 1) * pageSize + 1}&ndash;{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}</span><div className="case-table-actions"><button className="button button-secondary button-sm" type="button" onClick={exportAgents}><ExportIcon size={15}/><span>Export</span></button><div className="pagination" aria-label="Agent table pagination"><button className="pagination-button" type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setPage((value) => value - 1)}>&lsaquo;</button><span>Page {currentPage} of {totalPages}</span><button className="pagination-button" type="button" aria-label="Next page" disabled={currentPage === totalPages} onClick={() => setPage((value) => value + 1)}>&rsaquo;</button></div></div></div></> : <EmptyState title="No matching agents" description="Try changing or clearing the filters."/>}</section>}</main></AppShell>;
+  const [search, setSearch] = useState("");
+  const [level, setLevel] = useState<AgentLevel | typeof allValue>(allValue);
+  const [upline, setUpline] = useState(allValue);
+  const [status, setStatus] = useState<"active" | "inactive" | typeof allValue>(allValue);
+  const [qualification, setQualification] = useState<AgentQualificationFilter>(allValue);
+  const [page, setPage] = useState(1);
+
+  const load = useCallback(async () => {
+    if (!ready) return;
+    setState("loading");
+    const result = await agentRepository.listPage(user, {
+      search,
+      level: level === allValue ? undefined : level,
+      uplineAgentId: upline === allValue ? undefined : upline,
+      status: status === allValue ? undefined : status,
+      qualification,
+      page,
+      pageSize,
+    });
+    if (result.ok) {
+      setData(result.data);
+      setState("ready");
+    } else {
+      setState(result.error.code === "FORBIDDEN" ? "permission" : "error");
+    }
+  }, [level, page, qualification, ready, search, status, upline, user]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), search.trim() ? 250 : 0);
+    return () => window.clearTimeout(timer);
+  }, [load, search]);
+
+  const filterOptions = data?.filterOptions;
+  const totalItems = data?.totalItems ?? 0;
+  const totalPages = data?.totalPages ?? 1;
+  const currentPage = Math.min(page, totalPages);
+  const hasFilters = Boolean(search) || level !== allValue || upline !== allValue || status !== allValue || qualification !== allValue;
+  const clearFilters = () => { setSearch(""); setLevel(allValue); setUpline(allValue); setStatus(allValue); setQualification(allValue); setPage(1); };
+
+  return <AppShell user={user} onRoleChange={setRole}><main className="page-content agents-page"><div className="page-header"><div><p className="eyebrow">Staff operations</p><h1>Agents</h1><p className="page-description">Review agent performance, qualification progress, and level-change eligibility.</p></div></div>{state === "loading" ? <LoadingState/> : state === "permission" ? <PermissionDenied/> : state === "error" ? <ErrorState onRetry={load}/> : !data || !filterOptions ? <LoadingState/> : <section className="panel recent-panel case-table-panel"><div className="panel-header case-table-header"><div><h2>All agents</h2><p>Open an agent to review details or apply a manual promotion override.</p></div><span className="case-count">{totalItems} agents</span></div><div className="case-filters agent-filters" aria-label="Agent filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Agent name, ID, or upline" /></label><label><span>Level</span><FilterSelect allLabel="All levels" value={String(level)} options={[allValue, ...filterOptions.levels.map(String)]} labels={{ all: "All levels", 1: "Level 1", 2: "Level 2", 3: "Level 3" }} onChange={(value) => { setLevel(value === allValue ? allValue : Number(value) as AgentLevel); setPage(1); }}/></label><label><span>Upline</span><FilterSelect allLabel="All uplines" value={upline} options={[allValue, ...filterOptions.uplines.map((item) => item.value)]} labels={Object.fromEntries(filterOptions.uplines.map((item) => [item.value, item.label]))} onChange={(value) => { setUpline(value); setPage(1); }}/></label><label><span>Status</span><FilterSelect allLabel="All statuses" value={status} options={[allValue, ...filterOptions.statuses]} onChange={(value) => { setStatus(value as typeof status); setPage(1); }}/></label><label><span>Qualification</span><FilterSelect allLabel="All qualification states" value={qualification} options={[allValue, ...filterOptions.qualifications]} labels={{ all: "All states", eligible: "Ready to promote", in_progress: "In progress" }} onChange={(value) => { setQualification(value as AgentQualificationFilter); setPage(1); }}/></label><button className="text-button case-filter-reset" type="button" disabled={!hasFilters} onClick={clearFilters}>Clear filters</button></div>{data.items.length ? <><div className="desktop-case-table agent-table"><DataTable caption="All Smartegy agents" headers={["Agent", "Level", "Upline", "Successful Cases", "Direct Agents", "Personal Sales", "Referral Sales", "Commission Earned", "Eligibility"]}>{data.items.map((agent) => <AgentRow key={agent.id} agent={agent}/>)}</DataTable></div><div className="case-table-footer"><span className="case-page-summary">Showing {((currentPage - 1) * pageSize) + 1}&ndash;{Math.min(currentPage * pageSize, totalItems)} of {totalItems}</span><div className="pagination" aria-label="Agent table pagination"><button className="pagination-button" type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>&lsaquo;</button><span>Page {currentPage} of {totalPages}</span><button className="pagination-button" type="button" aria-label="Next page" disabled={currentPage === totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>&rsaquo;</button></div></div></> : <EmptyState title="No matching agents" description="Try changing or clearing the filters."/>}</section>}</main></AppShell>;
 }
 
 function AgentRow({ agent }: { agent: AgentSummary }) {
-  const router = useRouter(); const qualification = agent.qualification;
+  const router = useRouter();
+  const qualification = agent.qualification;
   const open = () => router.push(`/agents/${agent.id}`);
   const eligibility = qualification.nextLevel === null ? "Highest Level" : qualification.eligibleForPromotion ? "Eligible for Promotion" : "In Progress";
   return <tr className="agent-table-row case-table-row" tabIndex={0} role="link" aria-label={`Open details for ${agent.displayName}`} onClick={open} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } }}><td><span className="table-primary">{agent.displayName} <Badge status={agent.status}/></span><span className="table-secondary">{agent.agentCode}</span></td><td>Level {agent.currentLevel}</td><td>{agent.uplineName ?? <span className="muted-cell">Direct registration</span>}</td><td>{agent.successfulCaseCount}</td><td>{agent.directAgentCount}</td><td className="commission-money">{formatMoney(agent.personalSalesSen)}</td><td className="commission-money">{formatMoney(agent.referralSalesSen)}</td><td className="commission-money">{formatMoney(agent.commissionEarnedSen)}</td><td><span className={`qualification-status ${qualification.eligibleForPromotion ? "qualification-ready" : qualification.nextLevel === null ? "" : "qualification-in-progress"}`}>{eligibility}</span></td></tr>;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Button, ConfirmationDialog, EmptyState, ErrorState, LoadingState, PermissionDenied, StatCard } from "@/components/ui";
 import { DataTable } from "@/components/data-table";
@@ -14,6 +14,7 @@ import { usePreviewUser } from "@/lib/preview-user";
 import { isSupabaseConfigured } from "@/lib/supabase-browser";
 import { userRepository } from "@/lib/user-repository";
 import type { AccountStatus, ManageUser, UpdateManageUserInput, UserRole } from "@/lib/types";
+import type { UserDirectoryPage } from "@/lib/user-repository";
 
 const roleOptions: Array<"all" | UserRole> = ["all", "admin", "staff", "agent"];
 const editorRoleOptions: UserRole[] = ["agent", "staff", "admin"];
@@ -23,48 +24,43 @@ const pageSize = 5;
 export default function UsersPage() {
   const { user, setRole } = usePreviewUser("admin");
   const previewMode = !isSupabaseConfigured();
-  const [users, setUsers] = useState<ManageUser[]>([]);
+  const [data, setData] = useState<UserDirectoryPage | null>(null);
   const [state, setState] = useState<"loading" | "error" | "permission" | "ready">("loading");
   const [search, setSearch] = useState("");
   const [role, setRoleFilter] = useState<"all" | UserRole>("all");
   const [status, setStatus] = useState<"all" | AccountStatus>("all");
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<"display_name" | "created_at">("display_name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [editing, setEditing] = useState<ManageUser | null>(null);
   const [form, setForm] = useState<UpdateManageUserInput>({ displayName: "", phone: "", role: "agent", accountStatus: "active" });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [editFeedback, setEditFeedback] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
+    if (!isSupabaseConfigured() && user.role !== "admin") return;
     setState("loading");
-    const result = await userRepository.list(user);
-    if (result.ok) { setUsers(result.data); setState("ready"); }
+    const result = await userRepository.listPage(user, { search, role: role === "all" ? undefined : role, accountStatus: status === "all" ? undefined : status, page, pageSize, sortBy, sortDirection });
+    if (result.ok) { setData(result.data); setState("ready"); }
     else setState(result.error.code === "FORBIDDEN" ? "permission" : "error");
-  }, [user]);
+  }, [page, role, search, sortBy, sortDirection, status, user]);
 
-  useEffect(() => { if (!previewMode || user.role === "admin") void load(); }, [load, previewMode, user.role]);
+  useEffect(() => { if (!previewMode || user.role === "admin") { const timer = window.setTimeout(() => void load(), search.trim() ? 250 : 0); return () => window.clearTimeout(timer); } }, [load, previewMode, search, user.role]);
   useEffect(() => { if (previewMode && user.role !== "admin") setRole("admin"); }, [previewMode, setRole, user.role]);
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return users.filter((item) => {
-      const matchesSearch = !query || [item.displayName, item.email, item.phone, item.agentCode].some((value) => value?.toLowerCase().includes(query));
-      return matchesSearch && (role === "all" || item.role === role) && (status === "all" || item.accountStatus === status);
-    }).toSorted((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [role, search, status, users]);
-
-  useEffect(() => { setPage(1); }, [role, search, status]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const users = data?.items ?? [];
+  const totalItems = data?.totalItems ?? 0;
+  const totalPages = data?.totalPages ?? 1;
   const currentPage = Math.min(page, totalPages);
-  const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const hasFilters = Boolean(search) || role !== "all" || status !== "all";
-  const activeCount = users.filter((item) => item.accountStatus === "active").length;
-  const invitedCount = users.filter((item) => item.accountStatus === "invited").length;
-  const adminCount = users.filter((item) => item.role === "admin").length;
+  const activeCount = data?.summary.activeUsers ?? 0;
+  const invitedCount = data?.summary.invitedUsers ?? 0;
+  const adminCount = data?.summary.adminUsers ?? 0;
 
-  function clearFilters() { setSearch(""); setRoleFilter("all"); setStatus("all"); }
+  function clearFilters() { setSearch(""); setRoleFilter("all"); setStatus("all"); setPage(1); }
   function openEditor(item: ManageUser) {
     setEditing(item);
     setForm({ displayName: item.displayName, phone: item.phone ?? "", role: item.role, accountStatus: item.accountStatus });
@@ -79,23 +75,24 @@ export default function UsersPage() {
     const result = await userRepository.update(user, editing.id, form);
     setSaving(false);
     if (!result.ok) { setFieldErrors(result.error.fieldErrors ?? {}); setEditFeedback(result.error.message); return; }
-    setUsers((current) => current.map((item) => item.id === result.data.id ? result.data : item));
+    setData((current) => current ? { ...current, items: current.items.map((item) => item.id === result.data.id ? result.data : item) } : current);
     setEditing(null); setFeedback(`${result.data.displayName}’s account details have been saved.`);
   }
-  function exportUsers() {
-    const rows = [["User", "Email", "Phone", "Role", "Account status", "Agent code", "Last active", "Created"], ...filtered.map((item) => [item.displayName, item.email ?? "", item.phone ?? "", roleLabels[item.role], item.accountStatus, item.agentCode ?? "", item.lastActiveAt ? formatDate(item.lastActiveAt) : "Never", formatDate(item.createdAt)])];
-    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
-    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "smartegy-users.csv"; link.click(); URL.revokeObjectURL(link.href);
+  async function exportUsers() {
+    setExporting(true);
+    const result = await userRepository.export(user, { search, role: role === "all" ? undefined : role, accountStatus: status === "all" ? undefined : status, sortBy, sortDirection });
+    setExporting(false);
+    setFeedback(result.ok ? "The user export was downloaded." : result.error.message);
   }
 
   return <AppShell user={user} onRoleChange={setRole}><main className="page-content users-page">
     <div className="page-header"><div><p className="eyebrow">Administration</p><h1>Users</h1><p className="page-description">Keep account access, roles, and contact details accurate across Smartegy.</p></div><div className="users-access-note"><Icon name="user-settings" size={16}/><span>Admin access only</span></div></div>
     {feedback && <div className="users-feedback" role="status"><span aria-hidden="true">✓</span><span>{feedback}</span><button type="button" aria-label="Dismiss saved message" onClick={() => setFeedback(null)}><Icon name="close" size={15}/></button></div>}
     {state === "loading" ? <LoadingState /> : state === "permission" ? <PermissionDenied action={previewMode ? <Button variant="secondary" onClick={() => setRole("admin")}>Switch Preview To Admin</Button> : undefined} /> : state === "error" ? <ErrorState onRetry={load} /> : <>
-      <div className="stat-grid users-stat-grid"><StatCard label="Total users" value={String(users.length)} detail="Across all account roles" accent /><StatCard label="Active accounts" value={String(activeCount)} detail="Can access their workspace" /><StatCard label="Invitations" value={String(invitedCount)} detail="Awaiting account activation" /><StatCard label="Administrators" value={String(adminCount)} detail="Can manage user access" /></div>
-      <section className="panel user-directory-panel"><div className="panel-header"><div><h2>User directory</h2><p>Search by identity or filter by access state before opening an edit panel.</p></div><span className="case-count">{filtered.length} of {users.length} users</span></div>
-        <div className="case-filters user-filters" aria-label="User directory filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, email, phone, or agent ID" /></label><label><span>Role</span><FilterSelect allLabel="All roles" value={role} options={roleOptions} labels={{ all: "All roles", admin: "Administrator", staff: "Staff", agent: "Agent" }} onChange={setRoleFilter}/></label><label><span>Account status</span><FilterSelect allLabel="All account statuses" value={status} options={statusOptions} labels={{ all: "All statuses", active: "Active", invited: "Invited", inactive: "Inactive" }} onChange={setStatus}/></label><button className="text-button case-filter-reset" type="button" disabled={!hasFilters} onClick={clearFilters}>Clear filters</button></div>
-        {filtered.length ? <><div className="desktop-user-table"><DataTable caption="Smartegy user directory" headers={["User", "Role", "Account Status", "Phone", "Last Active", "Actions"]}>{visible.map((item) => <UserRow key={item.id} user={item} onEdit={openEditor}/>)}</DataTable></div><div className="mobile-user-list" aria-label="Users">{visible.map((item) => <UserCard key={item.id} user={item} onEdit={openEditor}/>)}</div><TableFooter currentPage={currentPage} totalPages={totalPages} visibleCount={visible.length} totalCount={filtered.length} onPageChange={setPage} onExport={exportUsers} pageSize={pageSize}/></> : <EmptyState title={hasFilters ? "No matching users" : "No users yet"} description={hasFilters ? "Try changing or clearing the filters." : "When accounts are available, they will appear here."} />}
+      <div className="stat-grid users-stat-grid"><StatCard label="Total users" value={String(data?.summary.totalUsers ?? 0)} detail="Across all account roles" accent /><StatCard label="Active accounts" value={String(activeCount)} detail="Can access their workspace" /><StatCard label="Invitations" value={String(invitedCount)} detail="Awaiting account activation" /><StatCard label="Administrators" value={String(adminCount)} detail="Can manage user access" /></div>
+      <section className="panel user-directory-panel"><div className="panel-header"><div><h2>User directory</h2><p>Search by identity or filter by access state before opening an edit panel.</p></div><span className="case-count">{totalItems} users</span></div>
+        <div className="case-filters user-filters" aria-label="User directory filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Name, email, phone, or agent ID" /></label><label><span>Role</span><FilterSelect allLabel="All roles" value={role} options={["all", ...(data?.filterOptions.roles ?? roleOptions.filter((item) => item !== "all") as UserRole[])]} labels={{ all: "All roles", admin: "Administrator", staff: "Staff", agent: "Agent" }} onChange={(value) => { setRoleFilter(value); setPage(1); }}/></label><label><span>Account status</span><FilterSelect allLabel="All account statuses" value={status} options={["all", ...(data?.filterOptions.statuses ?? statusOptions.filter((item) => item !== "all") as AccountStatus[])]} labels={{ all: "All statuses", active: "Active", invited: "Invited", inactive: "Inactive" }} onChange={(value) => { setStatus(value); setPage(1); }}/></label><label><span>Sort by</span><FilterSelect allLabel="Display name" value={sortBy} options={["display_name", "created_at"]} labels={{ display_name: "Display name", created_at: "Created date" }} onChange={(value) => { setSortBy(value as typeof sortBy); setPage(1); }}/></label><button className="text-button case-filter-reset" type="button" disabled={!hasFilters} onClick={clearFilters}>Clear filters</button></div>
+        {users.length ? <><div className="desktop-user-table"><DataTable caption="Smartegy user directory" headers={["User", "Role", "Account Status", "Phone", "Last Active", "Actions"]}>{users.map((item) => <UserRow key={item.id} user={item} onEdit={openEditor}/>)}</DataTable></div><div className="mobile-user-list" aria-label="Users">{users.map((item) => <UserCard key={item.id} user={item} onEdit={openEditor}/>)}</div><TableFooter currentPage={currentPage} totalPages={totalPages} visibleCount={users.length} totalCount={totalItems} onPageChange={setPage} onExport={exportUsers} pageSize={pageSize}/>{exporting && <p className="muted-cell">Preparing export…</p>}</> : <EmptyState title={hasFilters ? "No matching users" : "No users yet"} description={hasFilters ? "Try changing or clearing the filters." : "When accounts are available, they will appear here."} />}
       </section>
     </>}
     {editing && <UserEditor user={editing} actor={user} form={form} setForm={setForm} fieldErrors={fieldErrors} feedback={editFeedback} saving={saving} onClose={closeEditor} onSave={saveUser}/>} 

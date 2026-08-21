@@ -1,6 +1,6 @@
 import { getSupabaseBrowserClient, normalizeSupabaseError } from "./supabase-browser";
 import type { AcceptTrialInput, CaseDetail, CaseDocument, CaseStatus, CurrentUser, CreateCaseInput, GeneratePaymentScheduleInput, ID, RecordPaymentInput, UpdateCaseInput, VerifyPaymentInput } from "./types";
-import type { CaseResult, CasesRepository } from "./case-repository";
+import type { CaseDirectoryQuery, CaseResult, CasesRepository } from "./case-repository";
 
 function failure<T>(error: { code?: string | null; message?: string | null }): CaseResult<T> { const normalized = normalizeSupabaseError(error); return { ok: false, error: { code: normalized.code as any, message: normalized.message } }; }
 function moneyToSen(value: unknown) { return value == null ? null : Math.round(Number(value) * 100); }
@@ -49,6 +49,18 @@ async function rpcCase(actor: CurrentUser, name: string, args: Record<string, un
 }
 
 export const supabaseCasesRepository: CasesRepository = {
+  async listPage(actor, query: CaseDirectoryQuery) {
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return failure({ message: "Supabase is not configured" });
+    const { data, error } = await supabase.rpc("list_case_directory", { p_search: query.search?.trim() || null, p_stage: query.stage ?? null, p_payment_status: query.paymentStatus ?? null, p_agent_id: query.agentId ?? null, p_page: query.page ?? 1, p_page_size: query.pageSize ?? 5, p_sort_by: query.sortBy ?? "updated", p_sort_direction: query.sortDirection ?? "desc" });
+    if (error) return failure(error);
+    const payload = data as Record<string, any>;
+    const items = (payload.items ?? []).map((row: any) => ({ id: row.id, caseNumber: row.case_number, customerDisplayName: row.customer_name, agentId: row.agent_id, agentName: row.agent_name, status: status(row.status), paymentStatus: row.payment_status, saleAmountSen: moneyToSen(row.sale_amount), submittedAt: row.created_at, updatedAt: row.status_changed_at ?? row.created_at }));
+    return { ok: true, data: { items, totalItems: Number(payload.total_items ?? 0), totalPages: Number(payload.total_pages ?? 1), agentOptions: (payload.agent_options ?? []).map((item: any) => ({ value: item.value, label: item.label })) } };
+  },
+  async export(actor, query: CaseDirectoryQuery) {
+    const params = new URLSearchParams(); if (query.search) params.set("search", query.search); if (query.stage) params.set("stage", query.stage); if (query.paymentStatus) params.set("payment_status", query.paymentStatus); if (query.agentId) params.set("agent_id", query.agentId); if (query.sortBy) params.set("sort_by", query.sortBy); if (query.sortDirection) params.set("sort_direction", query.sortDirection);
+    try { const response = await fetch(`/api/exports/cases?${params.toString()}`, { credentials: "same-origin" }); if (!response.ok) return failure({ code: response.status === 403 ? "42501" : "PGRST000", message: "Unable to export cases." }); const blob = await response.blob(); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "smartegy-cases.csv"; link.click(); URL.revokeObjectURL(link.href); return { ok: true, data: true }; } catch (error) { return failure(error as any); }
+  },
   async getById(_actor, caseId) { try { return { ok: true, data: await loadCase(caseId) }; } catch (error) { return failure(error as any); } },
   async create(actor, input: CreateCaseInput, onUploadProgress) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" }); if (!actor.agentId) return failure<CaseDetail>({ code: "42501", message: "An active Agent account is required." });

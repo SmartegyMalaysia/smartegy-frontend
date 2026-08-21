@@ -88,8 +88,8 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
   },
   async createApplication(input) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
-    const { data: auth, error: authError } = await supabase.auth.getUser();
-    if (authError || !auth.user) return errorResult(authError ?? { message: "Verify your email before creating the registration." });
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+    if (claimsError || !claimsData?.claims?.sub) return errorResult(claimsError ?? { message: "Verify your email before creating the registration." });
     const { error: passwordError } = await supabase.auth.updateUser({ password: input.password, data: { display_name: input.fullName.trim(), mobile_number: input.mobileNumber.trim() } });
     if (passwordError) return errorResult(passwordError);
     const { data, error } = await supabase.rpc("create_registration", { p_invitation_code: input.referralCode, p_full_name: input.fullName, p_mobile_number: input.mobileNumber });
@@ -123,13 +123,14 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
   },
   async listForStaff(_actor, query = {}) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
-    let request = supabase.from("agent_registrations").select("*,referring_agent:agents!agent_registrations_referring_agent_id_fkey(legal_name)").order("created_at", { ascending: false });
-    if (query.search) request = request.or(`application_number.ilike.%${query.search}%,full_name.ilike.%${query.search}%,email.ilike.%${query.search}%,mobile_number.ilike.%${query.search}%`);
-    if (query.registrationStatus && query.registrationStatus !== "all") request = request.eq("registration_status", query.registrationStatus);
-    if (query.feeStatus && query.feeStatus !== "all") request = request.eq("fee_status", query.feeStatus);
-    const { data, error } = await request;
+    const { data, error } = await supabase.rpc("list_registration_directory", { p_search: query.search?.trim() || null, p_registration_status: query.registrationStatus && query.registrationStatus !== "all" ? query.registrationStatus : null, p_fee_status: query.feeStatus && query.feeStatus !== "all" ? query.feeStatus : null, p_profile_complete: query.profileComplete && query.profileComplete !== "all" ? query.profileComplete : null, p_email_verified: query.emailVerified && query.emailVerified !== "all" ? query.emailVerified : null, p_submitted_from: query.submittedFrom || null, p_submitted_to: query.submittedTo || null, p_page: 1, p_page_size: 10000, p_sort_by: query.sort === "oldest" ? "oldest" : query.sort === "recently_updated" ? "recently_updated" : query.sort === "newest" ? "newest" : "priority", p_sort_direction: "desc" });
     if (error) return errorResult(error);
-    return { ok: true, data: (data ?? []).map((row: RegistrationRow) => mapRegistration(row)) };
+    const payload = data as Record<string, any>;
+    return { ok: true, data: ((payload.items ?? []) as RegistrationRow[]).map((row) => mapRegistration(row)) };
+  },
+  async exportForStaff(_actor, query = {}) {
+    const params = new URLSearchParams(); if (query.search) params.set("search", query.search); if (query.registrationStatus && query.registrationStatus !== "all") params.set("registration_status", query.registrationStatus); if (query.feeStatus && query.feeStatus !== "all") params.set("fee_status", query.feeStatus); if (query.profileComplete && query.profileComplete !== "all") params.set("profile_complete", query.profileComplete); if (query.emailVerified && query.emailVerified !== "all") params.set("email_verified", query.emailVerified); if (query.submittedFrom) params.set("submitted_from", query.submittedFrom); if (query.submittedTo) params.set("submitted_to", query.submittedTo); if (query.sort) params.set("sort_by", query.sort);
+    try { const response = await fetch(`/api/exports/registrations?${params.toString()}`, { credentials: "same-origin" }); if (!response.ok) return errorResult({ code: response.status === 403 ? "42501" : "PGRST000", message: "Unable to export registrations." }); const blob = await response.blob(); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "smartegy-registrations.csv"; link.click(); URL.revokeObjectURL(link.href); return { ok: true, data: true }; } catch (error) { return errorResult(error as any); }
   },
   async getByApplicationNumber(_actor, applicationNumber) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });

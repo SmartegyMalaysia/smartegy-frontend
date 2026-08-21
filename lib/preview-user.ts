@@ -39,25 +39,32 @@ function usePreviewUserState(defaultRole: UserRole): PreviewUserContextValue {
     if (supabase) {
       let active = true;
       const load = async () => {
-        const { data: auth } = await supabase.auth.getUser();
-        if (!auth.user || !active) { if (active) setReady(true); return; }
-        const { data: profile } = await supabase.from("profiles").select("id,role,display_name,phone,account_status").eq("id", auth.user.id).maybeSingle();
+        const { data: claimsData } = await supabase.auth.getClaims();
+        const claims = (claimsData?.claims as Record<string, unknown> | undefined) ?? {};
+        const userId = typeof claims?.sub === "string" ? claims.sub : null;
+        if (!userId || !active) { if (active) setReady(true); return; }
+        const [{ data: profile }, { data: agent }] = await Promise.all([
+          supabase.from("profiles").select("id,role,display_name,phone,account_status").eq("id", userId).maybeSingle(),
+          supabase.from("agents").select("id").eq("profile_id", userId).maybeSingle(),
+        ]);
         if (!profile || !active) { if (active) setReady(true); return; }
-        const { data: agent } = await supabase.from("agents").select("id").eq("profile_id", profile.id).maybeSingle();
         const nextUser: CurrentUser = {
           id: profile.id,
           role: profile.role as UserRole,
           displayName: profile.display_name,
-          email: auth.user.email ?? null,
+          email: typeof claims.email === "string" ? claims.email : null,
           agentId: agent?.id ?? null,
           accountStatus: profile.account_status as CurrentUser["accountStatus"],
+          emailVerified: Boolean(claims.email_confirmed_at),
         };
         setRoleState(nextUser.role);
         setUser(nextUser);
         setReady(true);
       };
       void load();
-      const { data: listener } = supabase.auth.onAuthStateChange(() => { void load(); });
+      const { data: listener } = supabase.auth.onAuthStateChange((event: string) => {
+        if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") void load();
+      });
       return () => { active = false; listener.subscription.unsubscribe(); };
     }
     const storedRole = window.localStorage.getItem(storageKey) as UserRole | null;

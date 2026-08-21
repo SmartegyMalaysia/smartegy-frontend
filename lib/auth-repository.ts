@@ -9,7 +9,7 @@ export interface LoginInput {
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_RESET_COOLDOWN_SECONDS = 30;
 const PASSWORD_RESET_LIFETIME_MS = 15 * 60 * 1000;
-const neutralResetMessage = "If an account exists for this email address, we have sent password-reset instructions.";
+const neutralResetMessage = "If an account exists for this email address, we have sent password reset instructions.";
 
 export type PasswordResetResult =
   | { ok: true; message: string; resetPath: string; cooldownSeconds: number }
@@ -37,9 +37,12 @@ export async function requestPasswordReset(email: string): Promise<PasswordReset
   if (!isValidEmail(email)) return { ok: false, code: "INVALID_INPUT", message: "Enter a valid email address.", fieldErrors: { email: ["Enter a valid email address."] } };
   const supabase = getSupabaseBrowserClient();
   if (supabase) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password` });
-    if (error) return { ok: false, code: "NETWORK_ERROR", message: normalizeSupabaseError(error).message };
-    return { ok: true, message: neutralResetMessage, resetPath: "/reset-password", cooldownSeconds: PASSWORD_RESET_COOLDOWN_SECONDS };
+    try {
+      const response = await fetch("/api/auth/forgot-password", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ email: email.trim() }) });
+      return (await response.json()) as PasswordResetResult;
+    } catch {
+      return { ok: false, code: "NETWORK_ERROR", message: "We could not reach the authentication service. Try again shortly." };
+    }
   }
   const now = Date.now();
   const remaining = mockResetSession ? Math.ceil((PASSWORD_RESET_COOLDOWN_SECONDS * 1000 - (now - mockResetSession.requestedAt)) / 1000) : 0;
@@ -55,9 +58,9 @@ export function getPasswordResetCooldownSeconds() {
 
 export async function resetPassword(token: string, password: string, confirmation: string): Promise<PasswordUpdateResult> {
   const linkState = getMockResetLinkState(token);
-  if (linkState === "invalid") return { ok: false, code: "INVALID_LINK", message: "This password-reset link is invalid. Request a new link to continue." };
-  if (linkState === "expired") return { ok: false, code: "EXPIRED_LINK", message: "This password-reset link has expired. Request a new link to continue." };
-  if (linkState === "used") return { ok: false, code: "USED_LINK", message: "This password-reset link has already been used. Request a new link to continue." };
+  if (linkState === "invalid") return { ok: false, code: "INVALID_LINK", message: "This password reset link is invalid. Request a new link to continue." };
+  if (linkState === "expired") return { ok: false, code: "EXPIRED_LINK", message: "This password reset link has expired. Request a new link to continue." };
+  if (linkState === "used") return { ok: false, code: "USED_LINK", message: "This password reset link has already been used. Request a new link to continue." };
   const fieldErrors: Record<string, string[]> = {};
   if (password.length < PASSWORD_MIN_LENGTH) fieldErrors.password = [`Use at least ${PASSWORD_MIN_LENGTH} characters.`];
   if (password !== confirmation) fieldErrors.confirmation = ["Passwords do not match."];

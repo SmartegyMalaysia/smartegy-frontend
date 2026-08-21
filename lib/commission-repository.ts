@@ -2,6 +2,8 @@ import { mockDashboard } from "./mock-data";
 import type { AgentCommissionRecord, CommissionOverview, CommissionStatus, CurrentUser, ID } from "./types";
 
 export type CommissionResult<T> = { ok: true; data: T } | { ok: false; error: { code: "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR"; message: string } };
+export interface CommissionDirectoryQuery { search?: string; status?: CommissionStatus; month?: string; page?: number; pageSize?: number; sortBy?: "updated" | "next" | "balance" | "newest"; sortDirection?: "asc" | "desc"; }
+export interface CommissionDirectoryPage { items: AgentCommissionRecord[]; totalItems: number; totalPages: number; }
 
 function addMonths(date: string, months: number) { const next = new Date(`${date}T00:00:00Z`); next.setUTCMonth(next.getUTCMonth() + months); return next.toISOString().slice(0, 10); }
 function buildSchedule(id: string, deferredBalanceSen: number, startDate: string, paidSequences: number[] = []): AgentCommissionRecord["schedule"] {
@@ -16,6 +18,8 @@ const records: AgentCommissionRecord[] = source ? [{ ...source, customerDisplayN
 export interface AgentCommissionsRepository {
   getOverview(actor: CurrentUser): Promise<CommissionResult<CommissionOverview>>;
   list(actor: CurrentUser): Promise<CommissionResult<AgentCommissionRecord[]>>;
+  listPage(actor: CurrentUser, query: CommissionDirectoryQuery): Promise<CommissionResult<CommissionDirectoryPage>>;
+  export(actor: CurrentUser, query: CommissionDirectoryQuery): Promise<CommissionResult<true>>;
   getById(actor: CurrentUser, commissionId: ID): Promise<CommissionResult<AgentCommissionRecord>>;
 }
 
@@ -26,6 +30,16 @@ function overview(): CommissionOverview { const totalEntitlementSen = records.re
 export const mockAgentCommissionsRepository: AgentCommissionsRepository = {
   async getOverview(actor) { await new Promise((resolve) => setTimeout(resolve, 90)); if (!access(actor)) return forbidden(); return { ok: true, data: overview() }; },
   async list(actor) { await new Promise((resolve) => setTimeout(resolve, 120)); if (!access(actor)) return forbidden(); return { ok: true, data: records.filter((item) => item.recipientId === actor.agentId) }; },
+  async listPage(actor, query) {
+    const result = await this.list(actor); if (!result.ok) return result;
+    const term = query.search?.trim().toLowerCase() ?? "";
+    const filtered = result.data.filter((item) => (!term || `${item.caseNumber} ${item.customerDisplayName}`.toLowerCase().includes(term)) && (!query.status || item.status === query.status) && (!query.month || item.nextPaymentDate?.startsWith(query.month)));
+    const direction = query.sortDirection === "asc" ? 1 : -1;
+    const sorted = [...filtered].sort((a, b) => { const value = query.sortBy === "balance" ? b.deferredBalanceSen - a.deferredBalanceSen : query.sortBy === "next" ? (a.nextPaymentDate ?? "9999").localeCompare(b.nextPaymentDate ?? "9999") : query.sortBy === "newest" ? (b.qualifyingPaymentDate ?? "").localeCompare(a.qualifyingPaymentDate ?? "") : b.lastUpdatedAt.localeCompare(a.lastUpdatedAt); return value * direction; });
+    const pageSize = Math.min(10000, Math.max(1, query.pageSize ?? 5)); const page = Math.max(1, query.page ?? 1);
+    return { ok: true, data: { items: sorted.slice((page - 1) * pageSize, page * pageSize), totalItems: sorted.length, totalPages: Math.max(1, Math.ceil(sorted.length / pageSize)) } };
+  },
+  async export(actor, query) { const result = await this.listPage(actor, { ...query, page: 1, pageSize: 10000 }); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-commissions.csv", [["Case", "Customer", "Entitlement", "Paid", "Remaining", "Status", "Next payout", "Updated"], ...result.data.items.map((item) => [item.caseNumber, item.customerDisplayName, item.entitlementSen / 100, item.paidToDateSen / 100, item.deferredBalanceSen / 100, item.status, item.nextPaymentDate ?? "", item.lastUpdatedAt])]); return { ok: true, data: true }; },
   async getById(actor, commissionId) { await new Promise((resolve) => setTimeout(resolve, 90)); if (!access(actor)) return forbidden(); const record = records.find((item) => item.id === commissionId && item.recipientId === actor.agentId); return record ? { ok: true, data: record } : { ok: false, error: { code: "NOT_FOUND", message: "Commission record not found." } }; },
 };
 

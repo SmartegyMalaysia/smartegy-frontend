@@ -58,7 +58,7 @@ Proposed route structure; adjust to the actual Next.js architecture without chan
 | Route | Page | Main roles |
 |---|---|---|
 | `/join/[code]` | Invitation/referral-based registration, OTP verification, and payment proof | Public/invited applicant |
-| `/forgot-password` | Request password-reset instructions | Public |
+| `/forgot-password` | Request password reset instructions | Public |
 | `/reset-password` | Set a new password from a valid reset session | Public/reset session |
 | `/onboarding/status` | Registration and fee status | Pending agent |
 | `/dashboard` | Role-aware dashboard | All |

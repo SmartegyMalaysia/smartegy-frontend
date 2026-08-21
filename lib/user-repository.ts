@@ -3,7 +3,9 @@ import type { AccountStatus, CurrentUser, ManageUser, UpdateManageUserInput, Use
 
 type UserErrorCode = "FORBIDDEN" | "NOT_FOUND" | "VALIDATION_ERROR" | "CONFLICT" | "INTERNAL_ERROR";
 export type UserResult<T> = { ok: true; data: T } | { ok: false; error: { code: UserErrorCode; message: string; fieldErrors?: Record<string, string[]> } };
-export interface UserRepository { list(actor: CurrentUser): Promise<UserResult<ManageUser[]>>; update(actor: CurrentUser, userId: string, input: UpdateManageUserInput): Promise<UserResult<ManageUser>>; }
+export interface UserDirectoryQuery { search?: string; role?: UserRole; accountStatus?: AccountStatus; page?: number; pageSize?: number; sortBy?: "display_name" | "created_at"; sortDirection?: "asc" | "desc"; }
+export interface UserDirectoryPage { items: ManageUser[]; totalItems: number; totalPages: number; summary: { totalUsers: number; activeUsers: number; invitedUsers: number; adminUsers: number }; filterOptions: { roles: UserRole[]; statuses: AccountStatus[] }; }
+export interface UserRepository { list(actor: CurrentUser): Promise<UserResult<ManageUser[]>>; listPage(actor: CurrentUser, query: UserDirectoryQuery): Promise<UserResult<UserDirectoryPage>>; export(actor: CurrentUser, query: UserDirectoryQuery): Promise<UserResult<true>>; update(actor: CurrentUser, userId: string, input: UpdateManageUserInput): Promise<UserResult<ManageUser>>; }
 
 const mockUsers: ManageUser[] = [
   { id: "user-003", displayName: "Mei Tan", email: "mei@smartegy.example", phone: "+60 12-889 0042", role: "admin", accountStatus: "active", agentCode: null, lastActiveAt: "2026-08-18T04:25:00Z", createdAt: "2026-05-11T02:10:00Z" },
@@ -29,7 +31,23 @@ function validate(input: UpdateManageUserInput) {
 }
 
 export const mockUserRepository: UserRepository = {
-  async list(actor) { if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can manage user accounts."); await new Promise((resolve) => setTimeout(resolve, 120)); return { ok: true, data: structuredClone(users) }; },
+  async list(actor) { const result = await this.listPage(actor, { page: 1, pageSize: 10000 }); return result.ok ? { ok: true, data: result.data.items } : result; },
+  async listPage(actor, query) {
+    if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can manage user accounts.");
+    const term = query.search?.trim().toLowerCase() ?? "";
+    const filtered = users.filter((item) => (!term || [item.displayName, item.email, item.phone, item.agentCode].some((value) => value?.toLowerCase().includes(term))) && (!query.role || item.role === query.role) && (!query.accountStatus || item.accountStatus === query.accountStatus));
+    const direction = query.sortDirection === "desc" ? -1 : 1;
+    const sorted = [...filtered].sort((a, b) => (query.sortBy === "created_at" ? a.createdAt.localeCompare(b.createdAt) : a.displayName.localeCompare(b.displayName)) * direction);
+    const pageSize = Math.min(10000, Math.max(1, query.pageSize ?? 5)); const page = Math.max(1, query.page ?? 1); const totalItems = sorted.length;
+    return { ok: true, data: { items: structuredClone(sorted.slice((page - 1) * pageSize, page * pageSize)), totalItems, totalPages: Math.max(1, Math.ceil(totalItems / pageSize)), summary: { totalUsers: users.length, activeUsers: users.filter((item) => item.accountStatus === "active").length, invitedUsers: users.filter((item) => item.accountStatus === "invited").length, adminUsers: users.filter((item) => item.role === "admin").length }, filterOptions: { roles: roles, statuses } } };
+  },
+  async export(actor, query) {
+    const result = await this.listPage(actor, { ...query, page: 1, pageSize: 10000 });
+    if (!result.ok) return result;
+    const rows = [["User", "Email", "Phone", "Role", "Account status", "Agent code", "Last active", "Created"], ...result.data.items.map((item) => [item.displayName, item.email ?? "", item.phone ?? "", item.role, item.accountStatus, item.agentCode ?? "", item.lastActiveAt ?? "Never", item.createdAt])];
+    downloadCsv(`smartegy-users${query.search || query.role || query.accountStatus ? "-filtered" : ""}.csv`, rows);
+    return { ok: true, data: true };
+  },
   async update(actor, userId, input) {
     if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can update user accounts.");
     const fieldErrors = validate(input); if (Object.keys(fieldErrors).length) return fail("VALIDATION_ERROR", "Check the highlighted fields and try again.", fieldErrors);
@@ -47,12 +65,19 @@ function supabaseError<T>(error: unknown): UserResult<T> {
 }
 
 export const supabaseUserRepository: UserRepository = {
-  async list(actor) {
+  async list(actor) { const result = await this.listPage(actor, { page: 1, pageSize: 10000 }); return result.ok ? { ok: true, data: result.data.items } : result; },
+  async listPage(actor, query) {
     if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can manage user accounts.");
     const supabase = getSupabaseBrowserClient(); if (!supabase) return fail("INTERNAL_ERROR", "Supabase is not configured.");
-    const { data, error } = await supabase.rpc("admin_list_users");
+    const { data, error } = await supabase.rpc("admin_list_users", { p_search: query.search?.trim() || null, p_role: query.role ?? null, p_account_status: query.accountStatus ?? null, p_page: query.page ?? 1, p_page_size: query.pageSize ?? 5, p_sort_by: query.sortBy ?? "display_name", p_sort_direction: query.sortDirection ?? "asc" });
     if (error) return supabaseError(error);
-    return { ok: true, data: ((data ?? []) as Array<Record<string, unknown>>).map(mapSupabaseUser) };
+    const payload = data as Record<string, any>;
+    return { ok: true, data: { items: ((payload?.items ?? []) as Array<Record<string, unknown>>).map(mapSupabaseUser), totalItems: Number(payload?.total_items ?? 0), totalPages: Number(payload?.total_pages ?? 1), summary: { totalUsers: Number(payload?.summary?.total_users ?? 0), activeUsers: Number(payload?.summary?.active_users ?? 0), invitedUsers: Number(payload?.summary?.invited_users ?? 0), adminUsers: Number(payload?.summary?.admin_users ?? 0) }, filterOptions: { roles: (payload?.filter_options?.roles ?? roles) as UserRole[], statuses: (payload?.filter_options?.statuses ?? statuses) as AccountStatus[] } } };
+  },
+  async export(actor, query) {
+    if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can export user accounts.");
+    const params = new URLSearchParams(); if (query.search) params.set("search", query.search); if (query.role) params.set("role", query.role); if (query.accountStatus) params.set("account_status", query.accountStatus); if (query.sortBy) params.set("sort_by", query.sortBy); if (query.sortDirection) params.set("sort_direction", query.sortDirection);
+    return downloadServerExport(`/api/exports/users?${params.toString()}`);
   },
   async update(actor, userId, input) {
     if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can update user accounts.");
@@ -69,6 +94,15 @@ export const supabaseUserRepository: UserRepository = {
 
 function mapSupabaseUser(row: Record<string, unknown>): ManageUser {
   return { id: String(row.id), displayName: String(row.display_name ?? ""), email: typeof row.email === "string" ? row.email : null, phone: typeof row.phone === "string" ? row.phone : null, role: row.role as UserRole, accountStatus: row.account_status as AccountStatus, agentCode: typeof row.agent_code === "string" ? row.agent_code : null, lastActiveAt: typeof row.last_active_at === "string" ? row.last_active_at : null, createdAt: String(row.created_at) };
+}
+
+function downloadCsv(fileName: string, rows: Array<Array<string | number>>) {
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\r\n") + "\r\n";
+  const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = fileName; link.click(); URL.revokeObjectURL(link.href);
+}
+
+async function downloadServerExport(path: string): Promise<UserResult<true>> {
+  try { const response = await fetch(path, { credentials: "same-origin" }); if (!response.ok) return fail(response.status === 403 ? "FORBIDDEN" : "INTERNAL_ERROR", "Unable to export user data."); const blob = await response.blob(); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "smartegy-export.csv"; link.click(); URL.revokeObjectURL(link.href); return { ok: true, data: true }; } catch { return fail("INTERNAL_ERROR", "Unable to export user data."); }
 }
 
 export function resetMockUsers() { users = structuredClone(mockUsers); }
