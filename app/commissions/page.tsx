@@ -24,6 +24,7 @@ const sortLabels: Record<SortKey, string> = { updated: "Latest updated", next: "
 export default function CommissionsPage() {
   const { user, setRole } = usePreviewUser();
   const [overview, setOverview] = useState<CommissionOverview | null>(null);
+
   const [state, setState] = useState<"loading" | "error" | "permission">("loading");
 
   useEffect(() => {
@@ -32,6 +33,10 @@ export default function CommissionsPage() {
       else setState(result.error.code === "FORBIDDEN" ? "permission" : "error");
     });
   }, [user]);
+
+
+  //const [state, setState] = useState<"loading" | "error" | "permission" | "ready">("loading");
+  //useEffect(() => { agentCommissionsRepository.getOverview(user).then((result) => { if (result.ok) { setOverview(result.data); setState("ready"); } else setState(result.error.code === "FORBIDDEN" ? "permission" : "error"); }); }, [user]);
 
   return <AppShell user={user} onRoleChange={setRole}><main className="page-content commissions-page"><div className="page-header"><div><p className="eyebrow">Agent workspace</p><h1>My Commissions</h1><p className="page-description">A transparent view of your earned, paid, and scheduled commissions.</p></div></div>{state === "loading" && !overview ? <LoadingState /> : state === "permission" ? <ErrorState /> : state === "error" || !overview ? <ErrorState /> : <><CommissionOverviewCards overview={overview} /><CommissionRecords actor={user} /></>}</main></AppShell>;
 }

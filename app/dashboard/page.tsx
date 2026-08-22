@@ -14,9 +14,13 @@ import type { DashboardSnapshot, UserRole } from "@/lib/types";
 
 export default function DashboardPage() {
   const { role, user, setRole, ready } = usePreviewUser();
+  const [timeGreeting, setTimeGreeting] = useState("Good morning");
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setTimeGreeting(getTimeGreeting());
+  }, []);
   useEffect(() => {
     if (!ready) return;
     let active = true;
@@ -27,8 +31,15 @@ export default function DashboardPage() {
       .catch(() => { if (active) setFailed(true); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [ready, user]);
-  return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}><div className="page-content dashboard-page-content">{!ready ? <LoadingState /> : <><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1>{role === "agent" ? `Good morning, ${user.displayName.split(" ")[0]}` : "Operations overview"}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div>{loading ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <DashboardContent snapshot={snapshot} role={role} actor={user} />}</>}</div></AppShell>;
+  }, [ready, role, user.id]);
+  return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}><div className="page-content dashboard-page-content">{!ready ? <LoadingState /> : <><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1 className="dashboard-greeting">{timeGreeting}, {user.displayName.split(" ")[0]}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div>{loading && !snapshot ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <div aria-busy={loading}><DashboardContent snapshot={snapshot} role={role} actor={user} /></div>}</>}</div></AppShell>;
+}
+
+function getTimeGreeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }
 
 function DashboardContent({ snapshot, role, actor }: { snapshot: DashboardSnapshot; role: UserRole; actor: import("@/lib/types").CurrentUser }) {
@@ -37,7 +48,7 @@ function DashboardContent({ snapshot, role, actor }: { snapshot: DashboardSnapsh
   const sales = snapshot.cases.reduce((sum, item) => sum + (item.saleAmountSen ?? 0), 0);
   const commissions = snapshot.commissions.reduce((sum, item) => sum + item.entitlementSen, 0);
   const successfulCases = snapshot.cases.filter((item) => item.status === "completed" || item.status === "active_installments").length;
-  const pendingReviews = snapshot.cases.filter((item) => item.status === "submitted" || item.status === "under_review").length;
+  const pendingReviews = snapshot.cases.filter((item) => item.status === "under_review").length;
   const pendingPayments = snapshot.cases.filter((item) => item.paymentStatus === "pending_verification").length;
   const payable = snapshot.commissions.filter((item) => item.status === "scheduled" || item.status === "approved").reduce((sum, item) => sum + item.entitlementSen, 0);
   const paid = snapshot.commissions.filter((item) => item.status === "paid").reduce((sum, item) => sum + item.paidToDateSen, 0);

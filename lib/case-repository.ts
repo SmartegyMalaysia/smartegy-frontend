@@ -1,5 +1,6 @@
 import { mockDashboard } from "./mock-data";
 import { caseDocumentConfig, validateCaseDocument } from "./document-config";
+import { canDeleteCase } from "./case-workflow";
 import type { AcceptTrialInput, CaseDetail, CaseDocumentInput, CasePayment, CaseSummary, CurrentUser, CreateCaseInput, GeneratePaymentScheduleInput, ID, RecordPaymentInput, UpdateCaseInput, VerifyPaymentInput, CaseStatus, PaymentStatus } from "./types";
 
 type CaseErrorCode = "VALIDATION_ERROR" | "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR" | "CONFLICT";
@@ -12,7 +13,6 @@ const now = () => new Date().toISOString();
 const money = (sen: number | null | undefined) => sen == null ? null : sen;
 const staffRoles = new Set(["staff", "admin"]);
 const allowedTransitions: Partial<Record<CaseStatus, CaseStatus[]>> = {
-  submitted: ["under_review", "cancelled"],
   under_review: ["quotation_issued", "changes_requested", "cancelled"],
   changes_requested: ["under_review", "cancelled"],
   quotation_issued: ["awaiting_deposit", "cancelled"],
@@ -42,7 +42,19 @@ function nextCaseNumber() { return `SMG-${String(caseStore.size + 128).padStart(
 function validateDocument(document: CaseDocumentInput) { return validateCaseDocument({ name: document.fileName, type: document.mimeType, size: document.sizeBytes }, document.type); }
 function access(actor: CurrentUser, item: CaseDetail) { return actor.role !== "agent" || item.agentId === actor.agentId; }
 function staffOnly<T>(actor: CurrentUser) { return staffRoles.has(actor.role) ? null : failure<T>("FORBIDDEN", "Staff or admin access is required for this case action."); }
-function recordActivity(item: CaseDetail, actor: CurrentUser, action: string, summary: string, reason?: string) { item.activity = [...item.activity, { id: `activity-${item.id}-${item.activity.length + 1}`, action, actorDisplayName: actor.displayName, occurredAt: now(), summary: reason ? `${summary} — ${reason}` : summary }]; item.updatedAt = now(); }
+function automaticAllocations(schedules: CaseDetail["paymentSchedules"], amountSen: number) {
+  let remaining = amountSen;
+  const allocations: Array<{ scheduleId: ID; amountSen: number }> = [];
+  for (const schedule of schedules ?? []) {
+    const balance = schedule.amountDueSen - schedule.amountPaidSen;
+    if (balance <= 0 || remaining <= 0) continue;
+    const amount = Math.min(balance, remaining);
+    allocations.push({ scheduleId: schedule.id, amountSen: amount });
+    remaining -= amount;
+  }
+  return remaining === 0 ? allocations : null;
+}
+function recordActivity(item: CaseDetail, actor: CurrentUser, action: string, summary: string, reason?: string) { item.activity = [...item.activity, { id: `activity-${item.id}-${item.activity.length + 1}`, action, actorDisplayName: actor.displayName, occurredAt: now(), summary: reason ? `${summary} — ${reason}` : summary, reason: reason ?? null }]; item.updatedAt = now(); }
 
 export interface CasesRepository {
   listPage(actor: CurrentUser, query: CaseDirectoryQuery): Promise<CaseResult<CaseDirectoryPage>>;
@@ -50,11 +62,13 @@ export interface CasesRepository {
   getById(actor: CurrentUser, caseId: ID): Promise<CaseResult<CaseDetail>>;
   create(actor: CurrentUser, input: CreateCaseInput, onUploadProgress?: (progress: number) => void): Promise<CaseResult<CaseDetail>>;
   update(actor: CurrentUser, caseId: ID, input: UpdateCaseInput): Promise<CaseResult<CaseDetail>>;
+  deleteCase(actor: CurrentUser, caseId: ID): Promise<CaseResult<{ id: ID }>>;
   transition(actor: CurrentUser, caseId: ID, to: CaseStatus, reason?: string): Promise<CaseResult<CaseDetail>>;
   requestChanges(actor: CurrentUser, caseId: ID, reason: string): Promise<CaseResult<CaseDetail>>;
   cancel(actor: CurrentUser, caseId: ID, reason: string): Promise<CaseResult<CaseDetail>>;
   generatePaymentSchedule(actor: CurrentUser, caseId: ID, input: GeneratePaymentScheduleInput): Promise<CaseResult<CaseDetail>>;
   recordPayment(actor: CurrentUser, caseId: ID, input: RecordPaymentInput): Promise<CaseResult<CaseDetail>>;
+  recordAndVerifyPayment(actor: CurrentUser, caseId: ID, input: RecordPaymentInput): Promise<CaseResult<CaseDetail>>;
   verifyPayment(actor: CurrentUser, input: VerifyPaymentInput): Promise<CaseResult<CaseDetail>>;
   recordInstallation(actor: CurrentUser, caseId: ID, installationDate: ISODate): Promise<CaseResult<CaseDetail>>;
   verifySavings(actor: CurrentUser, caseId: ID, savingsKwh: number, monthlySavingsSen: MoneySen): Promise<CaseResult<CaseDetail>>;
@@ -96,7 +110,7 @@ export const mockCasesRepository: CasesRepository = {
     const submittedAt = now();
     onUploadProgress?.(10);
     await new Promise((resolve) => setTimeout(resolve, 60));
-    const created: CaseDetail = { id, caseNumber: nextCaseNumber(), customerDisplayName: input.customer.displayName.trim(), agentId: actor.agentId, agentName: actor.displayName, status: "submitted", paymentStatus: "not_recorded", saleAmountSen: null, submittedAt, updatedAt: submittedAt, customer: { id: `customer-${id}`, displayName: input.customer.displayName.trim(), companyRegistrationNumber: null, contactName: input.customer.contactName?.trim() || null, email: input.customer.email?.trim() || null, phone: input.customer.phone?.trim() || null }, service: { siteAddress: input.service.siteAddress.trim(), electricityAccountNumber: null, notes: input.service.notes?.trim() || null }, documents: input.documents.map((document, index) => ({ id: `document-${id}-${index + 1}`, caseId: id, ...document, uploadedBy: actor.id, uploadedAt: submittedAt })), quote: null, verifiedSavings: null, paymentSchedules: [], payments: [], financialDocuments: [], commissionIds: [], activity: [{ id: `activity-${id}`, action: "case_submitted", actorDisplayName: actor.displayName, occurredAt: submittedAt, summary: "Case submitted for staff review." }] };
+    const created: CaseDetail = { id, caseNumber: nextCaseNumber(), customerDisplayName: input.customer.displayName.trim(), agentId: actor.agentId, agentName: actor.displayName, status: "under_review", paymentStatus: "not_recorded", saleAmountSen: null, submittedAt, updatedAt: submittedAt, customer: { id: `customer-${id}`, displayName: input.customer.displayName.trim(), companyRegistrationNumber: null, contactName: input.customer.contactName?.trim() || null, email: input.customer.email?.trim() || null, phone: input.customer.phone?.trim() || null }, service: { siteAddress: input.service.siteAddress.trim(), electricityAccountNumber: null, notes: input.service.notes?.trim() || null }, documents: input.documents.map((document, index) => ({ id: `document-${id}-${index + 1}`, caseId: id, ...document, uploadedBy: actor.id, uploadedAt: submittedAt })), quote: null, verifiedSavings: null, paymentSchedules: [], payments: [], financialDocuments: [], commissionIds: [], activity: [{ id: `activity-${id}`, action: "case_submitted", actorDisplayName: actor.displayName, occurredAt: submittedAt, summary: "Case submitted and is ready for staff review." }] };
     onUploadProgress?.(100);
     caseStore.set(id, created);
     return { ok: true, data: created };
@@ -108,6 +122,13 @@ export const mockCasesRepository: CasesRepository = {
     if (input.service) Object.assign(found.service, input.service);
     if (input.quote) { found.quote = { ...(found.quote ?? { saleAmountSen: null, averageMonthlyKwh: null, averageTnbRate: null, quotedSavingsKwh: null, quotedMonthlySavingsSen: null }), ...input.quote }; found.saleAmountSen = found.quote.saleAmountSen; }
     found.customerDisplayName = found.customer.displayName; recordActivity(found, actor, "case_updated", "Case details updated."); return { ok: true, data: found };
+  },
+  async deleteCase(actor, caseId) {
+    const found = caseStore.get(caseId);
+    if (!found) return failure("NOT_FOUND", "Case not found.");
+    if (!canDeleteCase(actor, found.status, found.agentId)) return failure("FORBIDDEN", "Agents can only delete their own draft cases.");
+    caseStore.delete(caseId);
+    return { ok: true, data: { id: caseId } };
   },
   async transition(actor, caseId, to, reason) {
     const found = caseStore.get(caseId); if (!found) return failure("NOT_FOUND", "Case not found."); if (!access(actor, found)) return failure("FORBIDDEN", "You can only access your own case.");
@@ -125,10 +146,26 @@ export const mockCasesRepository: CasesRepository = {
   async requestChanges(actor, caseId, reason) { return this.transition(actor, caseId, "changes_requested", reason); },
   async cancel(actor, caseId, reason) { return this.transition(actor, caseId, "cancelled", reason); },
   async generatePaymentSchedule(actor, caseId, input) {
-    const permission = staffOnly<CaseDetail>(actor); if (permission) return permission; const found = caseStore.get(caseId); if (!found) return failure("NOT_FOUND", "Case not found."); if (found.status !== "quotation_issued") return failure("VALIDATION_ERROR", "A payment schedule can only be generated for a quotation."); if (found.paymentSchedules?.length) return failure("CONFLICT", "A payment schedule already exists."); if (!found.quote?.quotedMonthlySavingsSen || !found.saleAmountSen) return failure("VALIDATION_ERROR", "Sale amount and quoted monthly savings are required."); const initial = found.quote.quotedMonthlySavingsSen; found.paymentSchedules = [{ id: `schedule-${caseId}-1`, caseId, sequence: 1, kind: "deposit", dueDate: input.depositDue, amountDueSen: initial, amountPaidSen: 0, status: "scheduled" }, { id: `schedule-${caseId}-2`, caseId, sequence: 2, kind: "post_installation", dueDate: input.postInstallationDue, amountDueSen: initial * 2, amountPaidSen: 0, status: "scheduled" }]; recordActivity(found, actor, "payment_schedule_generated", "Initial payment schedule generated."); return { ok: true, data: found };
+    const permission = staffOnly<CaseDetail>(actor); if (permission) return permission; const found = caseStore.get(caseId); if (!found) return failure("NOT_FOUND", "Case not found."); if (found.status !== "quotation_issued") return failure("VALIDATION_ERROR", "A payment schedule can only be generated for a quotation."); if (found.paymentSchedules?.length) return failure("CONFLICT", "A payment schedule already exists."); if (!found.quote?.quotedMonthlySavingsSen || !found.saleAmountSen) return failure("VALIDATION_ERROR", "Sale amount and quoted monthly savings are required."); const initial = found.quote.quotedMonthlySavingsSen; found.paymentSchedules = [{ id: `schedule-${caseId}-1`, caseId, sequence: 1, kind: "deposit", dueDate: input.depositDue, amountDueSen: initial, amountPaidSen: 0, status: "scheduled" }, { id: `schedule-${caseId}-2`, caseId, sequence: 2, kind: "post_installation", dueDate: input.postInstallationDue, amountDueSen: initial * 2, amountPaidSen: 0, status: "scheduled" }]; recordActivity(found, actor, "payment_schedule_generated", "Initial payment schedule generated."); return this.transition(actor, caseId, "awaiting_deposit", "Quotation issued; payment schedule generated.");
   },
   async recordPayment(actor, caseId, input) { const permission = staffOnly<CaseDetail>(actor); if (permission) return permission; const found = caseStore.get(caseId); if (!found) return failure("NOT_FOUND", "Case not found."); const payment: CasePayment = { id: `payment-${caseId}-${(found.payments?.length ?? 0) + 1}`, caseId, amountSen: input.amountSen, paymentDate: input.paymentDate, reference: input.reference ?? null, status: "pending_verification", recordedBy: actor.id, recordedAt: now(), verifiedBy: null, verifiedAt: null }; found.payments = [...(found.payments ?? []), payment]; found.paymentStatus = "pending_verification"; recordActivity(found, actor, "payment_recorded", "Payment recorded and awaiting verification."); return { ok: true, data: found }; },
-  async verifyPayment(actor, input) { const permission = staffOnly<CaseDetail>(actor); if (permission) return permission; const owner = Array.from(caseStore.values()).find((item: CaseDetail) => item.payments?.some((payment: CasePayment) => payment.id === input.paymentId)); if (!owner) return failure("NOT_FOUND", "Payment not found."); const payment = owner.payments?.find((item: CasePayment) => item.id === input.paymentId); if (!payment || payment.status !== "pending_verification") return failure("VALIDATION_ERROR", "Payment is not pending verification."); if (input.allocations.reduce((sum, allocation) => sum + allocation.amountSen, 0) !== payment.amountSen) return failure("VALIDATION_ERROR", "Allocations must equal the payment amount."); for (const allocation of input.allocations) { const schedule = owner.paymentSchedules?.find((item) => item.id === allocation.scheduleId); if (!schedule || schedule.amountPaidSen + allocation.amountSen > schedule.amountDueSen) return failure("VALIDATION_ERROR", "Payment allocation exceeds the schedule balance."); schedule.amountPaidSen += allocation.amountSen; schedule.status = schedule.amountPaidSen === schedule.amountDueSen ? "paid" : "partially_paid"; } payment.status = "verified"; payment.verifiedBy = actor.id; payment.verifiedAt = now(); owner.paymentStatus = "verified"; recordActivity(owner, actor, "payment_verified", "Payment verified."); return { ok: true, data: owner }; },
+  async recordAndVerifyPayment(actor, caseId, input) {
+    const permission = staffOnly<CaseDetail>(actor); if (permission) return permission;
+    const found = caseStore.get(caseId); if (!found) return failure("NOT_FOUND", "Case not found.");
+    const allocations = automaticAllocations(found.paymentSchedules, input.amountSen);
+    if (!allocations) return failure("VALIDATION_ERROR", "Payment amount exceeds the outstanding schedule balance.");
+    const pending = found.payments?.find((payment) => payment.status === "pending_verification");
+    if (pending) {
+      if (pending.amountSen !== input.amountSen) return failure("VALIDATION_ERROR", "The pending payment amount cannot be changed after it has been recorded.");
+      return this.verifyPayment(actor, { paymentId: pending.id, allocations });
+    }
+    const recorded = await this.recordPayment(actor, caseId, input);
+    if (!recorded.ok) return recorded;
+    const payment = recorded.data.payments?.find((item) => item.status === "pending_verification");
+    if (!payment) return failure("INTERNAL_ERROR", "The payment could not be prepared for confirmation.");
+    return this.verifyPayment(actor, { paymentId: payment.id, allocations });
+  },
+  async verifyPayment(actor, input) { const permission = staffOnly<CaseDetail>(actor); if (permission) return permission; const owner = Array.from(caseStore.values()).find((item: CaseDetail) => item.payments?.some((payment: CasePayment) => payment.id === input.paymentId)); if (!owner) return failure("NOT_FOUND", "Payment not found."); const payment = owner.payments?.find((item: CasePayment) => item.id === input.paymentId); if (!payment || payment.status !== "pending_verification") return failure("VALIDATION_ERROR", "Payment is not pending verification."); if (input.allocations.reduce((sum, allocation) => sum + allocation.amountSen, 0) !== payment.amountSen) return failure("VALIDATION_ERROR", "Allocations must equal the payment amount."); for (const allocation of input.allocations) { const schedule = owner.paymentSchedules?.find((item) => item.id === allocation.scheduleId); if (!schedule || schedule.amountPaidSen + allocation.amountSen > schedule.amountDueSen) return failure("VALIDATION_ERROR", "Payment allocation exceeds the schedule balance."); schedule.amountPaidSen += allocation.amountSen; schedule.status = schedule.amountPaidSen === schedule.amountDueSen ? "paid" : "partially_paid"; } payment.status = "verified"; payment.verifiedBy = actor.id; payment.verifiedAt = now(); owner.paymentStatus = "verified"; recordActivity(owner, actor, "payment_verified", "Payment verified."); const installments = owner.paymentSchedules?.filter((schedule) => schedule.kind === "installment") ?? []; if (owner.status === "active_installments" && installments.length > 0 && installments.every((schedule) => schedule.status === "paid")) return this.transition(actor, owner.id, "completed", "All instalment obligations paid."); return { ok: true, data: owner }; },
   async recordInstallation(actor, caseId, installationDate) { const permission = staffOnly<CaseDetail>(actor); if (permission) return permission; const found = caseStore.get(caseId); if (!found) return failure("NOT_FOUND", "Case not found."); if (found.status !== "installation_scheduled") return failure("VALIDATION_ERROR", "Case must be installation scheduled."); found.installationDate = installationDate; found.monitoringStartedOn = installationDate; const result = await this.transition(actor, caseId, "installed_monitoring", "Installation completed"); return result; },
   async verifySavings(actor, caseId, savingsKwh, monthlySavingsSen) { const permission = staffOnly<CaseDetail>(actor); if (permission) return permission; const found = caseStore.get(caseId); if (!found) return failure("NOT_FOUND", "Case not found."); if (savingsKwh < 0 || monthlySavingsSen < 0) return failure("VALIDATION_ERROR", "Savings cannot be negative."); if (!["installed_monitoring", "trial_review"].includes(found.status)) return failure("VALIDATION_ERROR", "Case is not in the monitoring workflow."); found.verifiedSavings = { savingsKwh, monthlySavingsSen, verifiedAt: now() }; recordActivity(found, actor, "savings_verified", "Savings verified."); return { ok: true, data: found }; },
   async acceptTrial(actor, caseId, input) { const permission = staffOnly<CaseDetail>(actor); if (permission) return permission; const found = caseStore.get(caseId); if (!found) return failure("NOT_FOUND", "Case not found."); if (found.status !== "trial_review") return failure("VALIDATION_ERROR", "Case must be in trial review."); if (!found.verifiedSavings?.verifiedAt) return failure("VALIDATION_ERROR", "Verified savings are required."); if (found.paymentSchedules?.some((schedule) => ["deposit", "post_installation"].includes(schedule.kind) && schedule.status !== "paid")) return failure("VALIDATION_ERROR", "All initial payment obligations must be verified."); if (found.commissionIds?.length) return failure("CONFLICT", "Commission has already been generated for this case."); const initial = found.paymentSchedules?.reduce((sum, item) => sum + item.amountDueSen, 0) ?? 0; const balance = (found.saleAmountSen ?? 0) - initial; const monthly = Math.floor(balance / input.termMonths); found.paymentSchedules = [...(found.paymentSchedules ?? []), ...Array.from({ length: input.termMonths }, (_, index) => ({ id: `schedule-${caseId}-${index + 3}`, caseId, sequence: index + 3, kind: "installment" as const, dueDate: input.installmentStart, amountDueSen: index === input.termMonths - 1 ? balance - monthly * (input.termMonths - 1) : monthly, amountPaidSen: 0, status: "scheduled" as const }))]; found.installmentTermMonths = input.termMonths; found.customerContinues = true; found.trialDecisionOn = now().slice(0, 10); found.commissionIds = [`commission-calculation-${caseId}`]; found.status = "active_installments"; found.paymentStatus = "pending_verification"; recordActivity(found, actor, "commission_generated", "Trial accepted; commission calculation generated."); return { ok: true, data: found }; },

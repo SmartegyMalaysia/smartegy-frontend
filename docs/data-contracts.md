@@ -34,13 +34,15 @@ export type UserRole =
 export type RecordStatus = "active" | "inactive";
 
 export type CaseStatus =
-  | "submitted"
+  | "draft"
   | "under_review"
-  | "quotation_prepared"
-  | "pending_customer_acceptance"
-  | "pending_installation"
-  | "pending_payment"
-  | "active"
+  | "changes_requested"
+  | "quotation_issued"
+  | "awaiting_deposit"
+  | "installation_scheduled"
+  | "installed_monitoring"
+  | "trial_review"
+  | "active_installments"
   | "completed"
   | "cancelled";
 
