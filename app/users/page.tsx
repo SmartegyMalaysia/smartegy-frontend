@@ -39,16 +39,22 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const requestId = useRef(0);
+  const hasLoaded = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!isSupabaseConfigured() && user.role !== "admin") return;
-    setState("loading");
+    const currentRequest = ++requestId.current;
+    setRefreshing(true);
     const result = await userRepository.listPage(user, { search, role: role === "all" ? undefined : role, accountStatus: status === "all" ? undefined : status, page, pageSize, sortBy, sortDirection });
-    if (result.ok) { setData(result.data); setState("ready"); }
-    else setState(result.error.code === "FORBIDDEN" ? "permission" : "error");
+    if (currentRequest !== requestId.current) return;
+    if (result.ok) { hasLoaded.current = true; setData(result.data); setState("ready"); }
+    else if (!hasLoaded.current) setState(result.error.code === "FORBIDDEN" ? "permission" : "error");
+    setRefreshing(false);
   }, [page, role, search, sortBy, sortDirection, status, user]);
 
-  useEffect(() => { if (!previewMode || user.role === "admin") { const timer = window.setTimeout(() => void load(), search.trim() ? 250 : 0); return () => window.clearTimeout(timer); } }, [load, previewMode, search, user.role]);
+  useEffect(() => { if (!previewMode || user.role === "admin") void load(); }, [load, previewMode, user.role]);
   useEffect(() => { if (previewMode && user.role !== "admin") setRole("admin"); }, [previewMode, setRole, user.role]);
 
   const users = data?.items ?? [];
@@ -88,9 +94,9 @@ export default function UsersPage() {
   return <AppShell user={user} onRoleChange={setRole}><main className="page-content users-page">
     <div className="page-header"><div><p className="eyebrow">Administration</p><h1>Users</h1><p className="page-description">Keep account access, roles, and contact details accurate across Smartegy.</p></div><div className="users-access-note"><Icon name="user-settings" size={16}/><span>Admin access only</span></div></div>
     {feedback && <div className="users-feedback" role="status"><span aria-hidden="true">✓</span><span>{feedback}</span><button type="button" aria-label="Dismiss saved message" onClick={() => setFeedback(null)}><Icon name="close" size={15}/></button></div>}
-    {state === "loading" ? <LoadingState /> : state === "permission" ? <PermissionDenied action={previewMode ? <Button variant="secondary" onClick={() => setRole("admin")}>Switch Preview To Admin</Button> : undefined} /> : state === "error" ? <ErrorState onRetry={load} /> : <>
+    {state === "loading" && !data ? <LoadingState /> : state === "permission" && !data ? <PermissionDenied action={previewMode ? <Button variant="secondary" onClick={() => setRole("admin")}>Switch Preview To Admin</Button> : undefined} /> : state === "error" && !data ? <ErrorState onRetry={load} /> : <>
       <div className="stat-grid users-stat-grid"><StatCard label="Total users" value={String(data?.summary.totalUsers ?? 0)} detail="Across all account roles" accent /><StatCard label="Active accounts" value={String(activeCount)} detail="Can access their workspace" /><StatCard label="Invitations" value={String(invitedCount)} detail="Awaiting account activation" /><StatCard label="Administrators" value={String(adminCount)} detail="Can manage user access" /></div>
-      <section className="panel user-directory-panel"><div className="panel-header"><div><h2>User directory</h2><p>Search by identity or filter by access state before opening an edit panel.</p></div><span className="case-count">{totalItems} users</span></div>
+      <section className="panel user-directory-panel"><div className="panel-header"><div><h2>User directory</h2><p>Search by identity or filter by access state before opening an edit panel.</p></div><span className="case-count">{totalItems} users {refreshing && <span className="table-secondary" role="status" aria-live="polite">Updating…</span>}</span></div>
         <div className="case-filters user-filters" aria-label="User directory filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Name, email, phone, or agent ID" /></label><label><span>Role</span><FilterSelect allLabel="All roles" value={role} options={["all", ...(data?.filterOptions.roles ?? roleOptions.filter((item) => item !== "all") as UserRole[])]} labels={{ all: "All roles", admin: "Administrator", staff: "Staff", agent: "Agent" }} onChange={(value) => { setRoleFilter(value); setPage(1); }}/></label><label><span>Account status</span><FilterSelect allLabel="All account statuses" value={status} options={["all", ...(data?.filterOptions.statuses ?? statusOptions.filter((item) => item !== "all") as AccountStatus[])]} labels={{ all: "All statuses", active: "Active", invited: "Invited", inactive: "Inactive" }} onChange={(value) => { setStatus(value); setPage(1); }}/></label><label><span>Sort by</span><FilterSelect allLabel="Display name" value={sortBy} options={["display_name", "created_at"]} labels={{ display_name: "Display name", created_at: "Created date" }} onChange={(value) => { setSortBy(value as typeof sortBy); setPage(1); }}/></label><button className="text-button case-filter-reset" type="button" disabled={!hasFilters} onClick={clearFilters}>Clear filters</button></div>
         {users.length ? <><div className="desktop-user-table"><DataTable caption="Smartegy user directory" headers={["User", "Role", "Account Status", "Phone", "Last Active", "Actions"]}>{users.map((item) => <UserRow key={item.id} user={item} onEdit={openEditor}/>)}</DataTable></div><div className="mobile-user-list" aria-label="Users">{users.map((item) => <UserCard key={item.id} user={item} onEdit={openEditor}/>)}</div><TableFooter currentPage={currentPage} totalPages={totalPages} visibleCount={users.length} totalCount={totalItems} onPageChange={setPage} onExport={exportUsers} pageSize={pageSize}/>{exporting && <p className="muted-cell">Preparing export…</p>}</> : <EmptyState title={hasFilters ? "No matching users" : "No users yet"} description={hasFilters ? "Try changing or clearing the filters." : "When accounts are available, they will appear here."} />}
       </section>
@@ -100,11 +106,11 @@ export default function UsersPage() {
 }
 
 function UserRow({ user, onEdit }: { user: ManageUser; onEdit: (user: ManageUser) => void }) {
-  return <tr className="user-table-row"><td><UserIdentity user={user}/></td><td><RoleBadge role={user.role}/></td><td><Badge status={user.accountStatus}/></td><td>{user.phone ?? <span className="muted-cell">Not provided</span>}</td><td className="muted-cell">{user.lastActiveAt ? formatDate(user.lastActiveAt) : "Never"}</td><td><button className="button button-secondary button-sm user-edit-button" type="button" onClick={() => onEdit(user)}><Icon name="settings" size={14}/> Edit</button></td></tr>;
+  return <tr className="user-table-row"><td><UserIdentity user={user}/></td><td><RoleBadge role={user.role}/></td><td><Badge status={user.accountStatus}/></td><td>{user.phone ?? <span className="muted-cell">Not provided</span>}</td><td className="muted-cell">{user.lastActiveAt ? formatDate(user.lastActiveAt) : "Never"}</td><td><button className="button button-secondary button-sm user-edit-button" type="button" onClick={() => onEdit(user)}><Icon name="edit" size={14}/> Edit</button></td></tr>;
 }
 
 function UserCard({ user, onEdit }: { user: ManageUser; onEdit: (user: ManageUser) => void }) {
-  return <article className="user-card"><div className="user-card-top"><UserIdentity user={user}/><button className="icon-button" type="button" aria-label={`Edit ${user.displayName}`} onClick={() => onEdit(user)}><Icon name="settings" size={17}/></button></div><div className="user-card-status"><RoleBadge role={user.role}/><Badge status={user.accountStatus}/></div><dl><div><dt>Phone</dt><dd>{user.phone ?? "Not provided"}</dd></div><div><dt>Last active</dt><dd>{user.lastActiveAt ? formatDate(user.lastActiveAt) : "Never"}</dd></div></dl><button className="button button-secondary button-sm" type="button" onClick={() => onEdit(user)}>Edit user details <Icon name="arrow" size={14}/></button></article>;
+  return <article className="user-card"><div className="user-card-top"><UserIdentity user={user}/><button className="icon-button" type="button" aria-label={`Edit ${user.displayName}`} onClick={() => onEdit(user)}><Icon name="edit" size={17}/></button></div><div className="user-card-status"><RoleBadge role={user.role}/><Badge status={user.accountStatus}/></div><dl><div><dt>Phone</dt><dd>{user.phone ?? "Not provided"}</dd></div><div><dt>Last active</dt><dd>{user.lastActiveAt ? formatDate(user.lastActiveAt) : "Never"}</dd></div></dl><button className="button button-secondary button-sm" type="button" onClick={() => onEdit(user)}>Edit user details <Icon name="arrow" size={14}/></button></article>;
 }
 
 function UserIdentity({ user }: { user: ManageUser }) {

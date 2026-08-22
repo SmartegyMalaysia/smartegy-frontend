@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { TextInput } from "./form-controls";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "./app-shell";
 import { TextInput } from "./form-controls";
@@ -26,17 +27,58 @@ export function RegistrationQueuePage() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const load = useCallback(async () => { setLoading(true); setFailed(false); const result = await registrationRepository.listForStaff(user, query); if (result.ok) setRegistrations(result.data); else setFailed(true); setLoading(false); }, [query, user]);
+  const [refreshing, setRefreshing] = useState(false);
+  const requestId = useRef(0);
+  const hasLoaded = useRef(false);
+
+  const load = useCallback(async () => {
+    const currentRequest = ++requestId.current;
+    setRefreshing(true);
+    const result = await registrationRepository.listForStaff(user, query);
+    if (currentRequest !== requestId.current) return;
+    if (result.ok) {
+      hasLoaded.current = true;
+      setRegistrations(result.data);
+      setFailed(false);
+    } else if (!hasLoaded.current) {
+      setFailed(true);
+    }
+    setLoading(false);
+    setRefreshing(false);
+  }, [query, user]);
+
   useEffect(() => { if (ready) void load(); }, [load, ready]);
   useEffect(() => { setPage(1); }, [query]);
+
   const totalPages = Math.max(1, Math.ceil(registrations.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const visible = registrations.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const update = (key: keyof RegistrationQueueQuery, value: string) => setQuery((current) => ({ ...current, [key]: value || undefined }));
   const reset = () => setQuery({ sort: "priority" });
   const hasFilters = Object.keys(query).some((key) => key !== "sort" && Boolean(query[key as keyof RegistrationQueueQuery]));
-  async function exportRegistrations() { setExporting(true); await registrationRepository.exportForStaff(user, query); setExporting(false); }
-  return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}><div className="page-content registration-page-content">{!ready ? <LoadingState/> : <><div className="page-header"><div><p className="eyebrow">Staff operations</p><h1>Agent Registration</h1><p className="page-description">Find applications awaiting profile and payment review.</p></div></div><div className="preview-banner"><span className="preview-dot"/><div><strong>Manual verification</strong><span> Payment Proof Is Reviewed by authorised staff. No payment is verified automatically.</span></div></div>{role === "agent" ? <PermissionDenied/> : loading ? <LoadingState/> : failed ? <ErrorState onRetry={load}/> : <section className="panel recent-panel case-table-panel"><div className="panel-header case-table-header"><div><h2>Agent Registrations</h2><p>Select an application to review its payment proof and audit history.</p></div><span className="case-count">{registrations.length} applications</span></div><QueueFilters query={query} update={update} reset={reset} hasFilters={hasFilters}/>{registrations.length === 0 ? <EmptyState title={query.search || hasFilters ? "No matching applications" : "No registrations yet"} description={query.search || hasFilters ? "Try changing or clearing the filters." : "New applications will appear after applicants submit their registration."}/> : <><div className="desktop-case-table"><DataTable caption="Agent registration queue" headers={["User ID", "Name", "Phone number", "Email", "Upline agent", "Payment verified", "Profile"]}>{visible.map((registration) => <RegistrationRow key={registration.id} registration={registration}/>)}</DataTable></div><div className="case-table-footer"><span className="case-page-summary">Showing {visible.length ? (currentPage - 1) * pageSize + 1 : 0}&ndash;{Math.min(currentPage * pageSize, registrations.length)} of {registrations.length}</span><div className="case-table-actions"><button className="button button-secondary button-sm" type="button" onClick={() => void exportRegistrations()} disabled={exporting || !registrations.length}><ExportIcon size={15}/>{exporting ? "Exporting…" : "Export"}</button><div className="pagination" aria-label="Registration queue pagination"><button className="pagination-button" type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setPage((value) => value - 1)}>&lsaquo;</button><span>Page {currentPage} of {totalPages}</span><button className="pagination-button" type="button" aria-label="Next page" disabled={currentPage === totalPages} onClick={() => setPage((value) => value + 1)}>&rsaquo;</button></div></div></div></>}</section>}</>}</div></AppShell>;
+
+  async function exportRegistrations() {
+    setExporting(true);
+    await registrationRepository.exportForStaff(user, query);
+    setExporting(false);
+  }
+
+  return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}>
+    <div className="page-content registration-page-content">
+      {!ready ? <LoadingState/> : <>
+        <div className="page-header"><div><p className="eyebrow">Staff operations</p><h1>Agent Registration</h1><p className="page-description">Find applications awaiting profile and payment review.</p></div></div>
+        <div className="preview-banner"><span className="preview-dot"/><div><strong>Manual verification</strong><span> Payment Proof Is Reviewed by authorised staff. No payment is verified automatically.</span></div></div>
+        {role === "agent" ? <PermissionDenied/> : loading && !hasLoaded.current ? <LoadingState/> : failed && !hasLoaded.current ? <ErrorState onRetry={load}/> : <section className="panel recent-panel case-table-panel">
+          <div className="panel-header case-table-header"><div><h2>Agent Registrations</h2><p>Select an application to review its payment proof and audit history.</p></div><span className="case-count">{registrations.length} applications {refreshing && <span className="table-secondary" role="status" aria-live="polite">Updating…</span>}</span></div>
+          <QueueFilters query={query} update={update} reset={reset} hasFilters={hasFilters}/>
+          {registrations.length === 0 ? <EmptyState title={query.search || hasFilters ? "No matching applications" : "No registrations yet"} description={query.search || hasFilters ? "Try changing or clearing the filters." : "New applications will appear after applicants submit their registration."}/> : <>
+            <div className="desktop-case-table"><DataTable caption="Agent registration queue" headers={["User ID", "Name", "Phone number", "Email", "Upline agent", "Payment verified", "Profile"]}>{visible.map((registration) => <RegistrationRow key={registration.id} registration={registration}/>)}</DataTable></div>
+            <div className="case-table-footer"><span className="case-page-summary">Showing {visible.length ? (currentPage - 1) * pageSize + 1 : 0}&ndash;{Math.min(currentPage * pageSize, registrations.length)} of {registrations.length}</span><div className="case-table-actions"><button className="button button-secondary button-sm" type="button" onClick={() => void exportRegistrations()} disabled={exporting || !registrations.length}><ExportIcon size={15}/>{exporting ? "Exporting…" : "Export"}</button><div className="pagination" aria-label="Registration queue pagination"><button className="pagination-button" type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setPage((value) => value - 1)}>&lsaquo;</button><span>Page {currentPage} of {totalPages}</span><button className="pagination-button" type="button" aria-label="Next page" disabled={currentPage === totalPages} onClick={() => setPage((value) => value + 1)}>&rsaquo;</button></div></div></div>
+          </>}
+        </section>}
+      </>}
+    </div>
+  </AppShell>;
 }
 
 function QueueFilters({ query, update, reset, hasFilters }: { query: RegistrationQueueQuery; update: (key: keyof RegistrationQueueQuery, value: string) => void; reset: () => void; hasFilters: boolean }) {
