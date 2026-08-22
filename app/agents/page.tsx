@@ -19,7 +19,7 @@ export default function AgentsPage() {
   const { user, setRole, ready } = usePreviewUser("staff");
   const [data, setData] = useState<AgentDirectoryPage | null>(null);
   const [state, setState] = useState<"loading" | "error" | "permission" | "ready">("loading");
-  const [hasLoaded, setHasLoaded] = useState(false);
+  //const [hasLoaded, setHasLoaded] = useState(false);
   const [search, setSearch] = useState("");
   const [level, setLevel] = useState<AgentLevel | typeof allValue>(allValue);
   const [upline, setUpline] = useState(allValue);
