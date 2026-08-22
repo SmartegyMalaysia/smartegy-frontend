@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { TextInput } from "@/components/form-controls";
 import { DataTable } from "@/components/data-table";
 import { ExportIcon } from "@/components/export-icon";
@@ -29,12 +29,18 @@ export function CaseQueue({ actor, isAgent, showCount = false, title, descriptio
   const [page, setPage] = useState(1);
   const [data, setData] = useState<CaseDirectoryPage | null>(null);
   const [state, setState] = useState<"loading" | "error" | "ready">("loading");
+  const requestId = useRef(0);
+  const hasLoaded = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
   const load = useCallback(async () => {
-    setState("loading");
+    const currentRequest = ++requestId.current;
+    setRefreshing(true);
     const result = await casesRepository.listPage(actor, { search, stage: stage === "all" ? undefined : stage, paymentStatus: paymentStatus === "all" ? undefined : paymentStatus, agentId: agentFilter === "all" ? undefined : agentFilter, page, pageSize, sortBy: sort, sortDirection: sort === "amount" ? "desc" : "desc" });
-    if (result.ok) { setData(result.data); setState("ready"); } else setState("error");
+    if (currentRequest !== requestId.current) return;
+    if (result.ok) { hasLoaded.current = true; setData(result.data); setState("ready"); } else if (!hasLoaded.current) setState("error");
+    setRefreshing(false);
   }, [actor, agentFilter, page, paymentStatus, search, sort, stage]);
-  useEffect(() => { const timer = window.setTimeout(() => void load(), search.trim() ? 250 : 0); return () => window.clearTimeout(timer); }, [load, search]);
+  useEffect(() => { void load(); }, [load]);
   const totalItems = data?.totalItems ?? 0;
   const totalPages = data?.totalPages ?? 1;
   const currentPage = Math.min(page, totalPages);
@@ -46,9 +52,9 @@ export function CaseQueue({ actor, isAgent, showCount = false, title, descriptio
   async function exportCases() { await casesRepository.export(actor, { search, stage: stage === "all" ? undefined : stage, paymentStatus: paymentStatus === "all" ? undefined : paymentStatus, agentId: agentFilter === "all" ? undefined : agentFilter, sortBy: sort, sortDirection: "desc" }); }
   function openCase(caseId: string) { router.push(`/cases/${caseId}`); }
   if (state === "loading" && !data) return <section className="panel recent-panel case-table-panel"><LoadingState/></section>;
-  if (state === "error") return <section className="panel recent-panel case-table-panel"><ErrorState onRetry={load}/></section>;
+  if (state === "error" && !data) return <section className="panel recent-panel case-table-panel"><ErrorState onRetry={load}/></section>;
   return <section className="panel recent-panel case-table-panel">
-    <div className="panel-header case-table-header"><div><h2>{heading}</h2><p>{supportingText}</p></div>{(isAgent || showCount) && <span className="case-count">{totalItems} cases</span>}</div>
+    <div className="panel-header case-table-header"><div><h2>{heading}</h2><p>{supportingText}</p></div>{(isAgent || showCount) && <span className="case-count">{totalItems} cases {refreshing && <span className="table-secondary" role="status" aria-live="polite">Updating…</span>}</span>}</div>
     <div className="case-filters" aria-label="Case filters">
       <label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Case number or customer" /></label>
       <label><span>Stage</span><FilterSelect allLabel="All case stages" labels={caseStatusLabels} value={stage} options={caseStatuses} onChange={(value) => { setStage(value as CaseQueueFilter); setPage(1); }} /></label>

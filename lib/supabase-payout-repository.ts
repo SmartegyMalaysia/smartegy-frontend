@@ -72,6 +72,18 @@ export const supabasePayoutRepository: PayoutRepository = {
     const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `smartegy-payouts-${payoutMonth}.csv`; link.click(); URL.revokeObjectURL(link.href);
     return { ok: true, data: true };
   },
+  async exportTransactions(actor, payoutMonth, query = {}) {
+    if (!allowed(actor)) return failure({ code: "42501", message: "Only staff and administrators can export payout data." });
+    const params = new URLSearchParams({ month: payoutMonth, view: "transactions" });
+    if (query.search?.trim()) params.set("search", query.search.trim());
+    if (query.agentId) params.set("agentId", query.agentId);
+    if (query.settlementStatus && query.settlementStatus !== "all") params.set("settlementStatus", query.settlementStatus);
+    const response = await fetch(`/api/payouts/export?${params.toString()}`, { credentials: "same-origin" });
+    if (!response.ok) return failure({ code: response.status === 403 ? "42501" : "PGRST000", message: "Unable to export payout transactions." });
+    const blob = await response.blob();
+    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `smartegy-payout-transactions-${payoutMonth}.csv`; link.click(); URL.revokeObjectURL(link.href);
+    return { ok: true, data: true };
+  },
   async settleTransaction(actor, input) {
     if (!allowed(actor)) return failure({ code: "42501", message: "Only staff and administrators can settle payouts." });
     const supabase = getSupabaseBrowserClient();

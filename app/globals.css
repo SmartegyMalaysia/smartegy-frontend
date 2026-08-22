@@ -127,7 +127,7 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .table-primary, .text-link { color: var(--brand); }
 .avatar { background: var(--brand-green-soft); color: var(--brand); }
 .preview-banner { background: var(--brand-green-soft); border-color: #bbf7d0; color: #166534; }
-.preview-banner .preview-dot { background: var(--brand-green); }
+.preview-banner .preview-dot { background: var(--brand-green); margin-top: 4px; }
 .login-intro { background: var(--surface); color: var(--text); border-right: 1px solid var(--border); }
 .login-intro::after { border-color: #49ad5033; box-shadow: 0 0 0 46px #49ad5014, 0 0 0 92px #49ad500b, 0 0 0 138px #49ad5007; }
 .login-brand { color: var(--brand); }
@@ -792,6 +792,7 @@ input::placeholder, textarea::placeholder { font-weight: 400; }
 .user-table-row:hover td { background: #f8fafc; }
 .user-table-row td:last-child { width: 1%; }
 .user-edit-button { white-space: nowrap; }
+.user-edit-button svg, .user-card-top .icon-button svg { display: block; flex: 0 0 auto; }
 .user-identity { display: flex; align-items: center; gap: 10px; min-width: 210px; }
 .user-identity > span:last-child { display: grid; min-width: 0; gap: 3px; }
 .user-identity strong { overflow-wrap: anywhere; color: var(--text); font-size: 13px; }
