@@ -264,9 +264,10 @@ export function RegistrationSignup({
           paymentReference: null,
           paymentRemarks: String(form.get("paymentRemarks") ?? ""),
           proof: {
-            fileName: file?.name ?? "",
-            mimeType: file?.type ?? "",
-            sizeBytes: file?.size ?? 0,
+            file,
+            fileName: file.name,
+            mimeType: file.type,
+            sizeBytes: file.size,
           },
         },
       );
