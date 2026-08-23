@@ -11,6 +11,8 @@ import { malaysiaStates } from "@/lib/malaysia";
 import { casesRepository } from "@/lib/case-repository";
 import { canEditCase, caseActionLabels, type CaseActionKind } from "@/lib/case-workflow";
 import type { CaseDetail, CurrentUser } from "@/lib/types";
+import { ProposalForm } from "./proposal-form";
+import { ProposalAcceptance } from "./proposal-acceptance";
 
 type CaseToast = { title: string; subtitle: string; tone: ToastTone };
 
@@ -22,6 +24,8 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
   const [toast, setToast] = useState<CaseToast | null>(null);
   const [dialog, setDialog] = useState<CaseActionKind | null>(null);
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const [acceptanceOpen, setAcceptanceOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -63,7 +67,7 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
   const postInstallationSchedule = (caseDetail.paymentSchedules ?? []).find((schedule) => schedule.kind === "post_installation");
   const allocatableSchedules = (caseDetail.paymentSchedules ?? []).filter((schedule) => schedule.amountDueSen > schedule.amountPaidSen);
 
-  useEffect(() => { setDialog(null); setRecordPaymentOpen(false); setEditing(false); setReason(""); setQuoteError(null); setPaymentError(null); setAllocationError(null); setSavingsError(null); setResubmitError(null); setDetailsError(null); }, [initialCase.id]);
+  useEffect(() => { setDialog(null); setRecordPaymentOpen(false); setProposalOpen(false); setAcceptanceOpen(false); setEditing(false); setReason(""); setQuoteError(null); setPaymentError(null); setAllocationError(null); setSavingsError(null); setResubmitError(null); setDetailsError(null); }, [initialCase.id]);
 
   function showError(message: string, title = "Action Failed") { setToast({ title, subtitle: message, tone: "error" }); }
   function syncQuoteFields(value: CaseDetail) {
@@ -105,7 +109,8 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
   const depositBalanceSen = depositSchedule ? depositSchedule.amountDueSen - depositSchedule.amountPaidSen : 0;
   const postInstallationBalanceSen = postInstallationSchedule ? Math.max(0, postInstallationSchedule.amountDueSen - postInstallationSchedule.amountPaidSen) : 0;
   function openDialog(action: CaseActionKind) {
-    if (action === "pass_review") setQuoteError(null);
+    if (action === "pass_review") { setProposalOpen(true); return; }
+    if (action === "accept_proposal") { setAcceptanceOpen(true); return; }
     if (action === "verify_payment") { openRecordPayment(); return; }
     if (action === "record_installation") { setPaymentError(null); setInstallationPaymentAmount(moneyInputValue(postInstallationBalanceSen)); }
     if (action === "verify_savings") setSavingsError(null);
@@ -234,7 +239,7 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
     <div className="case-action-panel panel">
       <div className="panel-header"><div><h2>Next Actions</h2><p>Available actions depend on this case’s current stage and your role. Required details, payments, and approvals must be completed before the case can advance.</p></div></div>
 
-      <div className="case-action-list">{actions.map((action) => <Button key={action.kind} type="button" variant={action.variant} disabled={busy} onClick={() => action.requiresReason || action.kind === "pass_review" || action.kind === "verify_payment" || action.kind === "record_installation" || action.kind === "verify_savings" || action.kind === "accept_trial" || action.kind === "delete_case" || action.kind === "resubmit" ? openDialog(action.kind) : run(action.kind)}>{action.label}</Button>)}</div>
+      <div className="case-action-list">{actions.map((action) => <Button key={action.kind} type="button" variant={action.variant} disabled={busy} onClick={() => action.requiresReason || action.kind === "pass_review" || action.kind === "accept_proposal" || action.kind === "verify_payment" || action.kind === "record_installation" || action.kind === "verify_savings" || action.kind === "accept_trial" || action.kind === "delete_case" || action.kind === "resubmit" ? openDialog(action.kind) : run(action.kind)}>{action.label}</Button>)}</div>
     </div>
     <div className="case-detail-grid">
       <section className="panel case-form-panel"><div className="panel-header"><div><h2>Customer and Service</h2><p>Submitted {formatDate(caseDetail.submittedAt)} by {caseDetail.agentName}</p></div>{canEditDetails && <Button type="button" variant="secondary" size="sm" onClick={() => { setDetailsError(null); setEditing(!editing); }}>{editing ? "Cancel Edit" : "Edit Details"}</Button>}</div>{editing ? <div className="case-form-body"><div className="case-form-grid"><TextInput id="edit-company-name" title="Company Name" value={customerName} onChange={(event) => { setDetailsError(null); setCustomerName(event.target.value); }} required /><TextInput id="edit-company-email" title="Company Email Address" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /><TextInput id="edit-contact-person-name" title="Contact Person Name" value={contactName} onChange={(event) => setContactName(event.target.value)} required /><TextInput id="edit-contact-person-phone" title="Contact Person Phone Number" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} required /><TextInput id="edit-address-line-1" title="Address Line 1" value={addressLine1} onChange={(event) => { setDetailsError(null); setAddressLine1(event.target.value); }} required autoComplete="address-line1" /><TextInput id="edit-address-line-2" title="Address Line 2" value={addressLine2} onChange={(event) => setAddressLine2(event.target.value)} autoComplete="address-line2" /><TextInput id="edit-postcode" title="Postcode" value={postcode} onChange={(event) => { setDetailsError(null); setPostcode(event.target.value); }} required autoComplete="postal-code" /><TextInput id="edit-city" title="City" value={city} onChange={(event) => { setDetailsError(null); setCity(event.target.value); }} required autoComplete="address-level2" /><FilterSelect title="State" allLabel="Select state" value={state} options={[...malaysiaStates]} onChange={(value) => { setDetailsError(null); setState(value); }} required /><TextArea id="edit-additional-remarks" title="Additional Remarks" rows={1} value={remarks} onChange={(event) => setRemarks(event.target.value)} placeholder="Add context for staff if needed" /></div>{detailsError && <p className="case-field-error-message" role="alert">{detailsError}</p>}<Button type="button" onClick={saveDetails} disabled={busy}>Save Details</Button></div> : <dl className="case-detail-list"><div><dt>Company Name</dt><dd>{caseDetail.customer.displayName}</dd></div><div><dt>Contact</dt><dd>{caseDetail.customer.contactName ?? "Not provided"}</dd></div><div><dt>Email</dt><dd>{caseDetail.customer.email ?? "Not provided"}</dd></div><div><dt>Phone</dt><dd>{caseDetail.customer.phone ?? "Not provided"}</dd></div><div><dt>Service Address</dt><dd>{caseDetail.service.siteAddress || "Not provided"}</dd></div><div><dt>Remarks</dt><dd>{caseDetail.service.notes || "No remarks provided."}</dd></div></dl>}</section>
@@ -254,5 +259,7 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
     <ConfirmationDialog open={recordPaymentOpen} title="Record Deposit" description="Enter the deposit amount and date. The deposit will be allocated automatically and confirmed immediately." confirmLabel="Confirm Deposit" confirmVariant="primary" loading={busy} confirmDisabled={Boolean(paymentError)} onCancel={closeRecordPayment} onConfirm={recordPayment}>
       <div className="case-dialog-fields"><MoneyInput id="record-payment-amount" title="Payment Amount" inputMode="decimal" value={paymentAmount} onChange={(event) => { setPaymentError(null); setPaymentAmount(event.target.value); }} aria-invalid={Boolean(paymentError)} aria-describedby={paymentError ? "record-payment-error" : undefined} required /><DatePicker id="record-payment-date" title="Payment Date" value={paymentDate} placeholder="DD/MM/YYYY" onChange={(value) => { setPaymentError(null); setPaymentDate(value); }} required />{paymentError && <p id="record-payment-error" className="case-field-error-message" role="alert">{paymentError}</p>}</div>
     </ConfirmationDialog>
+    {proposalOpen && <ProposalForm caseDetail={caseDetail} user={user} onChanged={setCaseData} onClose={() => setProposalOpen(false)} />}
+    {acceptanceOpen && <ProposalAcceptance caseDetail={caseDetail} user={user} onChanged={setCaseData} onClose={() => setAcceptanceOpen(false)} />}
   </div>;
 }

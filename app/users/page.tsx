@@ -10,6 +10,7 @@ import { TextInput } from "@/components/form-controls";
 import { TableFooter } from "@/components/table-footer";
 import { Icon } from "@/components/icons";
 import { PopupModalLayerContext } from "@/components/popup-modal";
+import { useScrollLock } from "@/components/use-scroll-lock";
 import { formatDate } from "@/lib/format";
 import { roleLabels } from "@/lib/navigation";
 import { usePreviewUser } from "@/lib/preview-user";
@@ -123,7 +124,8 @@ function RoleBadge({ role }: { role: UserRole }) { return <span className={`role
 function UserEditor({ user, actor, form, setForm, fieldErrors, feedback, saving, onClose, onSave }: { user: ManageUser; actor: { id: string; role: UserRole; accountStatus?: AccountStatus }; form: UpdateManageUserInput; setForm: React.Dispatch<React.SetStateAction<UpdateManageUserInput>>; fieldErrors: Record<string, string[]>; feedback: string | null; saving: boolean; onClose: () => void; onSave: (event: React.FormEvent<HTMLFormElement>) => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [confirmingDisable, setConfirmingDisable] = useState(false);
-  useEffect(() => { const previousOverflow = document.body.style.overflow; document.body.style.overflow = "hidden"; closeRef.current?.focus(); const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", onKeyDown); return () => { window.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; }; }, [onClose]);
+  useScrollLock(true);
+  useEffect(() => { closeRef.current?.focus(); const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", onKeyDown); return () => { window.removeEventListener("keydown", onKeyDown); }; }, [onClose]);
   const isSelf = user.id === actor.id;
   const isInactive = form.accountStatus === "inactive";
   const statusActionLabel = isInactive ? "Enable account" : "Disable account";

@@ -3,6 +3,7 @@
 import { createContext, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CSSProperties, ReactNode } from "react";
+import { useScrollLock } from "./use-scroll-lock";
 
 export type PopupModalSize = "sm" | "md" | "lg";
 export type PopupModalTone = "brand" | "danger" | "success" | "neutral";
@@ -90,6 +91,8 @@ export function PopupModal({
     };
   }, [open, rendered]);
 
+  useScrollLock(mounted && rendered);
+
   function requestClose() {
     const state = stateRef.current;
     if (state.hasUnsavedChanges && !window.confirm(state.unsavedChangesMessage)) return;
@@ -99,8 +102,6 @@ export function PopupModal({
   useEffect(() => {
     if (!open || !mounted) return;
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const focusFrame = window.requestAnimationFrame(() => {
       const firstFocusable = dialogRef.current?.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), textarea:not([disabled])') ?? dialogRef.current?.querySelector<HTMLElement>(focusableSelector);
       (firstFocusable ?? dialogRef.current)?.focus();
@@ -133,7 +134,6 @@ export function PopupModal({
     return () => {
       window.cancelAnimationFrame(focusFrame);
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
       previousFocusRef.current?.focus();
     };
   }, [open, mounted]);

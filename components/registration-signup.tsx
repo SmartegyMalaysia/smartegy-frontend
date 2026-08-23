@@ -572,14 +572,11 @@ function RegistrationFields({
           name="acceptedTerms"
           type="checkbox"
           required
+          aria-label="Accept Terms of Use and Privacy Notice"
           aria-describedby={
             fieldErrors.acceptedTerms ? "acceptedTerms-error" : undefined
           }
         />
-        <span>
-          I accept the <a href="#terms">Terms of Use</a> and{" "}
-          <a href="#privacy">Privacy Notice</a>.
-        </span>
       </label>
       {fieldErrors.acceptedTerms && (
         <p id="acceptedTerms-error" className="field-error" role="alert">
@@ -694,8 +691,11 @@ function PaymentStep({
         <span>QR will be provided by Smartegy later.</span>
       </div>
       <div className="registration-field">
-        <label htmlFor="proof">Proof of payment</label>
+        <label htmlFor="proof">
+          Proof Of Payment <span className="required-mark">*</span>
+        </label>
         <PaymentProofUpload
+          required
           error={uploadError ?? undefined}
           onFileChange={(file) => onUploadChange(file ? null : uploadError)}
         />
@@ -707,7 +707,7 @@ function PaymentStep({
       </div>
       <div className="registration-field">
         <label htmlFor="paymentRemarks">
-            Remarks <span className="field-help-inline">(Optional)</span>
+          Remarks <span className="field-help-inline">(Optional)</span>
         </label>
         <TextArea
           id="paymentRemarks"
