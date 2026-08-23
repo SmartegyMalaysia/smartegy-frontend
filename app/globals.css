@@ -364,6 +364,10 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .approval-dialog .registration-field label { margin-bottom: 6px; }
 .approval-dialog .approval-readonly-field input[readonly], .approval-dialog .approval-readonly-field textarea[readonly] { color: var(--text); background: var(--surface-subtle); }
 .approval-dialog .approval-readonly-field textarea { resize: vertical; }
+
+.registration-proof-viewer { display: flex; flex-direction: column; gap: 12px; }
+.registration-proof-image { display: block; width: 100%; max-height: min(65vh, 720px); object-fit: contain; margin: 0 auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-subtle); }
+.registration-proof-frame { display: block; width: 100%; height: min(65vh, 720px); border: 1px solid var(--border); border-radius: 10px; background: var(--surface-subtle); }
 .manual-promotion-body { display: grid; gap: 16px; }
 .manual-promotion-target { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px solid #bbf7d0; border-radius: 10px; background: var(--brand-green-soft); }
 .manual-promotion-label { color: var(--muted); font-size: 12px; font-weight: 650; }

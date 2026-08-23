@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "./app-shell";
+import { PopupModal } from "./popup-modal";
 import { Badge, Button, ConfirmationDialog, ErrorState, LoadingState, PermissionDenied } from "./ui";
 import { DataTable } from "./data-table";
 import { DatePicker } from "./date-picker";
@@ -24,6 +25,7 @@ export function RegistrationReviewPage({ applicationNumber }: { applicationNumbe
   const [action, setAction] = useState<ReviewAction | null>(null);
   const [paymentReason, setPaymentReason] = useState("");
   const [verification, setVerification] = useState<VerifyRegistrationFeeInput | null>(null);
+  const [proofAccess, setProofAccess] = useState<RegistrationPaymentProofAccess | null>(null);
   useEffect(() => { setAction(null); setVerification(null); setPaymentReason(""); }, [applicationNumber]);
   const load = useCallback(async () => { setLoading(true); setError(null); const result = await registrationRepository.getByApplicationNumber(user, applicationNumber); if (result.ok) setRegistration(result.data); else setError(result.error.message); setLoading(false); }, [applicationNumber, user]);
   useEffect(() => { void load(); }, [load]);
@@ -36,13 +38,48 @@ export function RegistrationReviewPage({ applicationNumber }: { applicationNumbe
     <div className="registration-detail-grid">
       <section className="panel detail-panel applicant-panel"><div className="panel-header"><div><h2>Applicant Information</h2><p>Confirmed registration details and upline.</p></div></div><dl className="detail-list detail-list-wide"><Detail label="Application number" value={registration.applicationNumber}/><Detail label="Full name" value={registration.profile.fullName}/><Detail label="Email address" value={registration.profile.email}/><Detail label="Mobile number" value={registration.profile.mobileNumber}/><Detail label="Referral code" value={registration.referralCode}/><Detail label="Confirmed upline" value={registration.referringAgentName}/><Detail label="Submitted" value={registration.submittedAt ? formatDate(registration.submittedAt) : "Not submitted"}/><Detail label="Email verification" value={<Badge status={registration.emailVerified ? "verified" : "unpaid"}/>}/></dl></section>
       <section className="panel detail-panel audit-section"><div className="panel-header"><div><h2>Audit History</h2><p>Internal activity for this application and payment review.</p></div></div>{registration.audit.length ? <DataTable caption="Registration audit history" headers={["Action", "Acting staff user", "Status change", "Reason or note"]}>{registration.audit.map((event) => <tr key={event.id}><td><span className="table-primary">{event.action.replaceAll("_", " ")}</span><span className="table-secondary">{formatDate(event.occurredAt)}</span></td><td>{event.actorDisplayName}</td><td>{event.previousStatus ?? "—"} → {event.newStatus ?? "—"}</td><td className="muted-cell">{event.reason ?? "—"}</td></tr>)}</DataTable> : <p className="detail-empty">No review activity recorded yet.</p>}</section>
-      <PaymentReview registration={registration} onProof={(access) => setToast({ title: "Protected Proof Access Granted", subtitle: `Access granted for ${access.fileName}. This mock token expires ${formatDate(access.expiresAt)}.`, tone: "success" })} onVerify={(details) => { setVerification(details); setAction("verify"); }} onReject={() => setAction("reject-fee")} rejectionReason={paymentReason} setRejectionReason={setPaymentReason}/>
+      <PaymentReview registration={registration} onProof={setProofAccess} onVerify={(details) => { setVerification(details); setAction("verify"); }} onReject={() => setAction("reject-fee")} rejectionReason={paymentReason} setRejectionReason={setPaymentReason}/>
     </div>
     <ConfirmationDialog open={action === "verify"} title="Verify Payment?" description={`This verifies the RM50.00 fee for ${registration.applicationNumber}. If email and profile requirements are complete, the application will automatically be approved and activated.`} confirmLabel="Verify Payment" confirmVariant="primary" onCancel={() => setAction(null)} onConfirm={() => verification && run(registrationRepository.verifyFee(user, verification), "Payment Verified. Complete applications are automatically approved and activated.")}/>
     <ConfirmationDialog open={action === "reject-fee"} title="Reject Payment Proof?" description={`This marks the fee for ${registration.applicationNumber} as rejected and lets the applicant resubmit proof.`} confirmLabel="Reject Payment" onCancel={() => setAction(null)} onConfirm={() => run(registrationRepository.rejectFee(user, { registrationId: registration.id, reason: paymentReason }), "Payment Rejected. The applicant can resubmit proof.")}/>
+    {proofAccess && <PaymentProofViewer access={proofAccess} onClose={() => setProofAccess(null)} />}
     </> : null}</div></AppShell>;
 }
 
 function Detail({ label, value }: { label: string; value: React.ReactNode }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
+
+function PaymentProofViewer({ access, onClose }: { access: RegistrationPaymentProofAccess; onClose: () => void }) {
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const isImage = access.mimeType.startsWith("image/");
+
+  async function downloadProof() {
+    setDownloadError(null);
+    try {
+      const response = await fetch(access.accessToken);
+      if (!response.ok) throw new Error("The payment proof could not be downloaded.");
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = access.fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : "The payment proof could not be downloaded.");
+    }
+  }
+
+  return <PopupModal open title="Payment proof" description={`${access.fileName} · Secure access expires ${formatDate(access.expiresAt)}.`} size="lg" tone="neutral" onClose={onClose} footer={<div className="dialog-actions"><Button variant="secondary" onClick={onClose}>Close</Button><Button onClick={() => void downloadProof()}>Download proof</Button><a className="button button-secondary" href={access.accessToken} target="_blank" rel="noreferrer">Open in new tab</a></div>}>
+    <div className="registration-proof-viewer">
+      {isImage ? <>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="registration-proof-image" src={access.accessToken} alt={`Payment proof: ${access.fileName}`} />
+      </> : <iframe className="registration-proof-frame" src={access.accessToken} title={`Payment proof: ${access.fileName}`} />}
+      {downloadError && <p className="field-error" role="alert">{downloadError} Use “Open in new tab” to save the file manually.</p>}
+    </div>
+  </PopupModal>;
+}
 
 function PaymentReview({ registration, onProof, onVerify, onReject, rejectionReason, setRejectionReason }: { registration: AgentRegistration; onProof: (proof: RegistrationPaymentProofAccess) => void; onVerify: (details: VerifyRegistrationFeeInput) => void; onReject: () => void; rejectionReason: string; setRejectionReason: (value: string) => void }) { const [message, setMessage] = useState<string | null>(null); const [amount, setAmount] = useState("50.00"); const [date, setDate] = useState(registration.paymentDate ?? ""); const reference = registration.paymentReference ?? "Manual verification"; const [note, setNote] = useState(""); const [rejectionError, setRejectionError] = useState(false); return <section className="panel detail-panel payment-review-panel"><div className="panel-header"><div><h2>Payment-Proof Review</h2><p>Required registration fee: {formatMoney(registration.feeAmountSen)}</p></div><Badge status={registration.feeStatus}/></div><dl className="detail-list detail-list-wide"><Detail label="Submitted payment date" value={registration.paymentDate ?? "Not provided"}/><Detail label="Proof of payment" value={registration.proof ? <button className="text-link" type="button" onClick={async () => { const result = await registrationRepository.getPaymentProof({ id: "user-002", role: "staff", displayName: "Farid Iskandar", email: null, agentId: null }, registration.id); if (result.ok) onProof(result.data); else setMessage(result.error.message); }}>View securely: {registration.proof.fileName}</button> : "Not uploaded"}/><Detail label="Previous rejection reason" value={registration.rejectionReason ?? "None"}/></dl>{message && <p className="field-error" role="alert">{message}</p>}{registration.feeStatus === "pending_verification" && <div className="verification-form"><p className="verification-form-heading">Staff Verification Fields</p><label>Verified amount (RM)<TextInput inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)}/></label><div className="verification-date-field"><span>Verified payment date</span><DatePicker id="verified-payment-date" value={date} placeholder="DD/MM/YYYY" onChange={setDate}/></div><label>Internal Staff Note<TextArea rows={2} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Only authorised staff can see this note" /></label><label>Payment Rejection Reason<TextArea className={rejectionError ? "rejection-reason-error" : ""} rows={2} value={rejectionReason} onChange={(event) => { setRejectionError(false); setRejectionReason(event.target.value); }} placeholder="Required when rejecting payment" aria-invalid={rejectionError} /></label><div className="review-actions"><Button onClick={() => onVerify({ registrationId: registration.id, verifiedAmountSen: Math.round(Number(amount) * 100), paymentDate: date, bankReference: reference, note: note.trim() || undefined })} disabled={amount !== "50.00" || !date}>Verify Payment</Button><Button variant="danger" onClick={() => { if (!rejectionReason.trim()) { setRejectionError(true); window.setTimeout(() => setRejectionError(false), 500); return; } onReject(); }} disabled={!registration.proof}>Reject Payment</Button></div></div>}</section>; }
