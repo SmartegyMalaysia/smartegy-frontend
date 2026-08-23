@@ -361,7 +361,7 @@ export function RegistrationSignup({
                 <span
                   className={`onboarding-step ${stage === "registration" ? "active" : "completed"}`}
                 >
-                  <b>1</b> Account &amp; email
+                  <b>1</b> Account &amp; Email
                 </span>
                 <span className="onboarding-line" />
                 <span
@@ -373,7 +373,7 @@ export function RegistrationSignup({
                 <span
                   className={`onboarding-step ${paymentState ? "active" : ""}`}
                 >
-                  <b>3</b> Payment proof
+                  <b>3</b> Payment Proof
                 </span>
               </div>
               {error && (
@@ -464,29 +464,29 @@ function RegistrationFields({
         <p>Complete these six details to receive an email OTP.</p>
       </div>
       <div className="registration-form-grid">
-        <Field id="fullName" label="Full name" error={fieldErrors.fullName}>
+        <Field id="fullName" label="Full Name" error={fieldErrors.fullName}>
           <TextInput
             id="fullName"
             name="fullName"
             type="text"
             autoComplete="name"
-            placeholder="Enter your full name"
+            placeholder="Enter Your Full Name"
             required
           />
         </Field>
-        <Field id="email" label="Email address" error={fieldErrors.email}>
+        <Field id="email" label="Email Address" error={fieldErrors.email}>
           <TextInput
             id="email"
             name="email"
             type="email"
             autoComplete="email"
-            placeholder="name@example.com"
+            placeholder="Name@example.com"
             required
           />
         </Field>
         <Field
           id="mobileNumber"
-          label="Mobile number"
+          label="Mobile Number"
           error={fieldErrors.mobileNumber}
         >
           <TextInput
@@ -494,18 +494,22 @@ function RegistrationFields({
             name="mobileNumber"
             type="tel"
             autoComplete="tel"
-            placeholder="e.g. 012345678"
+            placeholder="E.g. 012345678"
             required
           />
         </Field>
-        <Field id="referralCode" label="Invitation / referral code">
+        <Field
+          id="referralCode"
+          label="Invitation / Referral Code"
+          required={false}
+        >
           <TextInput
             id="referralCode"
             name="referralCode"
             value={referralLocked ? "Confirmed from invitation link" : referralCode}
             onChange={(event) => onReferralCodeChange(event.target.value)}
             readOnly={referralLocked}
-            placeholder="Enter an invitation or referral code"
+            placeholder="Enter An Invitation Or Referral Code"
           />
         </Field>
         <Field id="password" label="Password" error={fieldErrors.password}>
@@ -514,14 +518,14 @@ function RegistrationFields({
             name="password"
             type="password"
             autoComplete="new-password"
-            placeholder="At least 8 characters"
+            placeholder="At Least 8 Characters"
             minLength={8}
             required
           />
         </Field>
         <Field
           id="passwordConfirmation"
-          label="Confirm password"
+          label="Confirm Password"
           error={fieldErrors.passwordConfirmation}
         >
           <TextInput
@@ -529,7 +533,7 @@ function RegistrationFields({
             name="passwordConfirmation"
             type="password"
             autoComplete="new-password"
-            placeholder="Re-enter your password"
+            placeholder="Re-enter Your Password"
             minLength={8}
             required
           />
@@ -587,7 +591,7 @@ function OtpStep({
           inputMode="numeric"
           autoComplete="one-time-code"
           maxLength={6}
-          placeholder="Enter your 6-digit code"
+          placeholder="Enter Your 6-Digit Code"
           required
         />
       </Field>
@@ -677,13 +681,13 @@ function PaymentStep({
       </div>
       <div className="registration-field">
         <label htmlFor="paymentRemarks">
-          Remarks <span className="field-help-inline">(optional)</span>
+            Remarks <span className="field-help-inline">(Optional)</span>
         </label>
         <TextArea
           id="paymentRemarks"
           name="paymentRemarks"
           rows={3}
-          placeholder="Add any context for staff, if needed"
+          placeholder="Add Any Context For Staff, If Needed"
         />
       </div>
     </div>
@@ -718,18 +722,27 @@ function Field({
   id,
   label,
   error,
+  required = true,
   children,
 }: {
   id: string;
   label: string;
   error?: string[];
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div
       className={`registration-field ${error?.[0] ? "registration-field-error" : ""}`}
     >
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id}>
+        {label}
+        {required && (
+          <span className="required-mark" aria-hidden="true">
+            *
+          </span>
+        )}
+      </label>
       {children}
       {error?.[0] && (
         <p id={`${id}-error`} className="field-error" role="alert">
