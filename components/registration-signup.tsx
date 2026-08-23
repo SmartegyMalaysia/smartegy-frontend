@@ -469,6 +469,7 @@ function RegistrationFields({
             name="fullName"
             type="text"
             autoComplete="name"
+            placeholder="Enter your full name"
             required
           />
         </Field>
@@ -478,6 +479,7 @@ function RegistrationFields({
             name="email"
             type="email"
             autoComplete="email"
+            placeholder="name@example.com"
             required
           />
         </Field>
@@ -502,7 +504,7 @@ function RegistrationFields({
             value={referralLocked ? "Confirmed from invitation link" : referralCode}
             onChange={(event) => onReferralCodeChange(event.target.value)}
             readOnly={referralLocked}
-            placeholder="Enter an invitation code"
+            placeholder="Enter an invitation or referral code"
           />
         </Field>
         <Field id="password" label="Password" error={fieldErrors.password}>
@@ -511,6 +513,7 @@ function RegistrationFields({
             name="password"
             type="password"
             autoComplete="new-password"
+            placeholder="At least 8 characters"
             minLength={8}
             required
           />
@@ -525,14 +528,12 @@ function RegistrationFields({
             name="passwordConfirmation"
             type="password"
             autoComplete="new-password"
+            placeholder="Re-enter your password"
             minLength={8}
             required
           />
         </Field>
       </div>
-      <p className="field-help">
-        Your confirmed upline cannot be changed by the applicant.
-      </p>
       <label
         className={`terms-row ${fieldErrors.acceptedTerms ? "terms-row-error" : ""}`}
       >

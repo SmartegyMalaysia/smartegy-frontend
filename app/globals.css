@@ -229,7 +229,7 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .otp-panel > span { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 4px; }
 .otp-panel .registration-field { margin: 14px 0 8px; }
 .otp-panel .text-button { padding: 0; }
-.terms-row { display: flex; align-items: flex-start; gap: 9px; color: var(--muted); font-size: 12px; line-height: 1.5; margin: 20px 0 5px; }
+.terms-row { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; line-height: 1.5; margin: 20px 0 5px; }
 .terms-row input { width: 16px; height: 16px; flex: 0 0 16px; margin: 1px 0 0; accent-color: var(--brand); }
 .terms-row-error { padding: 10px; border: 1px solid var(--danger); border-radius: 8px; background: var(--danger-bg); }
 .registration-submit { width: 100%; margin-top: 24px; }
