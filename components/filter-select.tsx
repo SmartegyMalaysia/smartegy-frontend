@@ -13,13 +13,30 @@ export function FilterSelect<T extends string>({ allLabel, title, value, options
   const popoverId = useRef({});
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
+  const [menuMounted, setMenuMounted] = useState(false);
+  const [menuExiting, setMenuExiting] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
   useEffect(() => {
     const closeOtherPopover = (event: Event) => { if ((event as CustomEvent).detail !== popoverId.current) setOpen(false); };
     window.addEventListener("smartegy:popover-open", closeOtherPopover);
     return () => window.removeEventListener("smartegy:popover-open", closeOtherPopover);
   }, []);
   useEffect(() => {
-    if (!open) { setMenuPosition(null); return; }
+    if (!open) {
+      if (!menuMounted) { setMenuPosition(null); return; }
+      setMenuExiting(true);
+      closeTimerRef.current = window.setTimeout(() => {
+        setMenuMounted(false);
+        setMenuExiting(false);
+        setMenuPosition(null);
+        closeTimerRef.current = null;
+      }, 140);
+      return () => {
+        if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+      };
+    }
+    setMenuMounted(true);
+    setMenuExiting(false);
     const updateMenuPosition = () => {
       const rect = summaryRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -34,10 +51,11 @@ export function FilterSelect<T extends string>({ allLabel, title, value, options
     return () => {
       window.removeEventListener("resize", updateMenuPosition);
       window.removeEventListener("scroll", updateMenuPosition, true);
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
     };
-  }, [open]);
+  }, [open, menuMounted]);
   function labelFor(option: T) { return labels?.[option] ?? (option === "" || option === "all" ? allLabel : option.replaceAll("_", " ")); }
-  const menu = <div className="filter-select-menu filter-select-menu-portal" role="listbox" aria-label={allLabel} style={menuPosition ? { top: menuPosition.top, left: menuPosition.left, width: menuPosition.width } : undefined}>{options.map((option) => <button key={option} type="button" role="option" aria-selected={option === value} className={option === value ? "filter-option-selected" : ""} onClick={() => { onChange(option); if (detailsRef.current) detailsRef.current.open = false; setOpen(false); }}>{labelFor(option)}</button>)}</div>;
-  const select = <details className={`filter-select ${disabled ? "filter-select-disabled" : ""}`} ref={detailsRef} open={disabled ? false : open} onToggle={(event) => { const isOpen = event.currentTarget.open; if (disabled && isOpen) { event.currentTarget.open = false; return; } setOpen(isOpen); if (isOpen) window.dispatchEvent(new CustomEvent("smartegy:popover-open", { detail: popoverId.current })); }}><summary ref={summaryRef} aria-label={ariaLabel} aria-disabled={disabled} tabIndex={disabled ? -1 : undefined} onClick={(event) => { if (disabled) event.preventDefault(); }}><span className="filter-select-value">{labelFor(value)}</span><Icon name="chevron" size={14} /></summary>{open && !disabled && menuPosition && typeof document !== "undefined" ? createPortal(menu, document.body) : null}</details>;
+  const menu = <div className={`filter-select-menu filter-select-menu-portal ${menuExiting ? "filter-select-menu-exiting" : ""}`.trim()} role="listbox" aria-label={allLabel} style={menuPosition ? { top: menuPosition.top, left: menuPosition.left, width: menuPosition.width } : undefined}>{options.map((option) => <button key={option} type="button" role="option" aria-selected={option === value} className={option === value ? "filter-option-selected" : ""} onClick={() => { onChange(option); if (detailsRef.current) detailsRef.current.open = false; setOpen(false); }}>{labelFor(option)}</button>)}</div>;
+  const select = <details className={`filter-select ${disabled ? "filter-select-disabled" : ""}`} ref={detailsRef} open={disabled ? false : open} onToggle={(event) => { const isOpen = event.currentTarget.open; if (disabled && isOpen) { event.currentTarget.open = false; return; } setOpen(isOpen); if (isOpen) window.dispatchEvent(new CustomEvent("smartegy:popover-open", { detail: popoverId.current })); }}><summary ref={summaryRef} aria-label={ariaLabel} aria-disabled={disabled} tabIndex={disabled ? -1 : undefined} onClick={(event) => { if (disabled) event.preventDefault(); }}><span className="filter-select-value">{labelFor(value)}</span><Icon name="chevron" size={14} /></summary>{menuMounted && !disabled && menuPosition && typeof document !== "undefined" ? createPortal(menu, document.body) : null}</details>;
   return title ? <FormField title={title} required={required}>{select}</FormField> : select;
 }

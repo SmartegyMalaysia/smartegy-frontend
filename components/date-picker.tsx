@@ -21,11 +21,32 @@ export function DatePicker({ id, title, value, mode = "date", placeholder, surfa
   const [viewDate, setViewDate] = useState(() => initialDate(value, mode));
   const [yearPickerOpen, setYearPickerOpen] = useState(false);
   const [open, setOpen] = useState(false);
+  const [popoverMounted, setPopoverMounted] = useState(false);
+  const [popoverExiting, setPopoverExiting] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
   useEffect(() => {
     const closeOtherPopover = (event: Event) => { if ((event as CustomEvent).detail !== popoverId.current) { setOpen(false); setYearPickerOpen(false); } };
     window.addEventListener("smartegy:popover-open", closeOtherPopover);
     return () => window.removeEventListener("smartegy:popover-open", closeOtherPopover);
   }, []);
+  useEffect(() => {
+    if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+    if (open) {
+      setPopoverMounted(true);
+      setPopoverExiting(false);
+      return;
+    }
+    if (!popoverMounted) return;
+    setPopoverExiting(true);
+    closeTimerRef.current = window.setTimeout(() => {
+      setPopoverMounted(false);
+      setPopoverExiting(false);
+      closeTimerRef.current = null;
+    }, 140);
+    return () => {
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+    };
+  }, [open, popoverMounted]);
   const year = viewDate.getUTCFullYear();
   const month = viewDate.getUTCMonth();
   const rangeMode = Boolean(range && onRangeChange);
@@ -47,10 +68,10 @@ export function DatePicker({ id, title, value, mode = "date", placeholder, surfa
   const firstDay = new Date(Date.UTC(year, month, 1)).getUTCDay();
   const days = Array.from({ length: mode === "date" ? Math.ceil((firstDay + daysInMonth) / 7) * 7 : 0 }, (_, index) => { const day = index - firstDay + 1; return day > 0 && day <= daysInMonth ? day : null; });
   const rect = summaryRef.current?.getBoundingClientRect();
-  const popover = <div className="date-picker-popover date-picker-portal" role="dialog" aria-label={rangeMode ? "Choose date range" : mode === "month" ? "Choose payment month" : "Choose date"} style={rect ? { top: rect.bottom + 8, left: rect.left } : undefined}>
+  const popover = <div className={`date-picker-popover date-picker-portal ${popoverExiting ? "date-picker-portal-exiting" : ""}`.trim()} role="dialog" aria-label={rangeMode ? "Choose date range" : mode === "month" ? "Choose payment month" : "Choose date"} style={rect ? { top: rect.bottom + 8, left: rect.left } : undefined}>
     <div className="date-picker-toolbar"><button type="button" aria-label="Previous month" onClick={() => moveMonth(-1)}>&lsaquo;</button><div className="date-picker-toolbar-heading"><span>{monthNames[month]}</span><button className="date-picker-year-trigger" type="button" aria-expanded={yearPickerOpen} onClick={() => setYearPickerOpen((current) => !current)}>{year}</button></div><button type="button" aria-label="Next month" onClick={() => moveMonth(1)}>&rsaquo;</button></div>
     {yearPickerOpen ? <div className="date-picker-year-picker" aria-label="Choose year"><div className="date-picker-year-toolbar"><button type="button" aria-label="Previous year range" onClick={() => moveYear(-12)}>&lsaquo;</button><span>{years[0]}&ndash;{years[years.length - 1]}</span><button type="button" aria-label="Next year range" onClick={() => moveYear(12)}>&rsaquo;</button></div><div className="date-picker-year-grid">{years.map((option) => <button className={option === year ? "date-picker-selected" : ""} key={option} type="button" onClick={() => selectYear(option)}>{option}</button>)}</div></div> : mode === "month" ? <div className="date-picker-month-grid">{shortMonthNames.map((name, index) => <button className={value === `${year}-${String(index + 1).padStart(2, "0")}` ? "date-picker-selected" : ""} key={name} type="button" onClick={() => selectMonth(index)}>{name}</button>)}</div> : <div className="date-picker-day-grid">{weekDays.map((day) => <span className="date-picker-weekday" key={day}>{day}</span>)}{days.map((day, index) => { if (!day) return <span key={index}/>; const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`; const isRangeStart = rangeMode && range?.start === date; const isRangeEnd = rangeMode && range?.end === date; const isInRange = rangeMode && Boolean(range?.start && range?.end && date > range.start && date < range.end); const dayClassName = rangeMode ? [isRangeStart || isRangeEnd ? "date-picker-selected" : "", isRangeStart ? "date-picker-range-start" : "", isRangeEnd ? "date-picker-range-end" : "", isInRange ? "date-picker-in-range" : ""].filter(Boolean).join(" ") : value === date ? "date-picker-selected" : ""; return <button className={dayClassName} key={index} type="button" onClick={() => selectDay(day)}>{day}</button>; })}</div>}
   </div>;
-  const picker = <details id={id} className={`date-picker date-picker-${surface}`} ref={detailsRef} open={open} onToggle={(event) => { const isOpen = event.currentTarget.open; setOpen(isOpen); if (isOpen) window.dispatchEvent(new CustomEvent("smartegy:popover-open", { detail: popoverId.current })); }}><summary ref={summaryRef} aria-label={ariaLabel ?? `${mode === "month" ? "Payment month" : "Date"}: ${displayValue}`}><span className={value || (rangeMode && range?.end) ? "date-picker-value" : "date-picker-placeholder"}>{displayValue}</span><span className="date-picker-icon"><CalendarIcon /></span></summary>{open && typeof document !== "undefined" ? createPortal(popover, document.body) : null}</details>;
+  const picker = <details id={id} className={`date-picker date-picker-${surface}`} ref={detailsRef} open={open} onToggle={(event) => { const isOpen = event.currentTarget.open; setOpen(isOpen); if (isOpen) window.dispatchEvent(new CustomEvent("smartegy:popover-open", { detail: popoverId.current })); }}><summary ref={summaryRef} aria-label={ariaLabel ?? `${mode === "month" ? "Payment month" : "Date"}: ${displayValue}`}><span className={value || (rangeMode && range?.end) ? "date-picker-value" : "date-picker-placeholder"}>{displayValue}</span><span className="date-picker-icon"><CalendarIcon /></span></summary>{popoverMounted && typeof document !== "undefined" ? createPortal(popover, document.body) : null}</details>;
   return title ? <FormField title={title} htmlFor={id} required={required}>{picker}</FormField> : picker;
 }

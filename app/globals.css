@@ -365,6 +365,179 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .approval-dialog .registration-field label { margin-bottom: 6px; }
 .approval-dialog .approval-readonly-field input[readonly], .approval-dialog .approval-readonly-field textarea[readonly] { color: var(--text); background: var(--surface-subtle); }
 .approval-dialog .approval-readonly-field textarea { resize: vertical; }
+
+/* Shared motion: short, purposeful transitions keep operational surfaces easy to scan. */
+:root {
+  --motion-ease-out: cubic-bezier(.23, 1, .32, 1);
+  --motion-ease-standard: cubic-bezier(.2, .8, .2, 1);
+  --motion-fast: 140ms;
+  --motion-standard: 220ms;
+}
+
+.page-content {
+  animation: page-content-enter var(--motion-standard) var(--motion-ease-out) both;
+}
+
+.button,
+.icon-button,
+.mobile-menu,
+.dialog-close,
+.toast-dismiss,
+.pagination-button,
+.back-link,
+.profile-back-button,
+.text-link,
+.text-button {
+  transition: transform var(--motion-fast) var(--motion-ease-out), background-color var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+}
+
+.button:active:not(:disabled),
+.icon-button:active,
+.mobile-menu:active,
+.dialog-close:active,
+.toast-dismiss:active,
+.pagination-button:active:not(:disabled),
+.back-link:active,
+.profile-back-button:active,
+.text-link:active,
+.text-button:active:not(:disabled) {
+  transform: scale(.98);
+}
+
+.button:focus-visible,
+.icon-button:focus-visible,
+.mobile-menu:focus-visible,
+.dialog-close:focus-visible,
+.toast-dismiss:focus-visible,
+.pagination-button:focus-visible,
+.back-link:focus-visible,
+.profile-back-button:focus-visible,
+.text-link:focus-visible,
+.text-button:focus-visible {
+  outline: 3px solid #22d3ee55;
+  outline-offset: 2px;
+}
+
+.form-field input,
+.form-field textarea,
+.case-filters input,
+.case-filters select,
+.filter-select summary,
+.date-picker summary,
+.registration-controls input,
+.registration-controls select,
+.verification-form input,
+.verification-form textarea,
+.settlement-field input,
+.decision-reason textarea {
+  transition: border-color var(--motion-fast) var(--motion-ease-out), background-color var(--motion-fast) ease, box-shadow var(--motion-fast) var(--motion-ease-out), color var(--motion-fast) ease;
+}
+
+.filter-select summary > svg,
+.date-picker-icon svg {
+  transition: transform var(--motion-standard) var(--motion-ease-out), color var(--motion-fast) ease;
+}
+
+.filter-select[open] summary > svg {
+  transform: rotate(-90deg);
+}
+
+.filter-select-menu-portal,
+.date-picker-portal {
+  animation: popover-enter var(--motion-fast) var(--motion-ease-out) both;
+  will-change: transform, opacity;
+}
+
+.filter-select-menu-portal.filter-select-menu-exiting,
+.date-picker-portal.date-picker-portal-exiting {
+  animation: popover-exit var(--motion-fast) ease-in both;
+  pointer-events: none;
+}
+
+.state-card,
+.case-card,
+.user-card {
+  animation: content-fade-in var(--motion-standard) var(--motion-ease-out) both;
+}
+
+.case-table-row,
+.user-table-row,
+.commission-item,
+.team-item {
+  transition: background-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+}
+
+.popup-modal-exiting {
+  pointer-events: none;
+}
+
+.dialog-backdrop:has(.popup-modal-exiting) {
+  animation: popup-modal-fade-exit 180ms ease-in both;
+  pointer-events: none;
+}
+
+.toast {
+  animation: toast-enter var(--motion-standard) var(--motion-ease-out) both;
+  will-change: transform, opacity;
+}
+
+.toast.toast-closing {
+  animation: toast-exit 160ms ease-in both;
+  pointer-events: none;
+}
+
+@keyframes page-content-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes content-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes popover-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-3px) scale(.985); }
+}
+
+@keyframes popup-modal-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(5px) scale(.985); }
+}
+
+@keyframes popup-modal-fade-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes toast-enter {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes toast-exit {
+  from { opacity: 1; transform: translate(-50%, 0); }
+  to { opacity: 0; transform: translate(-50%, -5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-content,
+  .state-card,
+  .case-card,
+  .user-card,
+  .toast,
+  .toast.toast-closing,
+  .popup-modal-exiting,
+  .dialog-backdrop:has(.popup-modal-exiting) {
+    animation: none !important;
+  }
+
+  .filter-select-menu-portal.filter-select-menu-exiting,
+  .date-picker-portal.date-picker-portal-exiting {
+    animation: none !important;
+  }
+}
 .manual-promotion-body { display: grid; gap: 16px; }
 .manual-promotion-target { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px solid #bbf7d0; border-radius: 10px; background: var(--brand-green-soft); }
 .manual-promotion-label { color: var(--muted); font-size: 12px; font-weight: 650; }
@@ -405,18 +578,19 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .agent-detail-grid .agent-detail-panel { margin-top: 0; }
 .agent-detail-empty { margin: 0; padding: 22px 20px; color: var(--muted); font-size: 13px; }
 @media (max-width: 760px) { .agent-detail-grid { grid-template-columns: 1fr; } .agent-detail-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.agent-table table { min-width: 0; table-layout: fixed; }
+.agent-table { min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+.agent-table .table-wrap { overflow: visible; }
+.agent-table table { min-width: 1080px; table-layout: fixed; }
 .agent-table th { min-width: 0; padding: 10px 12px; white-space: normal; line-height: 1.3; }
 .agent-table td { min-width: 0; padding: 13px 12px; }
 .agent-table td:first-child { min-width: 150px; }
-.agent-table th:nth-child(1) { width: 12%; }
-.agent-table th:nth-child(2), .agent-table th:nth-child(4), .agent-table th:nth-child(5) { width: 5%; }
-.agent-table th:nth-child(3) { width: 8%; }
-.agent-table th:nth-child(6), .agent-table th:nth-child(7), .agent-table th:nth-child(8) { width: 7%; }
-.agent-table th:nth-child(9), .agent-table th:nth-child(10) { width: 9%; }
-.agent-table th:nth-child(11) { width: 11%; }
-.agent-table th:nth-child(12) { width: 9%; }
-.agent-table th:nth-child(13) { width: 6%; }
+.agent-table th:nth-child(1) { width: 18%; }
+.agent-table th:nth-child(2) { width: 8%; }
+.agent-table th:nth-child(3) { width: 13%; }
+.agent-table th:nth-child(4), .agent-table th:nth-child(5) { width: 10%; }
+.agent-table th:nth-child(6), .agent-table th:nth-child(7) { width: 11%; }
+.agent-table th:nth-child(8) { width: 14%; }
+.agent-table th:nth-child(9) { width: 15%; }
 .registration-table, .registration-queue-panel table { min-width: 1040px; }
 .registration-case-filters { position: relative; z-index: 40; border-bottom: 1px solid var(--border); }
 .registration-case-filters .commission-filter-field { position: relative; z-index: 50; }
@@ -493,8 +667,8 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 @media (max-width: 560px) { .approval-form-grid { grid-template-columns: 1fr; } .approval-form-field-wide { grid-column: auto; } }
 @media (max-width: 640px) { .dashboard-page-content { height: auto; max-height: none; min-height: calc(100vh - 62px); overflow: visible; } .dashboard-page-content > .dashboard-grid-agent { flex: none; } .dashboard-page-content > .dashboard-grid-agent > .case-table-panel { height: auto; } .dashboard-page-content > .dashboard-grid-agent > .case-table-panel > .desktop-case-table { overflow: visible; } }
 @media (max-width: 480px) { .registration-header { align-items: flex-start; flex-direction: column; gap: 8px; } .registration-header p { max-width: 100%; overflow-wrap: anywhere; } .referral-confirmation { width: 100%; align-items: flex-start; } .referral-confirmation .badge { margin-left: auto; } .onboarding-progress:not(.wide) { display: grid; grid-template-columns: minmax(0, 1fr) 8px minmax(0, 1fr) 8px minmax(0, 1fr); gap: 4px; overflow: visible; } .onboarding-progress:not(.wide) .onboarding-step { min-width: 0; justify-content: center; white-space: normal; text-align: center; } .onboarding-progress:not(.wide) .onboarding-line { width: 100%; } .drawer-header, .drawer-scroll, .drawer-actions { padding-left: 16px; padding-right: 16px; } .drawer-actions { flex-direction: column; } }
-@media (max-width: 760px) { .case-table-header { align-items: flex-start; flex-direction: column; gap: 8px; } .case-filters { align-items: stretch; flex-direction: column; } .case-filters label, .case-filters label:first-child { width: 100%; min-width: 0; flex: none; } .case-filters input, .case-filters .filter-select { min-height: 38px; } .case-filter-reset { align-self: flex-start; min-height: 40px; } .desktop-case-table { display: none; } .mobile-case-list { display: grid; gap: 10px; padding: 0 16px 16px; } .case-card { min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); } .case-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-width: 0; } .case-card-header > div { min-width: 0; } .case-card-customer, .case-card-agent, .case-card-updated { display: block; min-width: 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; } .case-card-customer { margin-top: 4px; color: var(--text); font-size: 13px; font-weight: 650; } .case-card-action { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 4px; min-height: 40px; color: var(--brand); font-size: 12px; font-weight: 700; } .case-card-agent { margin: 10px 0 0; } .case-card-statuses { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; } .case-card-updated { margin: 10px 0 0; } .case-table-footer { align-items: flex-start; flex-direction: column; } .case-table-actions { width: 100%; justify-content: space-between; flex-wrap: wrap; } }
-@media (max-width: 760px) { .agents-page .desktop-case-table, .registration-page-content .desktop-case-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; } .agents-page .agent-table table { min-width: 1180px; table-layout: auto; } .registration-page-content .desktop-case-table table { min-width: 1040px; } .registration-page-content .case-filters .commission-filter-field { width: 100%; min-width: 0; } .registration-page-content .case-filters .date-range-picker { width: 100%; min-width: 0; } }
+@media (max-width: 760px) { .case-table-header { align-items: flex-start; flex-direction: column; gap: 8px; } .case-filters { align-items: stretch; flex-direction: column; } .case-filters label, .case-filters label:first-child { width: 100%; min-width: 0; flex: none; } .case-filters input, .case-filters .filter-select { min-height: 38px; } .case-filter-reset { align-self: flex-start; min-height: 40px; } .desktop-case-table:not(.agent-table) { display: none; } .mobile-case-list { display: grid; gap: 10px; padding: 0 16px 16px; } .case-card { min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); } .case-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-width: 0; } .case-card-header > div { min-width: 0; } .case-card-customer, .case-card-agent, .case-card-updated { display: block; min-width: 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; } .case-card-customer { margin-top: 4px; color: var(--text); font-size: 13px; font-weight: 650; } .case-card-action { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 4px; min-height: 40px; color: var(--brand); font-size: 12px; font-weight: 700; } .case-card-agent { margin: 10px 0 0; } .case-card-statuses { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; } .case-card-updated { margin: 10px 0 0; } .case-table-footer { align-items: flex-start; flex-direction: column; } .case-table-actions { width: 100%; justify-content: space-between; flex-wrap: wrap; } }
+@media (max-width: 760px) { .agents-page .desktop-case-table, .registration-page-content .desktop-case-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; } .agents-page .agent-table table { min-width: 1080px; table-layout: fixed; } .registration-page-content .desktop-case-table table { min-width: 1040px; } .registration-page-content .case-filters .commission-filter-field { width: 100%; min-width: 0; } .registration-page-content .case-filters .date-range-picker { width: 100%; min-width: 0; } }
 @media (max-width: 760px) { .dashboard-grid-agent .desktop-case-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; } .dashboard-grid-agent .desktop-case-table table { min-width: 760px; } .dashboard-grid-agent .mobile-case-list { display: none; } }
 @media (max-width: 760px) { .sidebar { z-index: 1100; } .mobile-scrim { z-index: 1090; } }
 @media (max-width: 360px) { .stat-grid { grid-template-columns: 1fr; } .page-content { padding-left: 12px; padding-right: 12px; } .case-card-header { display: grid; gap: 8px; } .case-card-action { justify-self: start; } }
