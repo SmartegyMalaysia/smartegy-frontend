@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { badRpc, csvResponse, serverSupabase } from "../_lib";
 
 export async function GET(request: NextRequest) {
-  const { supabase, cookiesToSet, error } = serverSupabase(request);
+  const { supabase, cookiesToSet, error } = await serverSupabase(request);
   if (error) return error;
   const params = request.nextUrl.searchParams;
   const { data, error: rpcError } = await supabase.rpc("list_case_directory", { p_search: params.get("search") || null, p_stage: params.get("stage") || null, p_payment_status: params.get("payment_status") || null, p_agent_id: params.get("agent_id") || null, p_page: 1, p_page_size: 10000, p_sort_by: params.get("sort_by") || "updated", p_sort_direction: params.get("sort_direction") || "desc" });

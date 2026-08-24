@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
     },
   });
   try {
-    const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL ?? request.nextUrl.origin;
+    const siteOrigin = process.env.SITE_URL ?? (process.env.NODE_ENV === "production" ? null : request.nextUrl.origin);
+    if (!siteOrigin) return NextResponse.json({ message: "Password reset is temporarily unavailable." }, { status: 503 });
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: new URL("/reset-password", siteOrigin).toString() });
     if (error) return NextResponse.json({ ok: false, code: "NETWORK_ERROR", message: "We could not send the password reset email. Try again shortly." }, { status: 503 });
     return response;

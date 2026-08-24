@@ -52,6 +52,7 @@ function mapDirectoryAgent(row: any): AgentSummary {
     annualSalesSen: rmToSen(row.annual_sales),
     commissionEarnedSen: rmToSen(row.commission_earned),
     status: row.status === "active" ? "active" : "inactive",
+    registrationStatus: row.registration_status ?? null,
     qualification: {
       currentLevel,
       successfulCases: { current: Number(item.successful_cases?.current ?? 0), required: required(item.successful_cases?.required) },

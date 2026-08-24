@@ -61,7 +61,11 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 }
 
 function AuthenticatedWorkspaceShell({ children, hideSidebar }: { children: ReactNode; hideSidebar: boolean }) {
-  const { user, setRole, ready } = usePreviewUser();
+  const { user, setRole, ready, authenticated } = usePreviewUser();
+  useEffect(() => {
+    if (ready && !authenticated) window.location.replace(new URL("/", window.location.href).toString());
+  }, [authenticated, ready]);
+  if (ready && !authenticated) return null;
   return (
     <AppShell user={user} onRoleChange={setRole} hideSidebar={hideSidebar} authLoading={!ready}>
       {children}

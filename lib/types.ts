@@ -42,7 +42,7 @@ export interface AgentQualificationProgress { currentLevel: AgentLevel; successf
 export interface AgentPromotionAudit { id: ID; agentId: ID; previousLevel: AgentLevel; newLevel: AgentLevel; actorId: ID; actorDisplayName: string; occurredAt: ISODateTime; note: string | null; }
 export interface AgentLevelChangeRequest { id: ID; agentId: ID; previousLevel: AgentLevel; requestedLevel: AgentLevel; requestedById: ID; requestedByDisplayName: string; requestedAt: ISODateTime; status: "pending" | "approved" | "rejected"; reviewedById: ID | null; reviewedByDisplayName: string | null; reviewedAt: ISODateTime | null; reason: string | null; }
 export interface AgentLevelChangeApproval extends AgentLevelChangeRequest { agent: AgentSummary; }
-export interface AgentSummary { id: ID; agentCode: string; displayName: string; currentLevel: AgentLevel; uplineAgentId: ID | null; uplineName: string | null; directAgentCount: number; successfulCaseCount: number; personalSalesSen: MoneySen; referralSalesSen: MoneySen; annualSalesSen: MoneySen; commissionEarnedSen: MoneySen; status: "active" | "inactive"; qualification: AgentQualificationProgress; promotionHistory: AgentPromotionAudit[]; levelChangeRequests: AgentLevelChangeRequest[]; }
+export interface AgentSummary { id: ID; agentCode: string; displayName: string; currentLevel: AgentLevel; uplineAgentId: ID | null; uplineName: string | null; directAgentCount: number; successfulCaseCount: number; personalSalesSen: MoneySen; referralSalesSen: MoneySen; annualSalesSen: MoneySen; commissionEarnedSen: MoneySen; status: "active" | "inactive"; registrationStatus?: RegistrationStatus | null; qualification: AgentQualificationProgress; promotionHistory: AgentPromotionAudit[]; levelChangeRequests: AgentLevelChangeRequest[]; }
 export interface AgentWorkspaceDetail { agent: AgentSummary; sales: CaseSummary[]; commissions: CommissionSummary[]; uplineAgents: AgentSummary[]; downlineAgents: AgentSummary[]; }
 export interface PayoutBankAccount { bankName: string; accountHolderName: string; accountNumberMasked: string; }
 export interface PayoutTransaction { id: ID; payoutMonth: string; agentId: ID; agentName: string; agentCode: string; bankAccount: PayoutBankAccount; commissionId: ID; caseNumber: string; customerDisplayName: string; amountSen: MoneySen; settlementStatus: PayoutSettlementStatus; settledAt: ISODateTime | null; settledById: ID | null; settledByDisplayName: string | null; bankReference: string | null; }
@@ -198,6 +198,14 @@ export interface RegistrationQueueQuery {
   sort?: "priority" | "newest" | "oldest" | "fee_status" | "recently_updated";
 }
 
+export interface RegistrationErrorResponse {
+  httpStatus: number | null;
+  code: string | null;
+  details: string | null;
+  hint: string | null;
+  message: string | null;
+}
+
 export type RegistrationActionResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: { code: "VALIDATION_ERROR" | "FORBIDDEN" | "NOT_FOUND" | "CONFLICT"; message: string; fieldErrors?: Record<string, string[]> } };
+  | { ok: false; error: { code: "VALIDATION_ERROR" | "FORBIDDEN" | "NOT_FOUND" | "CONFLICT"; message: string; response?: RegistrationErrorResponse; fieldErrors?: Record<string, string[]> } };

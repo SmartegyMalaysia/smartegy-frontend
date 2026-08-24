@@ -31,7 +31,7 @@ export default function DashboardPage() {
       .catch(() => { if (active) setFailed(true); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [ready, role, user.id]);
+  }, [ready, user]);
   return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}><div className="page-content dashboard-page-content">{!ready ? <LoadingState /> : <><div className="page-header"><div><p className="eyebrow">{roleLabels[role]} workspace</p><h1 className="dashboard-greeting">{timeGreeting}, {user.displayName.split(" ")[0]}</h1><p className="page-description">Here&apos;s what needs your attention today.</p></div><div className="page-actions">{role === "agent" && <Link className="button button-primary" href="/cases/new"><Icon name="plus" size={17} /> Submit New Case</Link>}</div></div>{loading && !snapshot ? <LoadingState /> : failed ? <ErrorState onRetry={() => setRole(role)} /> : snapshot && <div aria-busy={loading}><DashboardContent snapshot={snapshot} role={role} actor={user} /></div>}</>}</div></AppShell>;
 }
 

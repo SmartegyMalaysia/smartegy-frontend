@@ -1,10 +1,11 @@
 import { getSupabaseBrowserClient, normalizeSupabaseError } from "./supabase-browser";
 import type { RegistrationRepository } from "./registration-repository";
+import { validateCaseDocument, validateFileSignature } from "./document-config";
 import type {
   AgentRegistration, CompleteRegistrationProfileInput, CreateRegistrationInput, CurrentUser, ID,
   ReferralInvitation, RegistrationActionResult, RegistrationDecisionInput, RegistrationPaymentConfig, RegistrationPaymentProofAccess,
   RegistrationQueueQuery, RegistrationPaymentProof, SubmitRegistrationFeeInput,
-  VerifyRegistrationFeeInput, RejectRegistrationFeeInput,
+  VerifyRegistrationFeeInput, RejectRegistrationFeeInput, RegistrationErrorResponse,
 } from "./types";
 
 type RegistrationRow = Record<string, any>;
@@ -12,9 +13,16 @@ function firstRow(value: unknown): RegistrationRow {
   return (Array.isArray(value) ? value[0] : value) as RegistrationRow;
 }
 
-function errorResult<T>(error: { code?: string | null; message?: string | null }): RegistrationActionResult<T> {
+function errorResult<T>(error: { code?: string | null; details?: string | null; hint?: string | null; message?: string | null; status?: number | null }): RegistrationActionResult<T> {
   const normalized = normalizeSupabaseError(error);
-  return { ok: false, error: { code: normalized.code as any, message: normalized.message } };
+  const response: RegistrationErrorResponse = {
+    httpStatus: error.status ?? (error.code === "PGRST116" ? 406 : null),
+    code: error.code ?? null,
+    details: error.details ?? null,
+    hint: error.hint ?? null,
+    message: error.message ?? null,
+  };
+  return { ok: false, error: { code: normalized.code as any, message: normalized.message, response } };
 }
 
 function mapRegistration(row: RegistrationRow, proof?: RegistrationRow | null, audit: RegistrationRow[] = []): AgentRegistration {
@@ -109,11 +117,15 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
   },
   async submitFee(_actor, input: SubmitRegistrationFeeInput) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
+    const file = input.proof.file;
+    if (!file) return errorResult({ message: "The payment proof file is required." });
+    const metadataError = validateCaseDocument(file, "supporting_document");
+    if (metadataError) return errorResult({ message: metadataError });
+    const signatureError = await validateFileSignature(file);
+    if (signatureError) return errorResult({ message: signatureError });
     const { data: registration, error: registrationError } = await supabase.rpc("register_registration_document", { p_registration_id: input.registrationId, p_original_filename: input.proof.fileName, p_mime_type: input.proof.mimeType });
     if (registrationError) return errorResult(registrationError);
     const document = firstRow(registration);
-    const file = input.proof.file;
-    if (!file) return errorResult({ message: "The payment proof file is required." });
     const { error: uploadError } = await supabase.storage.from(document.bucket_id).upload(document.object_path, file, { contentType: input.proof.mimeType, upsert: false });
     if (uploadError) return errorResult(uploadError);
     const { error: finalizeError } = await supabase.rpc("finalize_registration_document", { p_document_id: document.document_id, p_size_bytes: input.proof.sizeBytes });
@@ -134,8 +146,10 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
   },
   async getByApplicationNumber(_actor, applicationNumber) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
-    const { data, error } = await supabase.from("agent_registrations").select("id").eq("application_number", applicationNumber).single();
+    if (typeof applicationNumber !== "string" || !applicationNumber.trim()) return errorResult({ code: "NOT_FOUND", message: "Registration application number is missing." });
+    const { data, error } = await supabase.from("agent_registrations").select("id").eq("application_number", applicationNumber.trim()).maybeSingle();
     if (error) return errorResult(error);
+    if (!data) return errorResult({ code: "NOT_FOUND", message: "Registration application not found." });
     try { return { ok: true, data: await fetchRegistration(data.id) }; } catch (fetchError) { return errorResult(fetchError as any); }
   },
   async getPaymentProof(_actor, registrationId): Promise<RegistrationActionResult<RegistrationPaymentProofAccess>> {

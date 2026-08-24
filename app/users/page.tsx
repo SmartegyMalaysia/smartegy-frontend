@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Button, ConfirmationDialog, EmptyState, ErrorState, LoadingState, PermissionDenied, StatCard } from "@/components/ui";
 import { DataTable } from "@/components/data-table";
@@ -101,8 +102,7 @@ export default function UsersPage() {
         {users.length ? <><div className="desktop-user-table"><DataTable caption="Smartegy user directory" headers={["User", "Role", "Account Status", "Phone", "Last Active", "Actions"]}>{users.map((item) => <UserRow key={item.id} user={item} onEdit={openEditor}/>)}</DataTable></div><div className="mobile-user-list" aria-label="Users">{users.map((item) => <UserCard key={item.id} user={item} onEdit={openEditor}/>)}</div><TableFooter currentPage={currentPage} totalPages={totalPages} visibleCount={users.length} totalCount={totalItems} onPageChange={setPage} onExport={exportUsers} pageSize={pageSize}/>{exporting && <p className="muted-cell">Preparing export…</p>}</> : <EmptyState title={hasFilters ? "No matching users" : "No users yet"} description={hasFilters ? "Try changing or clearing the filters." : "When accounts are available, they will appear here."} />}
       </section>
     </>}
-    {editing && <UserEditor user={editing} actor={user} form={form} setForm={setForm} fieldErrors={fieldErrors} feedback={editFeedback} saving={saving} onClose={closeEditor} onSave={saveUser}/>} 
-  </main></AppShell>;
+  </main>{editing && typeof document !== "undefined" ? createPortal(<UserEditor user={editing} actor={user} form={form} setForm={setForm} fieldErrors={fieldErrors} feedback={editFeedback} saving={saving} onClose={closeEditor} onSave={saveUser}/>, document.body) : null}</AppShell>;
 }
 
 function UserRow({ user, onEdit }: { user: ManageUser; onEdit: (user: ManageUser) => void }) {
@@ -122,7 +122,7 @@ function RoleBadge({ role }: { role: UserRole }) { return <span className={`role
 function UserEditor({ user, actor, form, setForm, fieldErrors, feedback, saving, onClose, onSave }: { user: ManageUser; actor: { id: string; role: UserRole; accountStatus?: AccountStatus }; form: UpdateManageUserInput; setForm: React.Dispatch<React.SetStateAction<UpdateManageUserInput>>; fieldErrors: Record<string, string[]>; feedback: string | null; saving: boolean; onClose: () => void; onSave: (event: React.FormEvent<HTMLFormElement>) => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [confirmingDisable, setConfirmingDisable] = useState(false);
-  useEffect(() => { closeRef.current?.focus(); const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", onKeyDown); return () => window.removeEventListener("keydown", onKeyDown); }, [onClose]);
+  useEffect(() => { const previousOverflow = document.body.style.overflow; document.body.style.overflow = "hidden"; closeRef.current?.focus(); const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", onKeyDown); return () => { window.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; }; }, [onClose]);
   const isSelf = user.id === actor.id;
   const isInactive = form.accountStatus === "inactive";
   const statusActionLabel = isInactive ? "Enable account" : "Disable account";

@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient, isSupabaseConfigured, normalizeSupabaseError } from "./supabase-browser";
 import type { AccountStatus, CurrentUser, ManageUser, UpdateManageUserInput, UserRole } from "./types";
+import { downloadCsv } from "./export-csv";
 
 type UserErrorCode = "FORBIDDEN" | "NOT_FOUND" | "VALIDATION_ERROR" | "CONFLICT" | "INTERNAL_ERROR";
 export type UserResult<T> = { ok: true; data: T } | { ok: false; error: { code: UserErrorCode; message: string; fieldErrors?: Record<string, string[]> } };
@@ -94,11 +95,6 @@ export const supabaseUserRepository: UserRepository = {
 
 function mapSupabaseUser(row: Record<string, unknown>): ManageUser {
   return { id: String(row.id), displayName: String(row.display_name ?? ""), email: typeof row.email === "string" ? row.email : null, phone: typeof row.phone === "string" ? row.phone : null, role: row.role as UserRole, accountStatus: row.account_status as AccountStatus, agentCode: typeof row.agent_code === "string" ? row.agent_code : null, lastActiveAt: typeof row.last_active_at === "string" ? row.last_active_at : null, createdAt: String(row.created_at) };
-}
-
-function downloadCsv(fileName: string, rows: Array<Array<string | number>>) {
-  const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\r\n") + "\r\n";
-  const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = fileName; link.click(); URL.revokeObjectURL(link.href);
 }
 
 async function downloadServerExport(path: string): Promise<UserResult<true>> {

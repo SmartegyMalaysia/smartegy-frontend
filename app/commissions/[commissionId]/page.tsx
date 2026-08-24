@@ -7,16 +7,27 @@ import { AppShell } from "@/components/app-shell";
 import { Badge, ErrorState, LoadingState } from "@/components/ui";
 import { formatDate, formatMoney } from "@/lib/format";
 import { agentCommissionsRepository } from "@/lib/commission-repository";
-import type { AgentCommissionRecord, CurrentUser } from "@/lib/types";
-
-const agent: CurrentUser = { id: "user-001", role: "agent", displayName: "Aisha Rahman", email: "aisha@smartegy.example", agentId: "agent-001" };
+import { usePreviewUser } from "@/lib/preview-user";
+import type { AgentCommissionRecord } from "@/lib/types";
 
 export default function CommissionDetailPage() {
+  const { user, setRole, ready } = usePreviewUser();
   const params = useParams<{ commissionId: string }>();
   const [record, setRecord] = useState<AgentCommissionRecord | null>(null);
-  const [state, setState] = useState<"loading" | "error" | "permission">("loading");
-  useEffect(() => { agentCommissionsRepository.getById(agent, params.commissionId).then((result) => { if (result.ok) { setRecord(result.data); setState("loading"); } else setState(result.error.code === "FORBIDDEN" ? "permission" : "error"); }); }, [params.commissionId]);
-  return <AppShell user={agent} onRoleChange={() => undefined}><main className="page-content commission-detail-page">{state === "loading" && !record ? <LoadingState/> : state === "permission" ? <ErrorState/> : state === "error" || !record ? <ErrorState/> : <CommissionDetail record={record}/>}</main></AppShell>;
+  const [state, setState] = useState<"loading" | "ready" | "error" | "permission">("loading");
+  useEffect(() => {
+    if (!ready || !user.agentId) return;
+    let active = true;
+    setState("loading");
+    setRecord(null);
+    void agentCommissionsRepository.getById(user, params.commissionId).then((result) => {
+      if (!active) return;
+      if (result.ok) { setRecord(result.data); setState("ready"); }
+      else setState(result.error.code === "FORBIDDEN" ? "permission" : "error");
+    });
+    return () => { active = false; };
+  }, [params.commissionId, ready, user.agentId, user.id, user.role]);
+  return <AppShell user={user} onRoleChange={setRole}><main className="page-content commission-detail-page">{state === "loading" && !record ? <LoadingState/> : state === "permission" ? <ErrorState/> : state === "error" || !record ? <ErrorState/> : <CommissionDetail record={record}/>}</main></AppShell>;
 }
 
 function CommissionDetail({ record }: { record: AgentCommissionRecord }) {

@@ -2,6 +2,7 @@
 
 import { TextInput, TextArea } from "./form-controls";
 import { DragEvent, KeyboardEvent, useRef, useState } from "react";
+import { caseDocumentConfig, validateCaseDocument, validateFileSignature } from "@/lib/document-config";
 
 export function PaymentProofUpload({
   name = "proof",
@@ -17,8 +18,22 @@ export function PaymentProofUpload({
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  function acceptFile(nextFile: File | undefined) {
+  async function acceptFile(nextFile: File | undefined) {
+    if (nextFile) {
+      const metadataError = validateCaseDocument(nextFile, "supporting_document");
+      const signatureError = metadataError ? null : await validateFileSignature(nextFile);
+      const nextError = metadataError ?? signatureError;
+      if (nextError) {
+        setValidationError(nextError);
+        setFile(null);
+        onFileChange?.(null);
+        if (inputRef.current) inputRef.current.value = "";
+        return;
+      }
+    }
+    setValidationError(null);
     setFile(nextFile ?? null);
     onFileChange?.(nextFile ?? null);
   }
@@ -26,7 +41,7 @@ export function PaymentProofUpload({
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDragging(false);
-    acceptFile(event.dataTransfer.files[0]);
+    void acceptFile(event.dataTransfer.files[0]);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -38,7 +53,7 @@ export function PaymentProofUpload({
 
   return (
     <div
-      className={`payment-upload ${dragging ? "payment-upload-dragging" : ""} ${error ? "payment-upload-error-state" : ""}`}
+      className={`payment-upload ${dragging ? "payment-upload-dragging" : ""} ${error || validationError ? "payment-upload-error-state" : ""}`}
     >
       <TextInput
         ref={inputRef}
@@ -46,15 +61,15 @@ export function PaymentProofUpload({
         id={name}
         name={name}
         type="file"
-        accept="image/*,.pdf"
+        accept={caseDocumentConfig.acceptedExtensions}
         required={required}
-        onChange={(event) => acceptFile(event.target.files?.[0])}
+        onChange={(event) => void acceptFile(event.target.files?.[0])}
       />
       <div
         className="payment-upload-dropzone"
         role="button"
         tabIndex={0}
-        aria-describedby={error ? `${name}-error` : undefined}
+        aria-describedby={error || validationError ? `${name}-error` : undefined}
         onClick={() => inputRef.current?.click()}
         onKeyDown={handleKeyDown}
         onDragOver={(event) => {
@@ -80,6 +95,7 @@ export function PaymentProofUpload({
           type="button"
           onClick={() => {
             setFile(null);
+            setValidationError(null);
             onFileChange?.(null);
             if (inputRef.current) inputRef.current.value = "";
           }}
@@ -96,6 +112,7 @@ export function PaymentProofUpload({
           {error}
         </p>
       )}
+      {!error && validationError && <p id={`${name}-error`} className="payment-upload-error-message" role="alert">{validationError}</p>}
     </div>
   );
 }

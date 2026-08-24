@@ -2,24 +2,28 @@
 
 import { TextInput, TextArea } from "./form-controls";
 import { DragEvent, KeyboardEvent, useRef, useState } from "react";
-import { caseDocumentConfig, validateCaseDocument } from "@/lib/document-config";
+import { caseDocumentConfig, validateCaseDocument, validateFileSignature } from "@/lib/document-config";
 import type { CaseDocumentInput } from "@/lib/types";
 
 export function CaseDocumentUpload({ id, type, files, multiple = false, error, uploading = false, progress = 0, onFilesChange, onError }: { id: string; type: CaseDocumentInput["type"]; files: File[]; multiple?: boolean; error?: string; uploading?: boolean; progress?: number; onFilesChange: (files: File[]) => void; onError: (message: string | null) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  function addFiles(incoming: FileList | File[]) {
+  async function addFiles(incoming: FileList | File[]) {
     const next = Array.from(incoming);
     const invalid = next.map((file) => validateCaseDocument(file, type)).find(Boolean);
     if (invalid) { onError(invalid); return; }
+    for (const file of next) {
+      const signatureError = await validateFileSignature(file);
+      if (signatureError) { onError(`${file.name}: ${signatureError}`); return; }
+    }
     onError(null);
     onFilesChange(multiple ? [...files, ...next] : next.slice(0, 1));
   }
-  function handleDrop(event: DragEvent<HTMLDivElement>) { event.preventDefault(); setDragging(false); addFiles(event.dataTransfer.files); }
+  function handleDrop(event: DragEvent<HTMLDivElement>) { event.preventDefault(); setDragging(false); void addFiles(event.dataTransfer.files); }
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inputRef.current?.click(); } }
   function removeFile(index: number) { onFilesChange(files.filter((_, fileIndex) => fileIndex !== index)); onError(null); }
   return <div className={`case-upload ${dragging ? "case-upload-dragging" : ""} ${error ? "case-upload-error" : ""}`}>
-    <TextInput ref={inputRef} className="sr-only" id={id} type="file" accept={caseDocumentConfig.acceptedExtensions} multiple={multiple} onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = ""; }} />
+    <TextInput ref={inputRef} className="sr-only" id={id} type="file" accept={caseDocumentConfig.acceptedExtensions} multiple={multiple} onChange={(event) => { if (event.target.files) void addFiles(event.target.files); event.target.value = ""; }} />
     <div className="case-upload-dropzone" role="button" tabIndex={0} aria-describedby={error ? `${id}-error` : undefined} onClick={() => inputRef.current?.click()} onKeyDown={handleKeyDown} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
       <span className="payment-upload-icon" aria-hidden="true">↑</span><strong>{files.length ? `${files.length} file${files.length > 1 ? "s" : ""} selected` : "Drop files here or browse"}</strong><span>PDF, JPG, PNG, or WEBP · up to 10 MB each</span>
     </div>

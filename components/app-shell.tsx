@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createAvatar } from "@dicebear/core";
 import { initials as avatarStyle } from "@dicebear/collection";
 import { navigation, roleLabels } from "@/lib/navigation";
@@ -58,7 +58,8 @@ function AppShellFrame({ user, children, onRoleChange, onboardingOnly = false, h
 }
 
 function UserMenu({ user }: { user: CurrentUser }) {
+  const router = useRouter();
   const avatarSrc = createAvatar(avatarStyle, { seed: user.displayName, backgroundColor: ["d3edf1"], radius: 50, size: 64 }).toDataUri();
-  async function logout() { if (!window.confirm("Log out of your Smartegy account?")) return; await authLogout(); window.location.href = "/"; }
+  async function logout() { if (!window.confirm("Log out of your Smartegy account?")) return; await authLogout(); router.replace("/"); router.refresh(); }
   return <details className="user-menu"><summary aria-label={`Account menu for ${user.displayName}`}><Image className="avatar avatar-image" src={avatarSrc} alt="" width={32} height={32} unoptimized/><span className="user-name">{user.displayName}</span><Icon name="chevron" size={14}/></summary><div className="user-menu-popover"><Link href="/settings/profile"><ProfileMenuIcon/><span>Your Profile</span></Link><button type="button" onClick={logout}><LogoutMenuIcon/><span>Log Out</span></button></div></details>;
 }

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { badRpc, csvResponse, serverSupabase } from "../_lib";
 
 export async function GET(request: NextRequest) {
-  const { supabase, cookiesToSet, error } = serverSupabase(request);
+  const { supabase, cookiesToSet, error } = await serverSupabase(request);
   if (error) return error;
   const params = request.nextUrl.searchParams;
   const { data, error: rpcError } = await supabase.rpc("list_commission_directory", { p_search: params.get("search") || null, p_status: params.get("status") || null, p_month: params.get("month") || null, p_page: 1, p_page_size: 10000, p_sort_by: params.get("sort_by") || "updated", p_sort_direction: params.get("sort_direction") || "desc" });

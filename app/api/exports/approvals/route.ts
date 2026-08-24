@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { badRpc, csvResponse, serverSupabase } from "../_lib";
 
 export async function GET(request: NextRequest) {
-  const { supabase, cookiesToSet, error } = serverSupabase(request);
+  const { supabase, cookiesToSet, error } = await serverSupabase(request);
   if (error) return error;
   const params = request.nextUrl.searchParams;
   let query = supabase.from("promotion_requests").select("id,agent_id,requested_level,status,requested_by,requested_at,review_reason,agent:agents!promotion_requests_agent_id_fkey(agent_code,legal_name,current_level)").order("requested_at", { ascending: false });

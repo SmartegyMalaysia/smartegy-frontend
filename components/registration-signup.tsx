@@ -18,6 +18,7 @@ import type {
   CurrentUser,
   ReferralInvitation,
 } from "@/lib/types";
+import Link from "next/link";
 
 type RegistrationStage =
   | "registration"
@@ -289,7 +290,7 @@ export function RegistrationSignup({
       <div className="registration-header">
         <BrandLogo className="registration-brand" variant="horizontal" />
         <p>
-          Already registered? <a href="/">Sign in</a>
+          Already registered? <Link href="/">Sign in</Link>
         </p>
       </div>
       <div className="registration-container">
@@ -302,9 +303,9 @@ export function RegistrationSignup({
             <div className="state-icon state-icon-danger">!</div>
             <h3>Invitation unavailable</h3>
             <p>{invitationError}</p>
-            <a className="button button-secondary" href="/">
+            <Link className="button button-secondary" href="/">
               Return to sign in
-            </a>
+            </Link>
           </div>
         ) : (
           <>
@@ -457,6 +458,9 @@ function RegistrationFields({
   referralLocked: boolean;
   onReferralCodeChange: (value: string) => void;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
+
   return (
     <>
       <div className="form-section-heading">
@@ -513,30 +517,52 @@ function RegistrationFields({
           />
         </Field>
         <Field id="password" label="Password" error={fieldErrors.password}>
-          <TextInput
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            placeholder="At Least 8 Characters"
-            minLength={8}
-            required
-          />
+          <div className="password-input">
+            <TextInput
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="At Least 8 Characters"
+              minLength={8}
+              required
+            />
+            <button
+              className="registration-password-toggle"
+              type="button"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((visible) => !visible)}
+            >
+              <Icon name={showPassword ? "eye-off" : "eye"} size={18} />
+            </button>
+          </div>
         </Field>
         <Field
           id="passwordConfirmation"
           label="Confirm Password"
           error={fieldErrors.passwordConfirmation}
         >
-          <TextInput
-            id="passwordConfirmation"
-            name="passwordConfirmation"
-            type="password"
-            autoComplete="new-password"
-            placeholder="Re-enter Your Password"
-            minLength={8}
-            required
-          />
+          <div className="password-input">
+            <TextInput
+              id="passwordConfirmation"
+              name="passwordConfirmation"
+              type={showPasswordConfirmation ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder="Re-enter Your Password"
+              minLength={8}
+              required
+            />
+            <button
+              className="registration-password-toggle"
+              type="button"
+              aria-label={showPasswordConfirmation ? "Hide confirmed password" : "Show confirmed password"}
+              aria-pressed={showPasswordConfirmation}
+              onClick={() => setShowPasswordConfirmation((visible) => !visible)}
+            >
+              <Icon name={showPasswordConfirmation ? "eye-off" : "eye"} size={18} />
+            </button>
+          </div>
         </Field>
       </div>
       <label

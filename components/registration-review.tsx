@@ -25,11 +25,11 @@ export function RegistrationReviewPage({ applicationNumber }: { applicationNumbe
   const [paymentReason, setPaymentReason] = useState("");
   const [verification, setVerification] = useState<VerifyRegistrationFeeInput | null>(null);
   useEffect(() => { setAction(null); setVerification(null); setPaymentReason(""); }, [applicationNumber]);
-  const load = useCallback(async () => { setLoading(true); setError(null); const result = await registrationRepository.getByApplicationNumber(user, applicationNumber); if (result.ok) setRegistration(result.data); else setError(result.error.message); setLoading(false); }, [applicationNumber, user]);
+  const load = useCallback(async () => { setLoading(true); setError(null); const result = await registrationRepository.getByApplicationNumber(user, applicationNumber); if (result.ok) setRegistration(result.data); else setError(JSON.stringify(result.error.response ?? { message: result.error.message }, null, 2)); setLoading(false); }, [applicationNumber, user]);
   useEffect(() => { void load(); }, [load]);
   async function run(resultPromise: Promise<RegistrationActionResult<AgentRegistration>>, success: string) { const result = await resultPromise; if (result.ok) { setRegistration(result.data); setToast({ title: "Action completed", subtitle: success, tone: "success" }); setAction(null); setPaymentReason(""); } else setToast({ title: "Action failed", subtitle: result.error.message, tone: "error" }); }
   if (role === "agent") return <AppShell user={user} onRoleChange={setRole}><div className="page-content"><PermissionDenied/></div></AppShell>;
-  return <AppShell user={user} onRoleChange={setRole}><div className="page-content registration-detail-page"><Link className="profile-back-button" href="/registrations"><span aria-hidden="true">&lt;</span> Back to Registration Queue</Link>{loading ? <LoadingState/> : error ? <ErrorState onRetry={load}/> : registration ? <>
+  return <AppShell user={user} onRoleChange={setRole}><div className="page-content registration-detail-page"><Link className="profile-back-button" href="/registrations"><span aria-hidden="true">&lt;</span> Back to Registration Queue</Link>{loading ? <LoadingState/> : error ? <ErrorState response={error} onRetry={load}/> : registration ? <>
     <div className="page-header registration-detail-header"><div><p className="eyebrow">Registration Review</p><h1>{registration.applicationNumber}</h1><p className="page-description">{registration.profile.fullName} · submitted {registration.submittedAt ? formatDate(registration.submittedAt) : "not submitted"}</p></div></div>
     {toast && <Toast title={toast.title} subtitle={toast.subtitle} tone={toast.tone} onDismiss={() => setToast(null)} />}
 

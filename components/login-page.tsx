@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/auth-repository";
-import { enableDeveloperView } from "@/lib/supabase-browser";
+import { enableDeveloperView, isDeveloperPreviewEnabled } from "@/lib/supabase-browser";
 import { Icon } from "./icons";
 import { BrandLogo } from "./brand-logo";
 
@@ -69,7 +69,7 @@ export function LoginPage() {
           <div className="login-divider"><span>Need an account?</span></div>
           <p className="login-support">Create your Smartegy account to start managing cases, agents, and commissions.</p>
           <Link className="auth-link" href="/signup">Sign up for Smartegy <Icon name="arrow" size={14} /></Link>
-          <Link className="preview-link" href="/dashboard" prefetch={false} onClick={enableDeveloperView}>Open development preview <Icon name="arrow" size={14} /></Link>
+          {isDeveloperPreviewEnabled() && <Link className="preview-link" href="/dashboard" prefetch={false} onClick={enableDeveloperView}>Open development preview <Icon name="arrow" size={14} /></Link>}
         </div>
         <p className="login-legal">© 2026 Smartegy · Your operational workspace</p>
       </section>

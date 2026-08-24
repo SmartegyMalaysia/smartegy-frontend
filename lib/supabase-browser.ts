@@ -6,8 +6,13 @@ let browserClient: any = null;
 
 const developerViewStorageKey = "smartegy-developer-view";
 
+export function isDeveloperPreviewEnabled() {
+  return process.env.NODE_ENV !== "production"
+    && process.env.NEXT_PUBLIC_ENABLE_DEVELOPER_PREVIEW === "true";
+}
+
 export function isDeveloperView() {
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined" || !isDeveloperPreviewEnabled()) return false;
   try {
     return window.sessionStorage.getItem(developerViewStorageKey) === "true";
   } catch {
@@ -16,7 +21,7 @@ export function isDeveloperView() {
 }
 
 export function enableDeveloperView() {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !isDeveloperPreviewEnabled()) return;
   try {
     window.sessionStorage.setItem(developerViewStorageKey, "true");
   } catch {

@@ -11,6 +11,7 @@ type PreviewUserContextValue = {
   user: CurrentUser;
   setRole: (nextRole: UserRole) => void;
   ready: boolean;
+  authenticated: boolean;
 };
 
 const PreviewUserContext = createContext<PreviewUserContextValue | null>(null);
@@ -28,10 +29,12 @@ function usePreviewUserState(defaultRole: UserRole): PreviewUserContextValue {
   // sessionStorage, and localStorage are browser/runtime state and must only
   // affect the tree after hydration.
   const [ready, setReady] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
   useEffect(() => {
     if (isDeveloperView()) {
       const storedRole = window.localStorage.getItem(storageKey) as UserRole | null;
       if (storedRole && storedRole in previewUsers) { setRoleState(storedRole); setUser(previewUsers[storedRole]); }
+      setAuthenticated(true);
       setReady(true);
       return;
     }
@@ -42,12 +45,12 @@ function usePreviewUserState(defaultRole: UserRole): PreviewUserContextValue {
         const { data: claimsData } = await supabase.auth.getClaims();
         const claims = (claimsData?.claims as Record<string, unknown> | undefined) ?? {};
         const userId = typeof claims?.sub === "string" ? claims.sub : null;
-        if (!userId || !active) { if (active) setReady(true); return; }
+        if (!userId || !active) { if (active) { setAuthenticated(false); setReady(true); } return; }
         const [{ data: profile }, { data: agent }] = await Promise.all([
           supabase.from("profiles").select("id,role,display_name,phone,account_status").eq("id", userId).maybeSingle(),
           supabase.from("agents").select("id").eq("profile_id", userId).maybeSingle(),
         ]);
-        if (!profile || !active) { if (active) setReady(true); return; }
+        if (!profile || !active) { if (active) { setAuthenticated(false); setReady(true); } return; }
         const nextUser: CurrentUser = {
           id: profile.id,
           role: profile.role as UserRole,
@@ -59,6 +62,7 @@ function usePreviewUserState(defaultRole: UserRole): PreviewUserContextValue {
         };
         setRoleState(nextUser.role);
         setUser(nextUser);
+        setAuthenticated(true);
         setReady(true);
       };
       void load();
@@ -67,15 +71,14 @@ function usePreviewUserState(defaultRole: UserRole): PreviewUserContextValue {
       });
       return () => { active = false; listener.subscription.unsubscribe(); };
     }
-    const storedRole = window.localStorage.getItem(storageKey) as UserRole | null;
-    if (storedRole && storedRole in previewUsers) { setRoleState(storedRole); setUser(previewUsers[storedRole]); }
+    setAuthenticated(false);
     setReady(true);
   }, []);
   function setRole(nextRole: UserRole) {
     if (getSupabaseBrowserClient()) return;
     window.localStorage.setItem(storageKey, nextRole); setRoleState(nextRole); setUser(previewUsers[nextRole]);
   }
-  return { role, user, setRole, ready };
+  return { role, user, setRole, ready, authenticated };
 }
 
 export function PreviewUserProvider({ children, defaultRole = "agent" }: { children: React.ReactNode; defaultRole?: UserRole }) {

@@ -1,5 +1,6 @@
 import { RegistrationReviewPage } from "@/components/registration-review";
 
-export default async function RegistrationDetailPage({ params }: { params: { applicationNumber: string } }) {
-  return <RegistrationReviewPage applicationNumber={decodeURIComponent(params.applicationNumber)} />;
+export default async function RegistrationDetailPage({ params }: { params: Promise<{ applicationNumber: string }> }) {
+  const { applicationNumber } = await params;
+  return <RegistrationReviewPage applicationNumber={decodeURIComponent(applicationNumber)} />;
 }
