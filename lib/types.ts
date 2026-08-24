@@ -7,6 +7,7 @@ export type AccountStatus = "invited" | "active" | "inactive";
 export type CaseStatus = "draft" | "under_review" | "changes_requested" | "quotation_issued" | "awaiting_deposit" | "installation_scheduled" | "installed_monitoring" | "trial_review" | "active_installments" | "completed" | "cancelled";
 export type PaymentStatus = "not_recorded" | "pending_verification" | "verified";
 export type CommissionStatus = "calculated" | "scheduled" | "approved" | "paid" | "withheld" | "adjusted" | "reversed";
+export type CommissionPaymentKind = "initial" | "deferred" | "adjustment";
 export type RegistrationStatus = "draft" | "pending_approval" | "active" | "rejected" | "suspended";
 export type RegistrationFeeStatus = "unpaid" | "pending_verification" | "verified" | "rejected" | "waived" | "refunded";
 export type AgentLevel = 1 | 2 | 3;
@@ -36,7 +37,7 @@ export interface CaseDocumentInput { type: "electricity_bill" | "supporting_docu
 export interface CreateCaseInput { customer: Pick<CustomerRecord, "displayName" | "contactName" | "email" | "phone">; service: Pick<ServiceRecord, "siteAddress" | "notes">; documents: CaseDocumentInput[]; }
 export interface CommissionSummary { id: ID; caseId: ID; caseNumber: string; recipientId: ID | null; recipientName: string; recipientKind: "level_1_agent" | "level_2_agent" | "level_3_agent" | "office"; entitlementSen: MoneySen; firstPaymentSen: MoneySen; deferredBalanceSen: MoneySen; paidToDateSen: MoneySen; nextPaymentDate: ISODate | null; nextPaymentSen: MoneySen | null; status: CommissionStatus; }
 export interface CommissionScheduleEntry { id: ID; sequence: number; dueDate: ISODate; amountSen: MoneySen; status: CommissionStatus; paidAt: ISODateTime | null; paymentReference: string | null; note: string | null; }
-export interface AgentCommissionRecord extends CommissionSummary { customerDisplayName: string; eligibilityStatus: "eligible" | "pending"; lastUpdatedAt: ISODateTime; schedule: CommissionScheduleEntry[]; withheldReason: string | null; adjustmentNote: string | null; qualifyingPaymentDate: ISODate | null; }
+export interface AgentCommissionRecord extends CommissionSummary { customerDisplayName: string; paymentKind?: CommissionPaymentKind; eligibilityStatus: "eligible" | "pending"; lastUpdatedAt: ISODateTime; schedule: CommissionScheduleEntry[]; withheldReason: string | null; adjustmentNote: string | null; qualifyingPaymentDate: ISODate | null; }
 export interface CommissionOverview { totalEntitlementSen: MoneySen; paidToDateSen: MoneySen; remainingBalanceSen: MoneySen; upcomingPayoutSen: MoneySen | null; upcomingPayoutDate: ISODate | null; }
 export interface AgentQualificationProgress { currentLevel: AgentLevel; successfulCases: { current: number; required: number | null }; directAgents: { current: number; required: number | null }; annualSalesSen: { current: MoneySen; required: MoneySen | null }; eligibleForPromotion: boolean; nextLevel: AgentLevel | null; }
 export interface AgentPromotionAudit { id: ID; agentId: ID; previousLevel: AgentLevel; newLevel: AgentLevel; actorId: ID; actorDisplayName: string; occurredAt: ISODateTime; note: string | null; }

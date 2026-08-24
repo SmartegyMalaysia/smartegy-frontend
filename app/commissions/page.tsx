@@ -14,7 +14,7 @@ import { ExportIcon } from "@/components/export-icon";
 import { formatDate, formatMoney } from "@/lib/format";
 import { commissionStatuses, agentCommissionsRepository, type CommissionDirectoryPage } from "@/lib/commission-repository";
 import { usePreviewUser } from "@/lib/preview-user";
-import type { CommissionOverview, CommissionStatus, CurrentUser } from "@/lib/types";
+import type { AgentCommissionRecord, CommissionOverview, CommissionPaymentKind, CommissionStatus, CurrentUser } from "@/lib/types";
 
 const pageSize = 5;
 type SortKey = "updated" | "next" | "balance" | "newest";
@@ -49,10 +49,20 @@ function SummaryCard({ label, value, detail, accent = false }: { label: string; 
   return <section className={`commission-summary-card ${accent ? "commission-summary-accent" : ""}`}><p className="eyebrow">{label}</p><strong>{value}</strong><span>{detail}</span></section>;
 }
 
+function paymentKindFor(record: AgentCommissionRecord): CommissionPaymentKind {
+  return record.paymentKind ?? (record.firstPaymentSen > 0 ? "initial" : record.deferredBalanceSen > 0 ? "deferred" : "adjustment");
+}
+
+function PaymentKindBadge({ kind }: { kind: CommissionPaymentKind }) {
+  const labels: Record<CommissionPaymentKind, string> = { initial: "First Payment", deferred: "Recurring Balance", adjustment: "Adjustment" };
+  return <span className={`commission-payment-kind commission-payment-kind-${kind}`}><span className="badge-dot" aria-hidden="true" />{labels[kind]}</span>;
+}
+
 function CommissionRecords({ actor }: { actor: CurrentUser }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<CommissionStatus | "all">("all");
+  const [paymentKind, setPaymentKind] = useState<CommissionPaymentKind | "all">("all");
   const [month, setMonth] = useState("");
   const [sort, setSort] = useState<SortKey>("updated");
   const [page, setPage] = useState(1);
@@ -65,20 +75,21 @@ function CommissionRecords({ actor }: { actor: CurrentUser }) {
   const load = useCallback(async () => {
     const currentRequest = ++requestId.current;
     setRefreshing(true);
-    const result = await agentCommissionsRepository.listPage(actor, { search, status: status === "all" ? undefined : status, month: month || undefined, page, pageSize, sortBy: sort, sortDirection: "desc" });
+    const result = await agentCommissionsRepository.listPage(actor, { search, status: status === "all" ? undefined : status, month: month || undefined, page: 1, pageSize: 10000, sortBy: sort, sortDirection: "desc" });
     if (currentRequest !== requestId.current) return;
     if (result.ok) setData(result.data);
     setLoading(false);
     setRefreshing(false);
-  }, [actor, month, page, search, sort, status]);
+  }, [actor, month, search, sort, status]);
 
   useEffect(() => { void load(); }, [load]);
 
-  const items = data?.items ?? [];
-  const totalItems = data?.totalItems ?? 0;
-  const totalPages = data?.totalPages ?? 1;
+  const filteredItems = (data?.items ?? []).filter((record) => paymentKind === "all" || paymentKindFor(record) === paymentKind);
+  const totalItems = filteredItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const clearDisabled = !search && status === "all" && !month && sort === "updated";
+  const items = filteredItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const clearDisabled = !search && status === "all" && paymentKind === "all" && !month && sort === "updated";
 
   async function exportRecords() {
     setExporting(true);
@@ -90,8 +101,8 @@ function CommissionRecords({ actor }: { actor: CurrentUser }) {
 
   return <section className="panel commission-records-panel">
     <div className="panel-header commission-records-header"><div><h2>Commission records</h2><p>{totalItems ? "Eligible case commissions returned from the trusted commission service." : "Your commissions will appear after an eligible case payment is verified."}</p></div><span className="case-count">{totalItems} records {refreshing && <span className="table-secondary" role="status" aria-live="polite">Updating…</span>}</span></div>
-    <div className="commission-filters" aria-label="Commission filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); resetPage(); }} placeholder="Case number or customer" /></label><label><span>Status</span><FilterSelect allLabel="All statuses" value={status} options={commissionStatuses} onChange={(value) => { setStatus(value as CommissionStatus | "all"); resetPage(); }} /></label><div className="commission-filter-field"><span className="commission-filter-label-emphasis">Payment month</span><DatePicker id="payment-month" mode="month" value={month} placeholder="MM/YYYY" onChange={(value) => { setMonth(value); resetPage(); }} /></div><label><span>Sort by</span><FilterSelect allLabel="Latest updated" value={sort} options={sortOptions} labels={sortLabels} onChange={(value) => { setSort(value as SortKey); resetPage(); }} /></label><button className="text-button commission-filter-reset" type="button" disabled={clearDisabled} onClick={() => { setSearch(""); setStatus("all"); setMonth(""); setSort("updated"); resetPage(); }}>Clear filters</button></div>
-    {loading && !data ? <LoadingState/> : items.length ? <><div className="desktop-commission-table"><DataTable caption="My commission records" headers={["Case", "Customer", "My entitlement", "Paid", "Remaining", "Status", "Next payout", "Updated"]}>{items.map((record) => <tr className="commission-table-row" key={record.id} tabIndex={0} role="link" aria-label={`Open commission for ${record.caseNumber}`} onClick={() => router.push(`/commissions/${record.id}`)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); router.push(`/commissions/${record.id}`); } }}><td><span className="table-primary">{record.caseNumber}</span></td><td>{record.customerDisplayName}</td><td className="commission-money">{formatMoney(record.entitlementSen)}</td><td className="commission-money">{formatMoney(record.paidToDateSen)}</td><td className="commission-money">{formatMoney(record.deferredBalanceSen)}</td><td><Badge status={record.status}/></td><td>{record.nextPaymentDate ? <><span className="table-primary">{formatMoney(record.nextPaymentSen)}</span><span className="table-secondary">{formatDate(record.nextPaymentDate)}</span></> : <span className="muted-cell">Not scheduled</span>}</td><td className="muted-cell">{formatDate(record.lastUpdatedAt)}</td></tr>)}</DataTable></div><div className="mobile-commission-list">{items.map((record) => <Link className="commission-card" href={`/commissions/${record.id}`} key={record.id}><div className="commission-card-top"><div><span className="table-primary">{record.caseNumber}</span><strong>{record.customerDisplayName}</strong></div><Badge status={record.status}/></div><div className="commission-card-grid"><span><small>My entitlement</small><b>{formatMoney(record.entitlementSen)}</b></span><span><small>Paid</small><b>{formatMoney(record.paidToDateSen)}</b></span><span><small>Remaining</small><b>{formatMoney(record.deferredBalanceSen)}</b></span><span><small>Next payout</small><b>{record.nextPaymentDate ? formatDate(record.nextPaymentDate) : "Not scheduled"}</b></span></div><span className="commission-card-action">View schedule <Icon name="arrow" size={14}/></span></Link>)}</div></> : <EmptyState title="No eligible commissions yet" description="Commissions will appear after an eligible case payment is verified."/>}
+    <div className="commission-filters" aria-label="Commission filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); resetPage(); }} placeholder="Case number or customer" /></label><label><span>Status</span><FilterSelect allLabel="All statuses" value={status} options={commissionStatuses} onChange={(value) => { setStatus(value as CommissionStatus | "all"); resetPage(); }} /></label><label><span>Payment type</span><FilterSelect allLabel="All payment types" value={paymentKind} options={["all", "initial", "deferred", "adjustment"]} labels={{ all: "All payment types", initial: "First Payment", deferred: "Recurring Balance", adjustment: "Adjustment" }} onChange={(value) => { setPaymentKind(value as CommissionPaymentKind | "all"); resetPage(); }} /></label><div className="commission-filter-field"><span className="commission-filter-label-emphasis">Payment month</span><DatePicker id="payment-month" mode="month" value={month} placeholder="MM/YYYY" onChange={(value) => { setMonth(value); resetPage(); }} /></div><label><span>Sort by</span><FilterSelect allLabel="Latest updated" value={sort} options={sortOptions} labels={sortLabels} onChange={(value) => { setSort(value as SortKey); resetPage(); }} /></label><button className="text-button commission-filter-reset" type="button" disabled={clearDisabled} onClick={() => { setSearch(""); setStatus("all"); setPaymentKind("all"); setMonth(""); setSort("updated"); resetPage(); }}>Clear filters</button></div>
+    {loading && !data ? <LoadingState/> : items.length ? <><div className="desktop-commission-table"><DataTable caption="My commission records" headers={["Case", "Customer", "My entitlement", "Paid", "Remaining", "Status", "Payment type", "Next payout", "Updated"]}>{items.map((record) => { const paymentKind = paymentKindFor(record); return <tr className="commission-table-row" key={record.id} tabIndex={0} role="link" aria-label={`Open commission for ${record.caseNumber}`} onClick={() => router.push(`/commissions/${record.id}`)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); router.push(`/commissions/${record.id}`); } }}><td><span className="table-primary">{record.caseNumber}</span></td><td>{record.customerDisplayName}</td><td className="commission-money">{formatMoney(record.entitlementSen)}</td><td className="commission-money">{formatMoney(record.paidToDateSen)}</td><td className="commission-money">{formatMoney(record.deferredBalanceSen)}</td><td><Badge status={record.status}/></td><td><PaymentKindBadge kind={paymentKind}/></td><td>{record.nextPaymentDate ? <><span className="table-primary">{formatMoney(record.nextPaymentSen)}</span><span className="table-secondary">{formatDate(record.nextPaymentDate)}</span></> : <span className="muted-cell">Not scheduled</span>}</td><td className="muted-cell">{formatDate(record.lastUpdatedAt)}</td></tr>; })}</DataTable></div><div className="mobile-commission-list">{items.map((record) => <Link className="commission-card" href={`/commissions/${record.id}`} key={record.id}><div className="commission-card-top"><div><span className="table-primary">{record.caseNumber}</span><strong>{record.customerDisplayName}</strong></div><Badge status={record.status}/></div><div className="commission-card-grid"><span><small>My entitlement</small><b>{formatMoney(record.entitlementSen)}</b></span><span><small>Paid</small><b>{formatMoney(record.paidToDateSen)}</b></span><span><small>Remaining</small><b>{formatMoney(record.deferredBalanceSen)}</b></span><span><small>Payment type</small><b><PaymentKindBadge kind={paymentKindFor(record)} /></b></span><span><small>Next payout</small><b>{record.nextPaymentDate ? formatDate(record.nextPaymentDate) : "Not scheduled"}</b></span></div><span className="commission-card-action">View schedule <Icon name="arrow" size={14}/></span></Link>)}</div></> : <EmptyState title="No eligible commissions yet" description="Commissions will appear after an eligible case payment is verified."/>}
     <div className="case-table-footer"><span className="case-page-summary">Showing {items.length ? (currentPage - 1) * pageSize + 1 : 0}&ndash;{Math.min(currentPage * pageSize, totalItems)} of {totalItems}</span><div className="case-table-actions"><button className="button button-secondary button-sm" type="button" onClick={() => void exportRecords()} disabled={exporting || !totalItems}><ExportIcon size={15}/>{exporting ? "Exporting…" : "Export"}</button><div className="pagination" aria-label="Commission pagination"><button className="pagination-button" type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setPage((value) => value - 1)}>&lsaquo;</button><span>Page {currentPage} of {totalPages}</span><button className="pagination-button" type="button" aria-label="Next page" disabled={currentPage === totalPages} onClick={() => setPage((value) => value + 1)}>&rsaquo;</button></div></div></div>
   </section>;
 }

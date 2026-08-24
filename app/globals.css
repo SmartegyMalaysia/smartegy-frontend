@@ -872,6 +872,10 @@ input::placeholder, textarea::placeholder { font-weight: 400; }
 .commission-table-row:hover td, .commission-table-row:focus-visible td { background: #f8fafc; }
 .commission-table-row:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
 .commission-money { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.commission-payment-kind { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 8px; font-size: 11px; font-weight: 700; line-height: 1; white-space: nowrap; }
+.commission-payment-kind-initial { color: var(--success); background: var(--success-bg); }
+.commission-payment-kind-deferred { color: #0e7490; background: #ecfeff; }
+.commission-payment-kind-adjustment { color: #475569; background: #f1f5f9; }
 .mobile-commission-list { display: none; }
 .commission-card { display: grid; gap: 14px; min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
 .commission-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-width: 0; }
