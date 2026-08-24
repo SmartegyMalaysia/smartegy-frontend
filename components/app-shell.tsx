@@ -34,7 +34,6 @@ export function AppShell(props: { user: CurrentUser; children: React.ReactNode; 
 }
 
 function AppShellFrame({ user, children, onRoleChange, onboardingOnly = false, hideSidebar = false, authLoading = false }: { user: CurrentUser; children: React.ReactNode; onRoleChange: (role: UserRole) => void; onboardingOnly?: boolean; hideSidebar?: boolean; authLoading?: boolean }) {
-  const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const pathname = usePathname();
@@ -46,11 +45,10 @@ function AppShellFrame({ user, children, onRoleChange, onboardingOnly = false, h
   const nav = <nav aria-label="Primary navigation" aria-busy={authLoading}>{!restricted && <p className="nav-label">Workspace</p>}{authLoading ? <div className="sidebar-nav-loading" aria-hidden="true"><span /><span /><span /><span /></div> : links.map((item) => <Link onClick={() => setMobileOpen(false)} className={`nav-link ${pathname === item.href || pathname.startsWith(`${item.href}/`) ? "nav-link-active" : ""}`} href={item.href} key={item.href}><Icon name={item.icon}/><span>{item.label}</span></Link>)}</nav>;
   return <AppShellContext.Provider value>
   <div className="app-shell" aria-busy={authLoading}>
-    {!hideSidebar && <aside className={`sidebar ${collapsed ? "sidebar-collapsed" : ""} ${mobileOpen ? "sidebar-mobile-open" : ""}`}>
+    {!hideSidebar && <aside className={`sidebar ${mobileOpen ? "sidebar-mobile-open" : ""}`}>
       <BrandLogo className="brand" variant="stacked" compactVariant="icon" />
       {nav}
       <div className="sidebar-footer">{!authLoading && !restricted && previewMode && <><div className="preview-note"><span className="preview-dot"/>Preview mode</div><label className="role-select-label" htmlFor="role-switcher">View as</label><select id="role-switcher" value={user.role} onChange={(event) => onRoleChange(event.target.value as UserRole)}>{Object.entries(roleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></>}</div>
-      {!restricted && !authLoading && <button className="collapse-button" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={() => setCollapsed(!collapsed)}><Icon name="chevron"/><span>{collapsed ? "" : "Collapse sidebar"}</span></button>}
     </aside>}
     {!hideSidebar && mobileOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)}/>}<div className={`shell-main ${hideSidebar ? "shell-main-full" : ""}`}><header className="topbar">{!hideSidebar && <button className="mobile-menu" aria-label="Open navigation" aria-expanded={mobileOpen} title="Open navigation" onClick={() => setMobileOpen(true)}><Icon name="menu"/><span className="mobile-menu-label">Menu</span></button>}<div className="breadcrumb">{breadcrumb[0]} <span>/</span> <strong>{breadcrumb[1]}</strong></div>{authLoading ? <span className="auth-loading-label" aria-live="polite">Loading account…</span> : <UserMenu user={user}/>}</header><main>{children}</main></div>
   </div>
