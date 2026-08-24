@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { createContext, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CSSProperties, ReactNode } from "react";
 
 export type PopupModalSize = "sm" | "md" | "lg";
 export type PopupModalTone = "brand" | "danger" | "success" | "neutral";
+
+export const PopupModalLayerContext = createContext(false);
 
 export type PopupModalProps = {
   open: boolean;
@@ -139,5 +141,5 @@ export function PopupModal({
   if (!rendered || !mounted) return null;
   const style = { ...(accentColor ? { "--popup-modal-accent": accentColor } : {}), ...(exiting ? { animation: "popup-modal-exit 180ms ease-in both" } : {}) } as CSSProperties;
   className = `${className} ${exiting ? "popup-modal-exiting" : ""}`.trim();
-  return createPortal(<div className="dialog-backdrop popup-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && stateRef.current.closeOnBackdrop) requestClose(); }}><section ref={dialogRef} className={`dialog popup-modal popup-modal-size-${size} popup-modal-tone-${tone} ${className}`.trim()} style={style} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}><header className="popup-modal-header"><div className="popup-modal-heading">{icon && <span className="popup-modal-icon" aria-hidden="true">{icon}</span>}<div><h2 id={titleId}>{title}</h2>{description && <p id={descriptionId} className="popup-modal-description">{description}</p>}</div></div>{showCloseButton && <button className="popup-modal-close dialog-close" type="button" aria-label={closeLabel} onClick={(event) => { event.preventDefault(); event.stopPropagation(); requestClose(); }}>×</button>}</header><div className={`popup-modal-body ${bodyClassName}`.trim()}>{children}</div>{footer && <footer className="popup-modal-footer">{footer}</footer>}</section></div>, document.body);
+  return createPortal(<PopupModalLayerContext.Provider value><div className="dialog-backdrop popup-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && stateRef.current.closeOnBackdrop) requestClose(); }}><section ref={dialogRef} className={`dialog popup-modal popup-modal-size-${size} popup-modal-tone-${tone} ${className}`.trim()} style={style} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}><header className="popup-modal-header"><div className="popup-modal-heading">{icon && <span className="popup-modal-icon" aria-hidden="true">{icon}</span>}<div><h2 id={titleId}>{title}</h2>{description && <p id={descriptionId} className="popup-modal-description">{description}</p>}</div></div>{showCloseButton && <button className="popup-modal-close dialog-close" type="button" aria-label={closeLabel} onClick={(event) => { event.preventDefault(); event.stopPropagation(); requestClose(); }}>×</button>}</header><div className={`popup-modal-body ${bodyClassName}`.trim()}>{children}</div>{footer && <footer className="popup-modal-footer">{footer}</footer>}</section></div></PopupModalLayerContext.Provider>, document.body);
 }
