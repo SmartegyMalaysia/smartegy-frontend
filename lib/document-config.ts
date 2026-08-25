@@ -10,7 +10,7 @@ export function validateCaseDocument(file: Pick<File, "name" | "type" | "size">,
   if (!caseDocumentConfig.acceptedMimeTypes.includes(file.type as typeof caseDocumentConfig.acceptedMimeTypes[number])) return "Upload a PDF, JPG, PNG, or WEBP file.";
   if (file.size <= 0) return "The selected file is empty.";
   if (file.size > caseDocumentConfig.maxSizeBytes) return "Each file must be 10 MB or smaller.";
-  if (type !== "electricity_bill" && type !== "supporting_document") return "This document type is not available for case submission.";
+  if (type !== "electricity_bill" && type !== "supporting_document" && type !== "signed_proposal") return "This document type is not available for upload.";
   return null;
 }
 

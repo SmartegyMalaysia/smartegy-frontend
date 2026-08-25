@@ -3,14 +3,21 @@
 import { TextInput, TextArea } from "./form-controls";
 import { DragEvent, KeyboardEvent, useRef, useState } from "react";
 import { caseDocumentConfig, validateCaseDocument, validateFileSignature } from "@/lib/document-config";
+import type { DocumentType } from "@/lib/types";
 
 export function PaymentProofUpload({
   name = "proof",
+  documentType = "supporting_document",
+  emptyLabel = "Drop your proof of payment here",
+  browseLabel = "or click to browse · PDF, JPG, or PNG",
   required = false,
   error,
   onFileChange,
 }: {
   name?: string;
+  documentType?: DocumentType;
+  emptyLabel?: string;
+  browseLabel?: string;
   required?: boolean;
   error?: string;
   onFileChange?: (file: File | null) => void;
@@ -22,7 +29,7 @@ export function PaymentProofUpload({
 
   async function acceptFile(nextFile: File | undefined) {
     if (nextFile) {
-      const metadataError = validateCaseDocument(nextFile, "supporting_document");
+      const metadataError = validateCaseDocument(nextFile, documentType);
       const signatureError = metadataError ? null : await validateFileSignature(nextFile);
       const nextError = metadataError ?? signatureError;
       if (nextError) {
@@ -82,11 +89,11 @@ export function PaymentProofUpload({
         <span className="payment-upload-icon" aria-hidden="true">
           ↑
         </span>
-        <strong>{file ? file.name : "Drop your proof of payment here"}</strong>
+        <strong>{file ? file.name : emptyLabel}</strong>
         <span>
           {file
             ? `${Math.ceil(file.size / 1024)} KB · Ready to submit`
-            : "or click to browse · PDF, JPG, or PNG"}
+            : browseLabel}
         </span>
       </div>
       {file && (

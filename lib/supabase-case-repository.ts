@@ -4,6 +4,20 @@ import type { CaseDirectoryQuery, CaseResult, CasesRepository } from "./case-rep
 import { validateFileSignature } from "./document-config";
 
 function failure<T>(error: { code?: string | null; message?: string | null }): CaseResult<T> { const normalized = normalizeSupabaseError(error); return { ok: false, error: { code: normalized.code as any, message: normalized.message } }; }
+async function functionFailure<T>(error: any): Promise<CaseResult<T>> {
+  const response = error?.context;
+  let message = error?.message ?? "The Edge Function request failed.";
+  if (response && typeof response.clone === "function") {
+    try {
+      const payload = await response.clone().json();
+      const detail = typeof payload?.error === "string" ? payload.error : JSON.stringify(payload);
+      if (detail) message = `HTTP ${response.status}: ${detail}`;
+    } catch {
+      message = `HTTP ${response.status}: ${message}`;
+    }
+  }
+  return failure<T>({ code: response?.status ? String(response.status) : undefined, message });
+}
 function moneyToSen(value: unknown) { return value == null ? null : Math.round(Number(value) * 100); }
 function moneyToRm(value: number | null | undefined) { return value == null ? null : value / 100; }
 function status(value: string) { return value as CaseStatus; }
@@ -41,7 +55,8 @@ async function loadCase(caseId: string): Promise<CaseDetail> {
   const proposalRow: any = proposalRows?.[0] ?? null;
   const { data: proposalReadings, error: proposalReadingsError } = proposalRow ? await supabase.from("proposal_energy_readings").select("*").eq("proposal_id", proposalRow.id).order("sequence_no", { ascending: true }) : { data: [], error: null };
   if (proposalReadingsError) throw proposalReadingsError;
-  const docs: CaseDocument[] = (documents ?? []).map((doc: any) => ({ id: doc.id, caseId: doc.case_id, type: doc.type === "supporting" ? "supporting_document" : doc.type === "proforma" ? "invoice" : doc.type, fileName: doc.original_filename, mimeType: doc.mime_type, sizeBytes: Number(doc.size_bytes ?? 0), uploadedBy: doc.uploaded_by ?? "system", uploadedAt: doc.uploaded_at ?? doc.created_at, bucketId: doc.bucket_id, objectPath: doc.object_path, visibleToAgent: doc.visible_to_agent }));
+  const generatedDocumentIds = new Set((financialDocuments ?? []).flatMap((doc: any) => [doc.case_document_id, doc.pdf_case_document_id]).filter(Boolean));
+  const docs: CaseDocument[] = (documents ?? []).filter((doc: any) => !generatedDocumentIds.has(doc.id)).map((doc: any) => ({ id: doc.id, caseId: doc.case_id, type: doc.type === "supporting" ? "supporting_document" : doc.type === "proforma" ? "invoice" : doc.type, fileName: doc.original_filename, mimeType: doc.mime_type, sizeBytes: Number(doc.size_bytes ?? 0), uploadedBy: doc.uploaded_by ?? "system", uploadedAt: doc.uploaded_at ?? doc.created_at, bucketId: doc.bucket_id, objectPath: doc.object_path, visibleToAgent: doc.visible_to_agent }));
   const scheduleRows = (schedules ?? []).map((item: any) => ({ id: item.id, caseId: item.case_id, sequence: Number(item.sequence_no), kind: item.kind, dueDate: item.due_date, amountDueSen: moneyToSen(item.amount_due) ?? 0, amountPaidSen: moneyToSen(item.amount_paid) ?? 0, status: item.status }));
   const outstanding = scheduleRows.reduce((sum: number, item: any) => sum + item.amountDueSen - item.amountPaidSen, 0);
   return {
@@ -57,7 +72,7 @@ async function loadCase(caseId: string): Promise<CaseDetail> {
     installationDate: baseCase.installation_date, monitoringStartedOn: baseCase.monitoring_started_on, trialDecisionOn: baseCase.trial_decision_on, customerContinues: baseCase.customer_continues, installmentTermMonths: baseCase.installment_term_months,
     paymentSchedules: scheduleRows,
     payments: (payments ?? []).map((payment: any) => ({ id: payment.id, caseId: payment.case_id, amountSen: moneyToSen(payment.amount) ?? 0, paymentDate: payment.paid_on, reference: payment.reference, status: payment.status, recordedBy: payment.submitted_by ?? "system", recordedAt: payment.created_at, verifiedBy: payment.verified_by, verifiedAt: payment.verified_at })),
-    financialDocuments: (financialDocuments ?? []).map((doc: any) => ({ id: doc.id, caseDocumentId: doc.case_document_id ?? undefined, sourceId: doc.payment_schedule_id ?? doc.payment_id ?? undefined, documentNumber: doc.number, type: doc.type === "proforma" ? "invoice" : doc.type === "quotation" ? "quotation" : "receipt", amountSen: moneyToSen(doc.issued_snapshot?.amount ?? doc.issued_snapshot?.payment_schedule?.amount_due ?? doc.issued_snapshot?.proposal?.sale_amount ?? doc.issued_snapshot?.payment?.amount) ?? 0, issueDate: doc.issued_at?.slice(0, 10) ?? doc.created_at.slice(0, 10), status: doc.status === "void" ? "cancelled" : doc.status, createdAt: doc.created_at })),
+    financialDocuments: (financialDocuments ?? []).map((doc: any) => ({ id: doc.id, caseDocumentId: doc.case_document_id ?? undefined, pdfCaseDocumentId: doc.pdf_case_document_id ?? undefined, sourceId: doc.payment_schedule_id ?? doc.payment_id ?? undefined, documentNumber: doc.number, type: doc.type === "proforma" ? "invoice" : doc.type === "quotation" ? "quotation" : "receipt", amountSen: moneyToSen(doc.issued_snapshot?.amount ?? doc.issued_snapshot?.payment_schedule?.amount_due ?? doc.issued_snapshot?.proposal?.sale_amount ?? doc.issued_snapshot?.payment?.amount) ?? 0, issueDate: doc.issued_at?.slice(0, 10) ?? doc.created_at.slice(0, 10), status: doc.status === "void" ? "cancelled" : doc.status, createdAt: doc.created_at })),
     commissionIds: Array.from(new Set((commissions ?? []).map((entry: any) => entry.calculation_id ?? entry.id))),
   };
 }
@@ -135,7 +150,7 @@ export const supabaseCasesRepository: CasesRepository = {
   async issueProposal(_actor, caseId, input: ProposalInput) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
     const { data, error } = await supabase.functions.invoke("generate-document", { body: { case_id: caseId, type: "quotation", proposal: { sales_rep_name: input.salesRepName, proposal_date: input.proposalDate, sale_amount: input.saleAmountSen / 100 }, readings: input.readings.map((reading) => ({ month: reading.month, tnb_rate: reading.tnbRate, kwh_used: reading.kwhUsed, bill_amount: reading.billAmountSen / 100, operation_days: reading.operationDays, daily_kwh: reading.dailyKwh ?? null })) } });
-    if (error) return failure<CaseDetail>(error); if (data?.error) return failure<CaseDetail>({ message: data.error }); return { ok: true, data: await loadCase(caseId) };
+    if (error) return functionFailure<CaseDetail>(error); if (data?.error) return failure<CaseDetail>({ message: data.error }); return { ok: true, data: await loadCase(caseId) };
   },
   async acceptProposal(_actor, caseId, input: AcceptanceInput) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
@@ -151,7 +166,7 @@ export const supabaseCasesRepository: CasesRepository = {
     const document = accepted?.document as any;
     if (document?.status === "reserved") {
       const { data: generated, error: generationError } = await supabase.functions.invoke("generate-document", { body: { case_id: caseId, type: "proforma", payment_schedule_id: document.payment_schedule_id } });
-      if (generationError) return failure<CaseDetail>(generationError); if (generated?.error) return failure<CaseDetail>({ message: generated.error });
+      if (generationError) return functionFailure<CaseDetail>(generationError); if (generated?.error) return failure<CaseDetail>({ message: generated.error });
     }
     return { ok: true, data: await loadCase(caseId) };
   },
@@ -159,10 +174,10 @@ export const supabaseCasesRepository: CasesRepository = {
   async generateFinancialDocument(_actor, caseId, type, paymentScheduleId, paymentId) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<GeneratedDocumentResult>({ message: "Supabase is not configured" });
     const { data, error } = await supabase.functions.invoke("generate-document", { body: { case_id: caseId, type, payment_schedule_id: paymentScheduleId, payment_id: paymentId } });
-    if (error) return failure<GeneratedDocumentResult>(error); if (data?.error || !data?.document) return failure<GeneratedDocumentResult>({ message: data?.error ?? "Document generation failed." });
+    if (error) return functionFailure<GeneratedDocumentResult>(error); if (data?.error || !data?.document) return failure<GeneratedDocumentResult>({ message: data?.error ?? "Document generation failed." });
     const document = data.document as any;
-    return { ok: true, data: { id: document.id, documentNumber: document.number, type, status: document.status, signedUrl: data.signed_url ?? null, issueDate: document.issued_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10) } };
+    return { ok: true, data: { id: document.id, documentNumber: document.number, type, status: document.status, signedUrl: data.signed_url ?? null, issueDate: document.issued_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10), pdfCaseDocumentId: document.pdf_case_document_id ?? undefined } };
   },
   async voidDocument(_actor, caseId, documentId, reason) { return rpcCase(_actor, "void_financial_document", { p_financial_document_id: documentId, p_reason: reason }, caseId); },
-  async getDocumentUrl(_actor, caseId, documentId) { try { const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<string>({ message: "Supabase is not configured" }); const { data: document, error } = await supabase.from("case_documents").select("bucket_id,object_path").eq("case_id", caseId).eq("id", documentId).single(); if (error) return failure<string>(error); const { data, error: signedError } = await supabase.storage.from(document.bucket_id).createSignedUrl(document.object_path, 300); if (signedError) return failure<string>(signedError); return { ok: true, data: data.signedUrl }; } catch (error) { return failure<string>(error as any); } },
+  async getDocumentUrl(_actor, caseId, documentId) { try { const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<string>({ message: "Supabase is not configured" }); const { data: document, error } = await supabase.from("case_documents").select("bucket_id,object_path").eq("case_id", caseId).eq("id", documentId).single(); if (error) return failure<string>(error); const { data, error: signedError } = await supabase.storage.from(document.bucket_id).createSignedUrl(document.object_path, 300); if (signedError) return failure<string>(signedError); const signedUrl = (data as { signedUrl?: string; signedURL?: string } | null)?.signedUrl ?? (data as { signedUrl?: string; signedURL?: string } | null)?.signedURL; if (!signedUrl) return failure<string>({ message: "The document download URL was empty." }); return { ok: true, data: signedUrl }; } catch (error) { return failure<string>(error as any); } },
 };
