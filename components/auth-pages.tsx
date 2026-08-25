@@ -49,7 +49,6 @@ export function ForgotPasswordPage() {
 export function ResetPasswordPage() {
   const params = useSearchParams();
   const token = params.get("token") ?? (params.get("mock") === "valid" ? "mock-valid" : "");
-  const code = params.get("code");
   const [linkState, setLinkState] = useState<ReturnType<typeof getMockResetLinkState> | "loading">("loading");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -65,16 +64,15 @@ export function ResetPasswordPage() {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) { setLinkState(getMockResetLinkState(token)); return () => { active = false; }; }
     const validateRecoverySession = async () => {
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) { if (active) setLinkState("invalid"); return; }
-      }
+      // createBrowserClient is configured with detectSessionInUrl, so it
+      // exchanges the one-time PKCE code during client initialization.
+      // Calling exchangeCodeForSession here would consume a valid link twice.
       const { data } = await supabase.auth.getSession();
       if (active) setLinkState(data.session ? "ready" : "invalid");
     };
     void validateRecoverySession();
     return () => { active = false; };
-  }, [code, token]);
+  }, [token]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
