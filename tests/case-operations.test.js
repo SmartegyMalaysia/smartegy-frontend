@@ -22,11 +22,12 @@ test("case action visibility gives staff and admin the same normal processing ac
   assert.deepEqual(workflow.caseActionLabels("under_review", "staff"), workflow.caseActionLabels("under_review", "admin"));
   assert.ok(workflow.caseActionLabels("under_review", "staff").some((action) => action.label === "Request Changes" && action.requiresReason));
   const awaitingDeposit = workflow.caseActionLabels("awaiting_deposit", "staff");
-  assert.ok(awaitingDeposit.some((action) => action.label === "Record Deposit" && action.variant === "primary"));
-  assert.ok(!awaitingDeposit.some((action) => action.label === "Record Installation"));
+  assert.ok(!awaitingDeposit.some((action) => action.label === "Record Deposit"));
+  assert.ok(workflow.caseActionLabels("awaiting_deposit", "staff", true, false, true).some((action) => action.label === "Review Deposit"));
+  assert.ok(workflow.caseActionLabels("awaiting_deposit", "agent", true, false, false).some((action) => action.label === "Record Deposit"));
   const depositPaid = workflow.caseActionLabels("awaiting_deposit", "staff", true, true);
-  assert.ok(!depositPaid.some((action) => action.label === "Record Deposit"));
-  assert.ok(depositPaid.some((action) => action.label === "Record Installation"));
+  assert.ok(depositPaid.some((action) => action.label === "Set Installation Date"));
+  assert.ok(workflow.caseActionLabels("installation_date_proposed", "agent").some((action) => action.label === "Confirm Installation Date"));
   assert.equal(workflow.caseActionLabels("changes_requested", "agent")[0].label, "Resubmit for Review");
   assert.ok(!workflow.caseActionLabels("completed", "staff").some((action) => action.label === "Delete Case"));
   assert.ok(workflow.caseActionLabels("draft", "agent").some((action) => action.label === "Delete Case"));
@@ -59,9 +60,13 @@ test("operational prerequisites lead to one commission calculation and block pre
   const postInstall = await repository.mockCasesRepository.recordAndVerifyPayment(staff, "case-002", { amountSen: 2000, paymentDate: "2026-08-25" });
   result = postInstall;
   assert.equal(result.ok, true);
-  result = await repository.mockCasesRepository.transition(staff, "case-002", "installation_scheduled");
+  result = await repository.mockCasesRepository.proposeInstallationDate(staff, "case-002", "2026-08-28");
+  assert.equal(result.ok, true);
+  result = await repository.mockCasesRepository.respondToInstallationDate(agent, "case-002", true);
   assert.equal(result.ok, true);
   result = await repository.mockCasesRepository.recordInstallation(staff, "case-002", "2026-09-01");
+  assert.equal(result.ok, false);
+  result = await repository.mockCasesRepository.recordInstallation(staff, "case-002", "2026-08-28");
   assert.equal(result.ok, true);
   result = await repository.mockCasesRepository.verifySavings(staff, "case-002", 2500, 7500);
   assert.equal(result.ok, true);
@@ -93,4 +98,39 @@ test("quotation requires sale amount and quoted monthly savings", async () => {
   const result = await repository.mockCasesRepository.transition(staff, "case-004", "quotation_issued");
   assert.equal(result.ok, false);
   assert.equal(result.error.message, "Sale amount and quoted monthly savings are required before quotation.");
+});
+
+test("agent deposit submission requires staff verification and date confirmation", async () => {
+  const created = await repository.mockCasesRepository.create(agent, {
+    customer: { displayName: "Deposit Workflow Test", contactName: "Test Contact", email: "deposit@example.com", phone: "+60120000000" },
+    service: { siteAddress: "1 Test Street", notes: "" },
+    documents: [{ type: "electricity_bill", fileName: "bill.pdf", mimeType: "application/pdf", sizeBytes: 1200 }],
+  });
+  assert.equal(created.ok, true);
+  const caseId = created.data.id;
+  let result = await repository.mockCasesRepository.update(staff, caseId, { quote: { saleAmountSen: 100000, quotedMonthlySavingsSen: 1000 } });
+  result = await repository.mockCasesRepository.transition(staff, caseId, "quotation_issued");
+  assert.equal(result.ok, true);
+  result = await repository.mockCasesRepository.generatePaymentSchedule(staff, caseId, { depositDue: "2026-09-01", postInstallationDue: "2026-09-15" });
+  assert.equal(result.ok, true);
+  const depositSchedule = result.data.paymentSchedules.find((schedule) => schedule.kind === "deposit");
+  const submitted = await repository.mockCasesRepository.submitDeposit(agent, caseId, { amountSen: depositSchedule.amountDueSen, paymentDate: "2026-08-26", reference: "AGENT-DEP-001" });
+  assert.equal(submitted.ok, true);
+  assert.equal(submitted.data.payments.at(-1).status, "pending_verification");
+  assert.ok(!workflow.caseActionLabels("awaiting_deposit", "agent", true, false, true).some((action) => action.label === "Record Deposit"));
+  const rejected = await repository.mockCasesRepository.rejectPayment(staff, { paymentId: submitted.data.payments.at(-1).id, reason: "Reference needs correction." });
+  assert.equal(rejected.ok, true);
+  const resubmitted = await repository.mockCasesRepository.submitDeposit(agent, caseId, { amountSen: depositSchedule.amountDueSen, paymentDate: "2026-08-26", reference: "AGENT-DEP-002" });
+  assert.equal(resubmitted.ok, true);
+  const pending = resubmitted.data.payments.find((payment) => payment.status === "pending_verification");
+  const verified = await repository.mockCasesRepository.verifyPayment(staff, { paymentId: pending.id, allocations: [{ scheduleId: depositSchedule.id, amountSen: pending.amountSen }] });
+  assert.equal(verified.ok, true);
+  const proposed = await repository.mockCasesRepository.proposeInstallationDate(staff, caseId, "2026-09-20");
+  assert.equal(proposed.data.status, "installation_date_proposed");
+  const changeRequested = await repository.mockCasesRepository.respondToInstallationDate(agent, caseId, false, "Customer needs a weekday earlier in the month.");
+  assert.equal(changeRequested.data.status, "installation_date_proposed");
+  await repository.mockCasesRepository.proposeInstallationDate(staff, caseId, "2026-09-18");
+  const confirmed = await repository.mockCasesRepository.respondToInstallationDate(agent, caseId, true);
+  assert.equal(confirmed.data.status, "installation_scheduled");
+  assert.equal(confirmed.data.installationDate, "2026-09-18");
 });
