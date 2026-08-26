@@ -191,8 +191,7 @@ The Version 1 agent submission implementation requires only the customer/company
 - Status timeline/activity.
 - Uploaded supporting documents.
 - Quotation and installation information when approved.
-- Customer payments and verification state, with agent deposit submission and staff deposit review/rejection actions.
-- Staff-proposed installation date with agent confirmation or change-request action before scheduling.
+- Customer payments and verification state.
 - Linked commissions.
 - Linked invoices and receipts.
 - Role-appropriate actions.
