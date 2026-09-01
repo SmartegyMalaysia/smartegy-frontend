@@ -284,6 +284,7 @@ export function RegistrationSignup({
   }
 
   const paymentState = stage === "payment" || stage === "payment_submitted";
+  const paymentSubmitted = stage === "payment_submitted";
   const maskedEmail = applicantEmail.replace(/^(.{2}).*(@.*)$/, "$1•••$2");
   return (
     <main className="registration-page">
@@ -317,12 +318,16 @@ export function RegistrationSignup({
                     {paymentState ? "Step 2 of 2" : "Step 1 of 2"}
                   </p>
                   <h1>
-                    {paymentState
+                    {paymentSubmitted
+                      ? "Registration submitted"
+                      : paymentState
                       ? "Complete your registration"
                       : "Create your Smartegy account"}
                   </h1>
                   <p>
-                    {paymentState
+                    {paymentSubmitted
+                      ? "Your payment proof has been received and is pending staff verification."
+                      : paymentState
                       ? "Make the RM50 transfer, then submit your proof of payment for staff review."
                       : "Set up your account and verify your email to continue."}
                   </p>
@@ -372,7 +377,7 @@ export function RegistrationSignup({
                 </span>
                 <span className="onboarding-line" />
                 <span
-                  className={`onboarding-step ${paymentState ? "active" : ""}`}
+                  className={`onboarding-step ${stage === "payment" ? "active" : stage === "payment_submitted" ? "completed" : ""}`}
                 >
                   <b>3</b> Payment Proof
                 </span>
@@ -399,7 +404,7 @@ export function RegistrationSignup({
                   onResend={resendOtp}
                 />
               )}
-              {paymentState && registration && (
+              {stage === "payment" && registration && (
                 <PaymentStep
                   registration={registration}
                   paymentConfig={paymentConfig}
@@ -407,6 +412,7 @@ export function RegistrationSignup({
                   onUploadChange={setUploadError}
                 />
               )}
+              {paymentSubmitted && <PaymentSubmittedStep />}
               {stage !== "payment_submitted" && (
                 <button
                   className="button button-primary registration-submit"
@@ -430,20 +436,26 @@ export function RegistrationSignup({
                   )}
                 </button>
               )}
-              {stage === "payment_submitted" && (
-                <div className="payment-submitted-state" role="status">
-                  <p className="success-copy">
-                    Payment submitted and pending staff verification. Your
-                    account will be activated after your registration and
-                    payment have been approved.
-                  </p>
-                </div>
-              )}
             </form>
           </>
         )}
       </div>
     </main>
+  );
+}
+
+function PaymentSubmittedStep() {
+  return (
+    <div className="payment-submitted-state" role="status">
+      <div className="payment-submitted-icon" aria-hidden="true">
+        <Icon name="check" size={28} />
+      </div>
+      <h2>Payment proof submitted</h2>
+      <p className="payment-submitted-message">
+        Payment submitted and pending staff verification. Your account will be
+        activated after your registration and payment have been approved.
+      </p>
+    </div>
   );
 }
 
@@ -577,6 +589,10 @@ function RegistrationFields({
             fieldErrors.acceptedTerms ? "acceptedTerms-error" : undefined
           }
         />
+        <span>
+          I accept the <a href="#terms">Terms of Use</a> and{" "}
+          <a href="#privacy">Privacy Notice</a>.
+        </span>
       </label>
       {fieldErrors.acceptedTerms && (
         <p id="acceptedTerms-error" className="field-error" role="alert">

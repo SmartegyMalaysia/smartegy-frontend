@@ -263,7 +263,10 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .payment-upload-error-state .payment-upload-dropzone strong { color: var(--danger); }
 .payment-upload-error-state .payment-upload-icon { background: #fecaca; color: var(--danger); }
 .payment-upload-error-message { margin: 8px 0 0; color: var(--danger); font-size: 12px; line-height: 1.4; }
-.payment-submitted-state { display: grid; justify-items: start; gap: 14px; }
+.payment-submitted-state { display: grid; justify-items: center; gap: 14px; padding: 44px 20px 24px; text-align: center; }
+.payment-submitted-icon { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--brand-green-soft); color: var(--success); }
+.payment-submitted-state h2 { margin: 0; }
+.payment-submitted-message { max-width: 500px; margin: 0; color: var(--muted); line-height: 1.6; }
 .dashboard-grid-agent { grid-template-columns: minmax(0, 1fr); }
 .dashboard-page-content { height: auto; max-height: none; min-height: 0; display: block; overflow: visible; padding-bottom: 48px; }
 .dashboard-page-content > .dashboard-grid-agent { min-height: 0; }
