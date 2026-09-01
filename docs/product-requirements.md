@@ -57,8 +57,8 @@ Version 2 is not part of the Version 1 implementation or acceptance criteria.
 
 | Role | Primary responsibilities |
 |---|---|
-| Agent | Complete registration, submit the RM50 registration fee proof, submit cases, upload documents, record the deposit for own cases, confirm proposed installation dates, track own cases, view own/referral information permitted by policy, and view own commissions |
-| Staff | Review and manage agent registrations, manually verify registration-fee payments, verify or reject case deposits, propose installation dates, and manage cases, agents, documents, operational statuses, invoices, receipts, commissions, and reports. The Staff view currently matches the Admin view. |
+| Agent | Complete registration, submit the RM50 registration fee proof, submit cases, upload documents, track own cases, view own/referral information permitted by policy, and view own commissions |
+| Staff | Review and manage agent registrations, manually verify registration-fee payments, and manage cases, agents, documents, operational statuses, invoices, receipts, commissions, and reports. The Staff view currently matches the Admin view. |
 | Admin | Review and manage agent registrations, manually verify registration-fee payments, and manage cases, agents, documents, operational statuses, invoices, receipts, commissions, and reports. The Admin view currently matches the Staff view. |
 
 Detailed differences between Staff and Admin must be confirmed before production. Until then, the mock frontend exposes the same navigation and dashboard content for both roles; the server must independently enforce the eventual permission matrix.
@@ -72,9 +72,8 @@ Detailed differences between Staff and Admin must be confirmed before production
 3. The agent uploads an electricity bill and other supporting documents.
 4. The system validates required fields and records the submission.
 5. Authorised staff review the case and documents.
-6. Staff update the case through quotation and payment setup, then verify or reject the deposit submitted by the agent.
-7. After a verified deposit, staff propose an installation date; the agent confirms it or requests a different date.
-8. The case becomes scheduled only after the agent confirms the proposed date. Related invoices, receipts, payments, and commissions are linked to the case.
+6. Staff update the case as it moves through quotation, acceptance, installation, payment, and completion.
+7. Related invoices, receipts, payments, and commissions are linked to the case.
 
 Case statuses:
 
@@ -83,7 +82,6 @@ Case statuses:
 - `changes_requested`
 - `quotation_issued`
 - `awaiting_deposit`
-- `installation_date_proposed`
 - `installation_scheduled`
 - `installed_monitoring`
 - `trial_review`
@@ -95,11 +93,11 @@ Submission moves a case directly from `draft` to `under_review`; completion happ
 
 ### 5.2 Customer Payment Verification
 
-1. The submitting agent records the deposit amount, payment date, and optional reference against the case.
-2. The deposit remains pending until authorised staff verify or reject it with a reason.
-3. Verification records who verified it and when, and only a verified deposit can unlock date proposal.
-4. Staff propose an installation date; the agent confirms it or requests a different date with a reason.
-5. Only a verified qualifying payment may trigger commission generation. Reversal or correction requires an authorised action and audit entry.
+1. Authorised staff record the payment amount, date, and reference against a case.
+2. Finance or another authorised role verifies the payment.
+3. The verification records who verified it and when.
+4. Only a verified qualifying payment may trigger commission generation.
+5. Reversal or correction requires an authorised action and audit entry.
 
 ### 5.3 Agent and Referral Management
 

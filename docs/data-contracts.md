@@ -39,7 +39,6 @@ export type CaseStatus =
   | "changes_requested"
   | "quotation_issued"
   | "awaiting_deposit"
-  | "installation_date_proposed"
   | "installation_scheduled"
   | "installed_monitoring"
   | "trial_review"
@@ -220,12 +219,6 @@ export interface CaseDetail extends CaseSummary {
   financialDocuments: FinancialDocumentSummary[];
   commissionIds: ID[];
   activity: AuditEvent[];
-  installationProposedDate?: ISODate;
-  installationProposedBy?: ID;
-  installationProposedAt?: ISODateTime;
-  installationConfirmedBy?: ID;
-  installationConfirmedAt?: ISODateTime;
-  installationDateFeedback?: string | null;
 }
 
 export interface CustomerRecord {
@@ -291,27 +284,9 @@ export interface VerifyPaymentInput {
   paymentId: ID;
   expectedVersion: number;
 }
-
-export interface SubmitDepositInput {
-  caseId: ID;
-  amountSen: MoneySen;
-  paymentDate: ISODate;
-  reference?: string | null;
-}
-
-export interface RejectPaymentInput {
-  paymentId: ID;
-  reason: string;
-}
-
-export interface InstallationDateResponseInput {
-  caseId: ID;
-  confirmed: boolean;
-  reason?: string;
-}
 ```
 
-The server decides whether the caller may submit, verify, reject, or respond to the payment/date workflow. A deposit is not applied to its schedule until staff verification succeeds; installation is not scheduled until the agent confirms the proposed date.
+The server decides whether the caller may verify the payment and whether it qualifies for commission generation.
 
 ## 7. Commissions
 
