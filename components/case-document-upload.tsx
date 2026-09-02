@@ -28,7 +28,7 @@ export function CaseDocumentUpload({ id, type, files, multiple = false, error, u
       <span className="payment-upload-icon" aria-hidden="true">↑</span><strong>{files.length ? `${files.length} file${files.length > 1 ? "s" : ""} selected` : "Drop files here or browse"}</strong><span>PDF, JPG, PNG, or WEBP · up to 10 MB each</span>
     </div>
     {files.length > 0 && <div className="case-upload-files" aria-live="polite">{files.map((file, index) => <div className="case-upload-file" key={`${file.name}-${file.size}-${index}`}><div><strong>{file.name}</strong><span>{Math.ceil(file.size / 1024)} KB</span></div><button type="button" onClick={() => removeFile(index)} disabled={uploading}>Remove</button></div>)}</div>}
-    {uploading && <div className="case-upload-progress" role="status"><span>Uploading documents…</span><strong>{progress}%</strong><div><i style={{ width: `${progress}%` }} /></div></div>}
+    {uploading && files.length > 0 && <div className="case-upload-progress" role="status"><span>Uploading documents…</span><strong>{progress}%</strong><div><i style={{ width: `${progress}%` }} /></div></div>}
     {!uploading && files.length > 0 && <p className="case-upload-success" role="status">Ready for submission.</p>}
     {error && <p id={`${id}-error`} className="case-upload-error-message" role="alert">{error}</p>}
   </div>;

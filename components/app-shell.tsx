@@ -12,6 +12,7 @@ import { Icon } from "./icons";
 import { BrandLogo } from "./brand-logo";
 import { logout as authLogout } from "@/lib/auth-repository";
 import { isSupabaseConfigured } from "@/lib/supabase-browser";
+import { Button, ConfirmationDialog } from "./ui";
 
 function ProfileMenuIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>; }
 function LogoutMenuIcon() { return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8"/><path d="M11 12h9M17 8l4 4-4 4"/></svg>; }
@@ -57,7 +58,9 @@ function AppShellFrame({ user, children, onRoleChange, onboardingOnly = false, h
 
 function UserMenu({ user }: { user: CurrentUser }) {
   const router = useRouter();
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const avatarSrc = createAvatar(avatarStyle, { seed: user.displayName, backgroundColor: ["d3edf1"], radius: 50, size: 64 }).toDataUri();
-  async function logout() { if (!window.confirm("Log out of your Smartegy account?")) return; await authLogout(); router.replace("/"); router.refresh(); }
-  return <details className="user-menu"><summary aria-label={`Account menu for ${user.displayName}`}><Image className="avatar avatar-image" src={avatarSrc} alt="" width={32} height={32} unoptimized/><span className="user-name">{user.displayName}</span><Icon name="chevron" size={14}/></summary><div className="user-menu-popover"><Link href="/settings/profile"><ProfileMenuIcon/><span>Your Profile</span></Link><button type="button" onClick={logout}><LogoutMenuIcon/><span>Log Out</span></button></div></details>;
+  async function logout() { setLoggingOut(true); await authLogout(); setLogoutOpen(false); router.replace("/"); router.refresh(); }
+  return <><details className="user-menu"><summary aria-label={`Account menu for ${user.displayName}`}><Image className="avatar avatar-image" src={avatarSrc} alt="" width={32} height={32} unoptimized/><span className="user-name">{user.displayName}</span><Icon name="chevron" size={14}/></summary><div className="user-menu-popover"><Link href="/settings/profile"><ProfileMenuIcon/><span>Your Profile</span></Link><button type="button" onClick={() => setLogoutOpen(true)}><LogoutMenuIcon/><span>Log Out</span></button></div></details><ConfirmationDialog open={logoutOpen} title="Log out?" description="Are you sure you want to log out of your Smartegy account?" confirmLabel="Log Out" confirmVariant="danger" loading={loggingOut} onCancel={() => setLogoutOpen(false)} onConfirm={logout}/></>;
 }
