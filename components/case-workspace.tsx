@@ -17,6 +17,10 @@ import { ProposalAcceptance } from "./proposal-acceptance";
 type CaseToast = { title: string; subtitle: string; tone: ToastTone };
 
 function moneyInputValue(value: number | null | undefined) { return value == null ? "" : String(value / 100); }
+function uploadedDocumentLabel(type: string) { return type === "electricity_bill" ? "Electricity bill" : type === "signed_proposal" ? "Signed proposal" : "Supporting"; }
+function uploadedDocumentTag(type: string) { return type === "electricity_bill" ? "document-tag-electricity" : type === "signed_proposal" ? "document-tag-signed" : "document-tag-supporting"; }
+function generatedDocumentLabel(type: string) { return type === "quotation" ? "Proposal" : type === "invoice" ? "Invoice" : "Receipt"; }
+function generatedDocumentTag(type: string) { return type === "quotation" ? "document-tag-proposal" : type === "invoice" ? "document-tag-invoice" : "document-tag-receipt"; }
 
 export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { initialCase: CaseDetail; user: CurrentUser; onChanged: (value: CaseDetail) => void; onDeleted: () => void }) {
   const [caseDetail, setCaseDetail] = useState(initialCase);
@@ -233,7 +237,46 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
     apply(result);
     setBusy(false);
   }
-  async function openDocument(documentId: string) { const result = await casesRepository.getDocumentUrl(user, caseDetail.id, documentId); if (result.ok) window.open(result.data, "_blank", "noopener,noreferrer"); else showError(result.error.message, "Document Access Failed"); }
+  async function downloadDocument(documentId: string) {
+    const result = await casesRepository.getDocumentUrl(user, caseDetail.id, documentId);
+    if (!result.ok) { showError(result.error.message, "Document Access Failed"); return; }
+    const anchor = window.document.createElement("a");
+    anchor.href = result.data;
+    anchor.download = result.data.split("/").pop()?.split("?")[0] || `document-${documentId}`;
+    anchor.rel = "noopener noreferrer";
+    window.document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+  async function getTimelineDocumentIds(document: { id: string; documentIds: string[]; regenerateType: "quotation" | "proforma" | null; sourceId?: string }) {
+    let documentIds = document.documentIds;
+    if (document.regenerateType && documentIds.length < 2) {
+      const generated = await casesRepository.generateFinancialDocument(user, caseDetail.id, document.regenerateType, document.regenerateType === "proforma" ? document.sourceId : undefined);
+      if (!generated.ok) { showError(generated.error.message, "Document Access Failed"); return null; }
+      const refreshed = await casesRepository.getById(user, caseDetail.id);
+      if (!refreshed.ok) { showError(refreshed.error.message, "Document Access Failed"); return null; }
+      setCaseData(refreshed.data);
+      const refreshedDocument = refreshed.data.financialDocuments?.find((item) => item.id === document.id);
+      documentIds = [refreshedDocument?.caseDocumentId].filter((id): id is string => Boolean(id));
+    }
+    if (!documentIds.length) { showError("No downloadable files are attached to this document.", "Document Access Failed"); return null; }
+    return documentIds;
+  }
+  async function downloadTimelineDocument(document: { id: string; documentIds: string[]; regenerateType: "quotation" | "proforma" | null; sourceId?: string }) {
+    const documentIds = await getTimelineDocumentIds(document);
+    if (documentIds?.[0]) await downloadDocument(documentIds[0]);
+  }
+  async function generateDocument(type: "proforma" | "receipt", paymentScheduleId?: string, paymentId?: string) {
+    setBusy(true); setToast(null);
+    const result = await casesRepository.generateFinancialDocument(user, caseDetail.id, type, paymentScheduleId, paymentId);
+    if (result.ok) { const refreshed = await casesRepository.getById(user, caseDetail.id); if (refreshed.ok) setCaseData(refreshed.data); setToast({ title: "Document Generated", subtitle: `${result.data.documentNumber} is ready in the generated documents list.`, tone: "success" }); }
+    else showError(result.error.message, "Document Generation Failed");
+    setBusy(false);
+  }
+  const documentRows = [
+    ...caseDetail.documents.map((document) => ({ kind: "uploaded" as const, id: document.id, date: document.uploadedAt, label: uploadedDocumentLabel(document.type), tag: uploadedDocumentTag(document.type), name: document.fileName, detail: `${Math.ceil(document.sizeBytes / 1024)} KB`, documentIds: [document.id], regenerateType: null })),
+    ...(caseDetail.financialDocuments ?? []).map((document) => ({ kind: "generated" as const, id: document.id, date: document.createdAt, label: generatedDocumentLabel(document.type), tag: generatedDocumentTag(document.type), name: document.documentNumber, detail: `${formatMoney(document.amountSen)} - ${titleCase(document.status)}`, documentIds: [document.caseDocumentId].filter((id): id is string => Boolean(id)), regenerateType: document.type === "quotation" ? "quotation" as const : document.type === "invoice" ? "proforma" as const : null, sourceId: document.sourceId })),
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return <div className="case-workspace">
     <div className="case-action-panel panel">
@@ -243,7 +286,7 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
     </div>
     <div className="case-detail-grid">
       <section className="panel case-form-panel"><div className="panel-header"><div><h2>Customer and Service</h2><p>Submitted {formatDate(caseDetail.submittedAt)} by {caseDetail.agentName}</p></div>{canEditDetails && <Button type="button" variant="secondary" size="sm" onClick={() => { setDetailsError(null); setEditing(!editing); }}>{editing ? "Cancel Edit" : "Edit Details"}</Button>}</div>{editing ? <div className="case-form-body"><div className="case-form-grid"><TextInput id="edit-company-name" title="Company Name" value={customerName} onChange={(event) => { setDetailsError(null); setCustomerName(event.target.value); }} required /><TextInput id="edit-company-email" title="Company Email Address" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /><TextInput id="edit-contact-person-name" title="Contact Person Name" value={contactName} onChange={(event) => setContactName(event.target.value)} required /><TextInput id="edit-contact-person-phone" title="Contact Person Phone Number" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} required /><TextInput id="edit-address-line-1" title="Address Line 1" value={addressLine1} onChange={(event) => { setDetailsError(null); setAddressLine1(event.target.value); }} required autoComplete="address-line1" /><TextInput id="edit-address-line-2" title="Address Line 2" value={addressLine2} onChange={(event) => setAddressLine2(event.target.value)} autoComplete="address-line2" /><TextInput id="edit-postcode" title="Postcode" value={postcode} onChange={(event) => { setDetailsError(null); setPostcode(event.target.value); }} required autoComplete="postal-code" /><TextInput id="edit-city" title="City" value={city} onChange={(event) => { setDetailsError(null); setCity(event.target.value); }} required autoComplete="address-level2" /><FilterSelect title="State" allLabel="Select state" value={state} options={[...malaysiaStates]} onChange={(value) => { setDetailsError(null); setState(value); }} required /><TextArea id="edit-additional-remarks" title="Additional Remarks" rows={1} value={remarks} onChange={(event) => setRemarks(event.target.value)} placeholder="Add context for staff if needed" /></div>{detailsError && <p className="case-field-error-message" role="alert">{detailsError}</p>}<Button type="button" onClick={saveDetails} disabled={busy}>Save Details</Button></div> : <dl className="case-detail-list"><div><dt>Company Name</dt><dd>{caseDetail.customer.displayName}</dd></div><div><dt>Contact</dt><dd>{caseDetail.customer.contactName ?? "Not provided"}</dd></div><div><dt>Email</dt><dd>{caseDetail.customer.email ?? "Not provided"}</dd></div><div><dt>Phone</dt><dd>{caseDetail.customer.phone ?? "Not provided"}</dd></div><div><dt>Service Address</dt><dd>{caseDetail.service.siteAddress || "Not provided"}</dd></div><div><dt>Remarks</dt><dd>{caseDetail.service.notes || "No remarks provided."}</dd></div></dl>}</section>
-      <section className="panel case-form-panel"><div className="panel-header"><div><h2>Documents</h2><p>Preview or download uses a short-lived secure link.</p></div></div><div className="case-detail-documents">{caseDetail.documents.length ? caseDetail.documents.map((document) => <div className="case-detail-document" key={document.id}><div><strong>{document.fileName}</strong><span>{document.type === "electricity_bill" ? "Latest electricity bill" : "Supporting document"} · {Math.ceil(document.sizeBytes / 1024)} KB</span></div><Button type="button" variant="ghost" size="sm" onClick={() => openDocument(document.id)}>Preview / Download</Button></div>) : <p className="detail-empty">No documents uploaded.</p>}</div></section>
+      <section className="panel case-form-panel"><div className="panel-header"><div><h2>Documents</h2><p>Uploads and generated files in chronological order.</p></div></div><div className="case-documents-timeline">{documentRows.length ? documentRows.map((document) => <div className="case-document-timeline-row" key={`${document.kind}-${document.id}`}><span className="case-document-timeline-dot" aria-hidden="true" /><div className={`case-document-timeline-content ${document.tag}`}><div className="case-document-timeline-meta"><span className={`document-tag ${document.tag}`}>{document.label}</span><time dateTime={document.date}>{formatDate(document.date)}</time></div><div className="case-document-timeline-file"><div><strong>{document.name}</strong><span>{document.detail}</span></div>{(document.documentIds.length > 0 || document.regenerateType) && <Button type="button" variant="ghost" size="sm" onClick={() => downloadTimelineDocument(document)}>Download DOCX</Button>}</div></div></div>) : <p className="detail-empty">No documents yet.</p>}{depositSchedule && !caseDetail.financialDocuments?.some((document) => document.type === "invoice" && document.sourceId === depositSchedule.id && document.status === "issued") && <Button type="button" variant="secondary" size="sm" onClick={() => generateDocument("proforma", depositSchedule.id)} disabled={busy}>Generate Deposit Invoice</Button>}{caseDetail.payments?.filter((payment) => payment.status === "verified" && !caseDetail.financialDocuments?.some((document) => document.type === "receipt" && document.sourceId === payment.id && document.status === "issued")).map((payment) => <Button type="button" variant="secondary" size="sm" key={`receipt-${payment.id}`} onClick={() => generateDocument("receipt", undefined, payment.id)} disabled={busy}>Generate Receipt - {payment.id.slice(0, 8)}</Button>)}</div></section>
     </div>
     <div className="case-detail-grid"><section className="panel case-form-panel"><div className="panel-header"><div><h2>Quote, Savings and Installation</h2><p>Operational values used by the workflow.</p></div></div><dl className="case-detail-list"><div><dt>Sale amount</dt><dd>{formatMoney(caseDetail.quote?.saleAmountSen ?? caseDetail.saleAmountSen)}</dd></div><div><dt>Quoted monthly savings</dt><dd>{caseDetail.quote?.quotedMonthlySavingsSen == null ? "Not provided" : formatMoney(caseDetail.quote.quotedMonthlySavingsSen)}</dd></div><div><dt>Verified savings</dt><dd>{caseDetail.verifiedSavings?.monthlySavingsSen == null ? "Not verified" : `${formatMoney(caseDetail.verifiedSavings.monthlySavingsSen)} / month`}</dd></div><div><dt>Installation date</dt><dd>{caseDetail.installationDate ?? "Not scheduled"}</dd></div><div><dt>Installment term</dt><dd>{caseDetail.installmentTermMonths ? `${caseDetail.installmentTermMonths} months` : "Not started"}</dd></div></dl></section><section className="panel case-form-panel"><div className="panel-header"><div><h2>Payment Schedule</h2><p>Initial obligations and installments</p></div></div><div className="case-schedule-list">{caseDetail.paymentSchedules?.length ? caseDetail.paymentSchedules.map((schedule) => <div className="case-schedule-row" key={schedule.id}><span>{schedule.sequence}. {titleCase(schedule.kind)}<small>{schedule.dueDate}</small></span><span>{formatMoney(schedule.amountPaidSen)} / {formatMoney(schedule.amountDueSen)} <Badge status={schedule.status === "paid" ? "verified" : "pending_verification"} /></span></div>) : <p className="detail-empty">No payment schedule generated.</p>}</div></section></div>
     <section className="panel case-form-panel"><div className="panel-header"><div><h2>Status Timeline</h2><p>Full case audit history</p></div></div><div className="case-detail-activity">{caseDetail.activity.map((event) => <div key={event.id}><span className="case-activity-dot" aria-hidden="true" /><div className="case-activity-content"><strong>{event.summary}</strong><span className="case-activity-meta"><span>{event.actorDisplayName}</span><time dateTime={event.occurredAt}>{formatDate(event.occurredAt)}</time></span></div></div>)}</div></section>
