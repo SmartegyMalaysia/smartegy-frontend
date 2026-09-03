@@ -42,7 +42,7 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
   const [monthlySavings, setMonthlySavings] = useState("");
   const [savingsError, setSavingsError] = useState<string | null>(null);
   const [installmentStart, setInstallmentStart] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
-  const [termMonths, setTermMonths] = useState<10 | 20>(10);
+  const [termMonths, setTermMonths] = useState<10 | 20>(initialCase.proposal?.selectedTermMonths ?? initialCase.installmentTermMonths ?? 10);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [installationPaymentAmount, setInstallationPaymentAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
@@ -71,7 +71,7 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
   const postInstallationSchedule = (caseDetail.paymentSchedules ?? []).find((schedule) => schedule.kind === "post_installation");
   const allocatableSchedules = (caseDetail.paymentSchedules ?? []).filter((schedule) => schedule.amountDueSen > schedule.amountPaidSen);
 
-  useEffect(() => { setDialog(null); setRecordPaymentOpen(false); setProposalOpen(false); setAcceptanceOpen(false); setEditing(false); setReason(""); setQuoteError(null); setPaymentError(null); setAllocationError(null); setSavingsError(null); setResubmitError(null); setDetailsError(null); }, [initialCase.id]);
+  useEffect(() => { setDialog(null); setRecordPaymentOpen(false); setProposalOpen(false); setAcceptanceOpen(false); setEditing(false); setReason(""); setQuoteError(null); setPaymentError(null); setAllocationError(null); setSavingsError(null); setResubmitError(null); setDetailsError(null); setTermMonths(initialCase.proposal?.selectedTermMonths ?? initialCase.installmentTermMonths ?? 10); }, [initialCase.id, initialCase.proposal?.selectedTermMonths, initialCase.installmentTermMonths]);
 
   function showError(message: string, title = "Action Failed") { setToast({ title, subtitle: message, tone: "error" }); }
   function syncQuoteFields(value: CaseDetail) {
@@ -180,11 +180,17 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
     else if (action === "verify_payment") {
       const amount = Number(paymentAmount);
       if (!paymentAmount.trim() || !Number.isFinite(amount) || amount <= 0 || !paymentDate) { setPaymentError("Payment amount and payment date are required."); setBusy(false); return; }
+      if (Math.round(amount * 100) > depositBalanceSen) { setPaymentError(`Payment amount cannot exceed the remaining deposit balance of ${formatMoney(depositBalanceSen)}.`); setBusy(false); return; }
       result = await casesRepository.recordAndVerifyPayment(user, caseDetail.id, { amountSen: Math.round(amount * 100), paymentDate });
     } else if (action === "record_installation") {
       const amount = Number(installationPaymentAmount);
       if (postInstallationBalanceSen > 0 && (!installationPaymentAmount.trim() || !Number.isFinite(amount) || amount <= 0 || !installationDate)) {
         setPaymentError("Payment amount and installation date are required.");
+        setBusy(false);
+        return;
+      }
+      if (postInstallationBalanceSen > 0 && Math.round(amount * 100) > postInstallationBalanceSen) {
+        setPaymentError(`Payment amount cannot exceed the remaining post-installation balance of ${formatMoney(postInstallationBalanceSen)}.`);
         setBusy(false);
         return;
       }
@@ -197,7 +203,14 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
       };
       if (postInstallationBalanceSen > 0) {
         const payment = await casesRepository.recordAndVerifyPayment(user, caseDetail.id, { amountSen: Math.round(amount * 100), paymentDate: installationDate });
-        result = payment.ok ? await completeInstallation() : payment;
+        if (!payment.ok) {
+          result = payment;
+        } else {
+          const remainingPostInstallation = payment.data.paymentSchedules?.find((schedule) => schedule.kind === "post_installation");
+          result = remainingPostInstallation && remainingPostInstallation.amountPaidSen < remainingPostInstallation.amountDueSen
+            ? payment
+            : await completeInstallation();
+        }
       } else {
         result = await completeInstallation();
       }
@@ -211,6 +224,7 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
     }
     else if (action === "accept_trial") result = await casesRepository.acceptTrial(user, caseDetail.id, { installmentStart, termMonths });
     else { setBusy(false); return; }
+    if (!result.ok && (action === "verify_payment" || action === "record_installation")) setPaymentError(result.error.message);
     apply(result);
     setBusy(false);
   }
@@ -230,10 +244,12 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
   async function recordPayment() {
     const amount = Number(paymentAmount);
     if (!paymentAmount.trim() || !Number.isFinite(amount) || amount <= 0 || !paymentDate) { setPaymentError("Payment amount and payment date are required."); return; }
+    if (Math.round(amount * 100) > depositBalanceSen) { setPaymentError(`Payment amount cannot exceed the remaining deposit balance of ${formatMoney(depositBalanceSen)}.`); return; }
     setBusy(true);
     setToast(null);
     const result = await casesRepository.recordAndVerifyPayment(user, caseDetail.id, { amountSen: Math.round(amount * 100), paymentDate });
     if (result.ok) closeRecordPayment();
+    else setPaymentError(result.error.message);
     apply(result);
     setBusy(false);
   }
@@ -295,7 +311,7 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
       {dialog === "verify_payment" && <div className="case-dialog-fields"><div className="case-payment-summary"><span>Pending Payment</span><strong>{pendingPayment ? formatMoney(pendingPayment.amountSen) : "Not Available"}</strong></div><div className="case-allocation-list">{allocatableSchedules.length ? allocatableSchedules.map((schedule) => <div className="case-field" key={schedule.id}><label htmlFor={`allocation-${schedule.id}`}>Schedule {schedule.sequence} · {titleCase(schedule.kind)}</label><span className="case-allocation-balance">Remaining Balance: {formatMoney(schedule.amountDueSen - schedule.amountPaidSen)}</span><MoneyInput id={`allocation-${schedule.id}`} inputMode="decimal" value={allocations[schedule.id] ?? ""} onChange={(event) => { setAllocationError(null); setAllocations((current) => ({ ...current, [schedule.id]: event.target.value })); }} aria-invalid={Boolean(allocationError)} aria-describedby={allocationError ? "payment-allocation-error" : undefined} /></div>) : <p className="detail-empty">No outstanding payment schedules are available.</p>}</div>{allocationError && <p id="payment-allocation-error" className="case-field-error-message" role="alert">{allocationError}</p>}</div>}
       {dialog === "pass_review" && <div className="case-dialog-fields"><div className="case-form-grid"><MoneyInput id="pass-review-sale-amount" title="Sale Amount" inputMode="decimal" value={saleAmount} onChange={(event) => { setQuoteError(null); setSaleAmount(event.target.value); }} aria-invalid={Boolean(quoteError)} aria-describedby={quoteError ? "pass-review-quote-error" : undefined} required /><MoneyInput id="pass-review-monthly-savings" title="Quoted Monthly Savings" inputMode="decimal" value={quotedMonthlySavings} onChange={(event) => { setQuoteError(null); setQuotedMonthlySavings(event.target.value); }} aria-invalid={Boolean(quoteError)} aria-describedby={quoteError ? "pass-review-quote-error" : undefined} required /><DatePicker id="deposit-due" title="Deposit Due" value={depositDue} placeholder="DD/MM/YYYY" onChange={(value) => { setQuoteError(null); setDepositDue(value); }} required /><DatePicker id="post-installation-due" title="Post-Installation Due" value={postInstallationDue} placeholder="DD/MM/YYYY" onChange={(value) => { setQuoteError(null); setPostInstallationDue(value); }} required /></div>{quoteError && <p id="pass-review-quote-error" className="case-field-error-message" role="alert">{quoteError}</p>}</div>}
       {dialog === "resubmit" && <div className="case-dialog-fields">{latestStaffRemark ? <ReadOnlyField id="staff-review-remark" title="Staff Remarks" value={latestStaffRemark} multiline /> : <p className="detail-empty">No staff remarks were provided.</p>}<div className="case-form-grid"><TextInput id="resubmit-company-name" title="Company Name" value={customerName} onChange={(event) => { setResubmitError(null); setCustomerName(event.target.value); }} required /><TextInput id="resubmit-company-email" title="Company Email Address" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /><TextInput id="resubmit-contact-person-name" title="Contact Person Name" value={contactName} onChange={(event) => setContactName(event.target.value)} required /><TextInput id="resubmit-contact-person-phone" title="Contact Person Phone Number" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} required /><TextInput id="resubmit-address-line-1" title="Address Line 1" value={addressLine1} onChange={(event) => { setResubmitError(null); setAddressLine1(event.target.value); }} required autoComplete="address-line1" /><TextInput id="resubmit-address-line-2" title="Address Line 2" value={addressLine2} onChange={(event) => setAddressLine2(event.target.value)} autoComplete="address-line2" /><TextInput id="resubmit-postcode" title="Postcode" value={postcode} onChange={(event) => { setResubmitError(null); setPostcode(event.target.value); }} required autoComplete="postal-code" /><TextInput id="resubmit-city" title="City" value={city} onChange={(event) => { setResubmitError(null); setCity(event.target.value); }} required autoComplete="address-level2" /><FilterSelect title="State" allLabel="Select state" value={state} options={[...malaysiaStates]} onChange={(value) => { setResubmitError(null); setState(value); }} required /><TextArea id="resubmit-additional-remarks" title="Additional Remarks" rows={1} value={remarks} onChange={(event) => setRemarks(event.target.value)} placeholder="Add context for staff if needed" /></div>{resubmitError && <p className="case-field-error-message" role="alert">{resubmitError}</p>}</div>}
-      {dialog === "accept_trial" && <div className="case-dialog-fields"><div className="case-form-grid"><DatePicker id="installment-start" title="Installments Start" value={installmentStart} placeholder="DD/MM/YYYY" onChange={setInstallmentStart} required /><FilterSelect title="Term" allLabel="Select term" value={String(termMonths) as "10" | "20"} options={["10", "20"]} labels={{ "10": "10 months", "20": "20 months" }} onChange={(value) => setTermMonths(Number(value) as 10 | 20)} required /></div></div>}
+      {dialog === "accept_trial" && <div className="case-dialog-fields"><div className="case-form-grid"><DatePicker id="installment-start" title="Installments Start" value={installmentStart} placeholder="DD/MM/YYYY" onChange={setInstallmentStart} required /><FilterSelect title="Payment Term" allLabel="Select term" value={String(termMonths) as "10" | "20"} options={["10", "20"]} labels={{ "10": "10 months", "20": "20 months" }} onChange={(value) => setTermMonths(Number(value) as 10 | 20)} required /></div></div>}
       {dialog === "verify_savings" && <div className="case-dialog-fields"><div className="case-form-grid"><TextInput title="Verified Savings (kWh)" inputMode="decimal" value={savingsKwh} onChange={(event) => { setSavingsError(null); setSavingsKwh(event.target.value); }} aria-invalid={Boolean(savingsError)} aria-describedby={savingsError ? "verify-savings-error" : undefined} required /><MoneyInput title="Monthly Savings" inputMode="decimal" value={monthlySavings} onChange={(event) => { setSavingsError(null); setMonthlySavings(event.target.value); }} aria-invalid={Boolean(savingsError)} aria-describedby={savingsError ? "verify-savings-error" : undefined} required /></div>{savingsError && <p id="verify-savings-error" className="case-field-error-message" role="alert">{savingsError}</p>}</div>}
       {dialog === "record_installation" && <div className="case-dialog-fields"><div className="case-form-grid"><MoneyInput id="record-installation-payment" title="Payment Amount" inputMode="decimal" value={installationPaymentAmount} onChange={(event) => { setPaymentError(null); setInstallationPaymentAmount(event.target.value); }} aria-invalid={Boolean(paymentError)} aria-describedby={paymentError ? "record-installation-error" : undefined} required /><DatePicker id="record-installation-date" title="Installation Date" value={installationDate} placeholder="DD/MM/YYYY" onChange={(value) => { setPaymentError(null); setInstallationDate(value); }} required /></div>{paymentError && <p id="record-installation-error" className="case-field-error-message" role="alert">{paymentError}</p>}</div>}
     </ConfirmationDialog>

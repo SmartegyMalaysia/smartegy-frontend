@@ -371,6 +371,8 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .approval-dialog .registration-field label { margin-bottom: 6px; }
 .approval-dialog .approval-readonly-field input[readonly], .approval-dialog .approval-readonly-field textarea[readonly] { color: var(--text); background: var(--surface-subtle); }
 .approval-dialog .approval-readonly-field textarea { resize: vertical; }
+.panel-header { padding-bottom: 10px; }
+.panel-header h2 { margin-bottom: 2px; }
 
 /* Shared motion: short, purposeful transitions keep operational surfaces easy to scan. */
 :root {
@@ -871,7 +873,7 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .form-field input:focus, .registration-field input:focus, .registration-field textarea:focus, .case-field input:focus, .case-field textarea:focus, .profile-field input:focus { background: var(--control-bg); }
 th { background: var(--surface); border-bottom: 1px solid var(--border); }
 .case-workspace { display: grid; gap: 16px; }
-.case-action-panel { border-top: 3px solid var(--brand-green); overflow: visible; }
+.case-action-panel { border-top: 3px solid var(--brand); overflow: visible; }
 .case-action-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 16px; }
 .case-action-fields { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; padding: 0 20px 16px; }
 .case-action-fields label, .case-action-field, .case-action-fields > .case-field { display: grid; gap: 6px; min-width: 170px; color: var(--muted); font-size: 12px; font-weight: 650; }
@@ -889,6 +891,8 @@ th { background: var(--surface); border-bottom: 1px solid var(--border); }
 .login-card { background: var(--surface); }
 .payment-qr-card, .payment-upload-dropzone, .case-upload-dropzone, .case-table-row:hover td, .agent-table-row:hover td, .commission-table-row:hover td, .commission-table-row:focus-visible td, .case-table-row:focus-visible td { background: var(--surface); }
 input::placeholder, textarea::placeholder { font-weight: 400; }
+.button-primary { background: var(--brand-green); }
+.button-primary:hover { background: #3d9844; }
 .date-picker summary::-webkit-details-marker { display: none; }
 .date-picker summary:focus-visible, .date-picker[open] summary { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px #293b8033; }
 .date-picker-placeholder { color: var(--muted); }
