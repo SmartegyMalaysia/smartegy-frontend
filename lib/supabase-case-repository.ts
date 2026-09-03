@@ -161,7 +161,7 @@ export const supabaseCasesRepository: CasesRepository = {
     if (uploadError) return failure<CaseDetail>(uploadError);
     const { error: finalizeError } = await supabase.rpc("finalize_case_document", { p_document_id: metadata.id, p_size_bytes: input.signedProposal.size });
     if (finalizeError) return failure<CaseDetail>(finalizeError);
-    const { data: accepted, error: acceptError } = await supabase.rpc("accept_proposal", { p_case_id: caseId, p_proposal_id: input.proposalId, p_accepted_by_name: input.acceptedByName, p_acceptance_date: input.acceptanceDate, p_selected_term_months: input.selectedTermMonths, p_signed_document_id: metadata.id });
+    const { data: accepted, error: acceptError } = await supabase.rpc("accept_proposal", { p_case_id: caseId, p_proposal_id: input.proposalId, p_accepted_by_name: input.acceptedByName, p_acceptance_date: input.acceptanceDate, p_deposit_due: input.depositDue, p_post_installation_due: input.postInstallationDue, p_selected_term_months: input.selectedTermMonths, p_signed_document_id: metadata.id });
     if (acceptError) return failure<CaseDetail>(acceptError);
     const document = accepted?.document as any;
     if (document?.status === "reserved") {

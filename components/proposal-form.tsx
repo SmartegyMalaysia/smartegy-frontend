@@ -118,7 +118,7 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
         </div>
       </section>
       <section className="proposal-preview-section">
-        <div className="proposal-section-heading"><div><h3>Calculated Preview</h3><p>Final values are recalculated and validated by the backend.</p></div></div>
+        <div className="proposal-section-heading"><div><h3>Calculated Preview</h3><p>Final values are recalculated and validated by the system.</p></div></div>
         {preview ? <dl className="proposal-preview-grid"><div><dt>Average Bill</dt><dd>{formatMoney(preview.avgBillSen)}</dd></div><div><dt>Monthly Saving</dt><dd>{formatMoney(preview.savingRmMonthSen)}</dd></div><div><dt>Deposit</dt><dd>{formatMoney(preview.deposit1Sen)}</dd></div><div><dt>Post-Installation</dt><dd>{formatMoney(preview.deposit2Sen)}</dd></div><div><dt>Balance</dt><dd>{formatMoney(preview.balanceSen)}</dd></div><div><dt>10-Month Option</dt><dd>{formatMoney(preview.option1MonthlySen)} / month</dd></div><div><dt>20-Month Option</dt><dd>{formatMoney(preview.option2MonthlySen)} / month</dd></div><div><dt>Annual Saving</dt><dd>{formatMoney(preview.savingRmYearSen)}</dd></div></dl> : <p className="detail-empty">Complete the required values to see the calculation preview.</p>}
       </section>
       {warning && <p className="proposal-warning" role="alert">⚠ {warning}</p>}
