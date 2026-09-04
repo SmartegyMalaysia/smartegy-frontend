@@ -1,12 +1,12 @@
 import { getSupabaseBrowserClient, isSupabaseConfigured, normalizeSupabaseError } from "./supabase-browser";
-import type { AccountStatus, CurrentUser, ManageUser, UpdateManageUserInput, UserRole } from "./types";
+import type { AccountStatus, CreateStaffInput, CurrentUser, ManageUser, UpdateManageUserInput, UserRole } from "./types";
 import { downloadCsv } from "./export-csv";
 
 type UserErrorCode = "FORBIDDEN" | "NOT_FOUND" | "VALIDATION_ERROR" | "CONFLICT" | "INTERNAL_ERROR";
 export type UserResult<T> = { ok: true; data: T } | { ok: false; error: { code: UserErrorCode; message: string; fieldErrors?: Record<string, string[]> } };
 export interface UserDirectoryQuery { search?: string; role?: UserRole; accountStatus?: AccountStatus; page?: number; pageSize?: number; sortBy?: "display_name" | "created_at"; sortDirection?: "asc" | "desc"; }
 export interface UserDirectoryPage { items: ManageUser[]; totalItems: number; totalPages: number; summary: { totalUsers: number; activeUsers: number; invitedUsers: number; adminUsers: number }; filterOptions: { roles: UserRole[]; statuses: AccountStatus[] }; }
-export interface UserRepository { list(actor: CurrentUser): Promise<UserResult<ManageUser[]>>; listPage(actor: CurrentUser, query: UserDirectoryQuery): Promise<UserResult<UserDirectoryPage>>; export(actor: CurrentUser, query: UserDirectoryQuery): Promise<UserResult<true>>; update(actor: CurrentUser, userId: string, input: UpdateManageUserInput): Promise<UserResult<ManageUser>>; }
+export interface UserRepository { list(actor: CurrentUser): Promise<UserResult<ManageUser[]>>; listPage(actor: CurrentUser, query: UserDirectoryQuery): Promise<UserResult<UserDirectoryPage>>; export(actor: CurrentUser, query: UserDirectoryQuery): Promise<UserResult<true>>; createStaff(actor: CurrentUser, input: CreateStaffInput): Promise<UserResult<ManageUser>>; update(actor: CurrentUser, userId: string, input: UpdateManageUserInput): Promise<UserResult<ManageUser>>; }
 
 const mockUsers: ManageUser[] = [
   { id: "user-003", displayName: "Mei Tan", email: "mei@smartegy.example", phone: "+60 12-889 0042", role: "admin", accountStatus: "active", agentCode: null, lastActiveAt: "2026-08-18T04:25:00Z", createdAt: "2026-05-11T02:10:00Z" },
@@ -30,6 +30,13 @@ function validate(input: UpdateManageUserInput) {
   if (!statuses.includes(input.accountStatus)) fieldErrors.accountStatus = ["Choose a valid account status."];
   return fieldErrors;
 }
+function validateStaff(input: CreateStaffInput) {
+  const fieldErrors: Record<string, string[]> = {};
+  if (!input.displayName.trim()) fieldErrors.displayName = ["Enter the staff member’s display name."];
+  else if (input.displayName.trim().length > 160) fieldErrors.displayName = ["Use 160 characters or fewer."];
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) fieldErrors.email = ["Enter a valid email address."];
+  return fieldErrors;
+}
 
 export const mockUserRepository: UserRepository = {
   async list(actor) { const result = await this.listPage(actor, { page: 1, pageSize: 10000 }); return result.ok ? { ok: true, data: result.data.items } : result; },
@@ -49,6 +56,15 @@ export const mockUserRepository: UserRepository = {
     downloadCsv(`smartegy-users${query.search || query.role || query.accountStatus ? "-filtered" : ""}.csv`, rows);
     return { ok: true, data: true };
   },
+  async createStaff(actor, input) {
+    if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can invite staff members.");
+    const fieldErrors = validateStaff(input); if (Object.keys(fieldErrors).length) return fail("VALIDATION_ERROR", "Check the highlighted fields and try again.", fieldErrors);
+    const email = input.email.trim().toLowerCase();
+    if (users.some((item) => item.email?.toLowerCase() === email)) return fail("CONFLICT", "An account already exists for this email address.", { email: ["An account already exists for this email address."] });
+    const created: ManageUser = { id: `user-${String(users.length + 1).padStart(3, "0")}`, displayName: input.displayName.trim(), email, phone: input.phone.trim() || null, role: "staff", accountStatus: "invited", agentCode: null, lastActiveAt: null, createdAt: new Date().toISOString() };
+    users.push(created);
+    return { ok: true, data: structuredClone(created) };
+  },
   async update(actor, userId, input) {
     if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can update user accounts.");
     const fieldErrors = validate(input); if (Object.keys(fieldErrors).length) return fail("VALIDATION_ERROR", "Check the highlighted fields and try again.", fieldErrors);
@@ -65,6 +81,21 @@ function supabaseError<T>(error: unknown): UserResult<T> {
   return fail(code, normalized.message);
 }
 
+async function supabaseFunctionError<T>(error: unknown): Promise<UserResult<T>> {
+  const functionError = error as { code?: string; message?: string; context?: Response };
+  let message = functionError.message;
+  try {
+    const payload = functionError.context
+      ? await functionError.context.clone().json() as { error?: unknown; message?: unknown }
+      : null;
+    if (typeof payload?.error === "string") message = payload.error;
+    else if (typeof payload?.message === "string") message = payload.message;
+  } catch {
+    // Preserve the SDK message when the response is not JSON.
+  }
+  return supabaseError({ code: functionError.code, message });
+}
+
 export const supabaseUserRepository: UserRepository = {
   async list(actor) { const result = await this.listPage(actor, { page: 1, pageSize: 10000 }); return result.ok ? { ok: true, data: result.data.items } : result; },
   async listPage(actor, query) {
@@ -79,6 +110,20 @@ export const supabaseUserRepository: UserRepository = {
     if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can export user accounts.");
     const params = new URLSearchParams(); if (query.search) params.set("search", query.search); if (query.role) params.set("role", query.role); if (query.accountStatus) params.set("account_status", query.accountStatus); if (query.sortBy) params.set("sort_by", query.sortBy); if (query.sortDirection) params.set("sort_direction", query.sortDirection);
     return downloadServerExport(`/api/exports/users?${params.toString()}`);
+  },
+  async createStaff(actor, input) {
+    if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can invite staff members.");
+    const fieldErrors = validateStaff(input); if (Object.keys(fieldErrors).length) return fail("VALIDATION_ERROR", "Check the highlighted fields and try again.", fieldErrors);
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return fail("INTERNAL_ERROR", "Supabase is not configured.");
+    const { data, error } = await supabase.functions.invoke("invite-staff", { body: { display_name: input.displayName.trim(), email: input.email.trim().toLowerCase(), phone: input.phone.trim() || null } });
+    if (error) {
+      const result = await supabaseFunctionError<ManageUser>(error);
+      if (!result.ok && result.error.code === "CONFLICT") return fail("CONFLICT", result.error.message, { email: [result.error.message] });
+      return result;
+    }
+    const staff = (data as Record<string, unknown> | null)?.staff;
+    if (!staff || typeof staff !== "object") return fail("INTERNAL_ERROR", "The staff invitation could not be confirmed.");
+    return { ok: true, data: mapSupabaseUser(staff as Record<string, unknown>) };
   },
   async update(actor, userId, input) {
     if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can update user accounts.");
