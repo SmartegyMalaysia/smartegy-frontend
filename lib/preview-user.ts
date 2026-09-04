@@ -67,7 +67,7 @@ function usePreviewUserState(defaultRole: UserRole): PreviewUserContextValue {
       };
       void load();
       const { data: listener } = supabase.auth.onAuthStateChange((event: string) => {
-        if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") void load();
+        if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") void load();
       });
       return () => { active = false; listener.subscription.unsubscribe(); };
     }
