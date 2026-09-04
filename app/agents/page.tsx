@@ -27,7 +27,7 @@ export default function AgentsPage() {
   const [qualification, setQualification] = useState<AgentQualificationFilter>(allValue);
   const [page, setPage] = useState(1);
   const requestId = useRef(0);
-  const hasLoaded = useRef(false);
+  const hasLoaded = useRef(false); 
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
