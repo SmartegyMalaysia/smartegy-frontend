@@ -29,13 +29,15 @@ export function ProposalAcceptance({ caseDetail, user, onChanged, onClose }: { c
     setBusy(false);
   }
 
-  return <PopupModal open title="Accept Proposal" description="Upload the signed proposal, record the customer's acceptance, select the payment option, and issue the deposit invoice." size="sm" onClose={onClose} closeOnBackdrop={false} hasUnsavedChanges={!busy}>
+  return <PopupModal open title="Accept Proposal" description="Upload the signed proposal, record the customer's acceptance, select the payment option, and issue the deposit invoice." size="lg" onClose={onClose} closeOnBackdrop={false} hasUnsavedChanges={!busy}>
     <div className="proposal-acceptance-form">
-      <TextInput title="Accepted By" value={acceptedByName} onChange={(event) => setAcceptedByName(event.target.value)} required />
-      <DatePicker id="acceptance-date" title="Acceptance Date" value={acceptanceDate} onChange={setAcceptanceDate} required />
-      <DatePicker id="deposit-due" title="Deposit Due" value={depositDue} onChange={setDepositDue} required />
-      <DatePicker id="post-installation-due" title="Post-Installation Due" value={postInstallationDue} onChange={setPostInstallationDue} required />
-      <FilterSelect title="Payment Option" allLabel="Select payment option" value={String(term) as "10" | "20"} options={["10", "20"]} labels={{ "10": "10 Months", "20": "20 Months" }} onChange={(value) => setTerm(Number(value) as 10 | 20)} required />
+      <div className="proposal-form-grid">
+        <TextInput title="Accepted By" value={acceptedByName} onChange={(event) => setAcceptedByName(event.target.value)} required />
+        <DatePicker id="acceptance-date" title="Acceptance Date" value={acceptanceDate} onChange={setAcceptanceDate} required />
+        <DatePicker id="deposit-due" title="Deposit Due" value={depositDue} onChange={setDepositDue} required />
+        <DatePicker id="post-installation-due" title="Post-Installation Due" value={postInstallationDue} onChange={setPostInstallationDue} required />
+        <div className="case-field-full"><FilterSelect title="Payment Option" allLabel="Select payment option" value={String(term) as "10" | "20"} options={["10", "20"]} labels={{ "10": "10 Months", "20": "20 Months" }} onChange={(value) => setTerm(Number(value) as 10 | 20)} required /></div>
+      </div>
       <div className="case-field proposal-signed-upload"><span>Signed Proposal <span className="required-mark">*</span></span><PaymentProofUpload name="signed-proposal" documentType="signed_proposal" emptyLabel="Drop signed proposal here" browseLabel="or click to browse · PDF, JPG, or PNG" required onFileChange={setFile} /></div>
       {error && <p className="case-field-error-message" role="alert">{error}</p>}
       <div className="proposal-form-actions"><Button type="button" variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button type="button" variant="primary" onClick={submit} disabled={busy}>{busy ? "Processing…" : "Accept Proposal & Issue Deposit Invoice"}</Button></div>

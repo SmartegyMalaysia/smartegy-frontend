@@ -298,6 +298,8 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .filter-select[open] summary { border-color: var(--brand); box-shadow: 0 0 0 3px #293b8033; }
 .filter-select-disabled { opacity: .62; }
 .filter-select-disabled summary { cursor: not-allowed; }
+.date-picker-disabled { opacity: .62; }
+.date-picker-disabled, .date-picker-disabled summary { cursor: not-allowed !important; }
 .filter-select-menu { position: absolute; z-index: 9999; top: calc(100% + 6px); left: 0; right: 0; display: grid; gap: 3px; min-width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); box-shadow: 0 12px 24px -16px #0f172a66; }
 .filter-select-menu-portal { position: fixed; z-index: 1000; right: auto; min-width: 0; max-width: calc(100vw - 32px); max-height: min(320px, calc(100vh - 32px)); overflow-y: auto; animation: popover-enter .14s ease-out both; transform-origin: top left; }
 .filter-select-menu button { width: 100%; min-height: 34px; overflow: hidden; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; text-align: left; text-overflow: ellipsis; white-space: nowrap; font: inherit; font-size: 13px; font-weight: 400; text-transform: capitalize; }
@@ -724,6 +726,7 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .case-allocation-list { display: grid; gap: 12px; }
 .case-allocation-balance { display: block; margin: -2px 0 7px; color: var(--muted); font-size: 11px; }
 .case-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.case-field-full { grid-column: 1 / -1; }
 .case-field { min-width: 0; margin-bottom: 16px; }
 .case-field label { display: block; margin-bottom: 8px; color: var(--text); font-size: 13px; font-weight: 700; }
 .case-field label span:not(.required-mark) { color: var(--muted); font-weight: 400; }
@@ -749,6 +752,7 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .toast-pending .toast-progress span { color: #d97706; }
 .case-field input, .case-field textarea { display: block; width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: #f8fafc; color: var(--text); padding: 10px 12px; font: inherit; }
 .case-field input { height: 38px; min-height: 38px; }
+.case-field input[type="time"] { padding-top: 0; padding-bottom: 0; line-height: 38px; }
 .case-field textarea { height: 38px; min-height: 38px; resize: vertical; }
 .case-field input:focus, .case-field textarea:focus { outline: none; border-color: #06b6d4; background: white; box-shadow: 0 0 0 3px #22d3ee33; }
 .case-field-error input, .case-field-error textarea { border-color: var(--danger); background: var(--danger-bg); }

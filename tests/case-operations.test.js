@@ -21,12 +21,16 @@ const case004Agent = { id: "user-004", role: "agent", displayName: "Nadia Yusuf"
 test("case action visibility gives staff and admin the same normal processing actions", () => {
   assert.deepEqual(workflow.caseActionLabels("under_review", "staff"), workflow.caseActionLabels("under_review", "admin"));
   assert.ok(workflow.caseActionLabels("under_review", "staff").some((action) => action.label === "Request Changes" && action.requiresReason));
-  const awaitingDeposit = workflow.caseActionLabels("awaiting_deposit", "staff");
-  assert.ok(awaitingDeposit.some((action) => action.label === "Record Deposit" && action.variant === "primary"));
-  assert.ok(!awaitingDeposit.some((action) => action.label === "Record Installation"));
-  const depositPaid = workflow.caseActionLabels("awaiting_deposit", "staff", true, true);
+  const awaitingDeposit = workflow.caseActionLabels("awaiting_deposit_submission", "staff");
+  assert.ok(!awaitingDeposit.some((action) => action.label === "Verify Deposit"));
+  const pendingDeposit = workflow.caseActionLabels("deposit_pending_verification", "staff", true, false, true);
+  assert.ok(pendingDeposit.some((action) => action.label === "Verify Deposit" && action.variant === "primary"));
+  assert.ok(!awaitingDeposit.some((action) => action.label === "Set Installation Date"));
+  const depositPaid = workflow.caseActionLabels("awaiting_installation_scheduling", "staff", true, true);
   assert.ok(!depositPaid.some((action) => action.label === "Record Deposit"));
-  assert.ok(depositPaid.some((action) => action.label === "Record Installation"));
+  assert.ok(depositPaid.some((action) => action.label === "Set Installation Date"));
+  const agentPendingDeposit = workflow.caseActionLabels("deposit_pending_verification", "agent", true, false, true);
+  assert.ok(!agentPendingDeposit.some((action) => action.label === "Record Deposit"));
   assert.equal(workflow.caseActionLabels("changes_requested", "agent")[0].label, "Resubmit for Review");
   assert.ok(!workflow.caseActionLabels("completed", "staff").some((action) => action.label === "Delete Case"));
   assert.ok(workflow.caseActionLabels("draft", "agent").some((action) => action.label === "Delete Case"));
@@ -51,7 +55,7 @@ test("operational prerequisites lead to one commission calculation and block pre
   assert.equal(result.ok, true);
   result = await repository.mockCasesRepository.generatePaymentSchedule(staff, "case-002", { depositDue: "2026-08-20", postInstallationDue: "2026-08-25" });
   assert.equal(result.ok, true);
-  assert.equal(result.data.status, "awaiting_deposit");
+  assert.equal(result.data.status, "awaiting_deposit_submission");
   const deposit = await repository.mockCasesRepository.recordAndVerifyPayment(staff, "case-002", { amountSen: 1000, paymentDate: "2026-08-20" });
   assert.equal(deposit.ok, true);
   assert.equal(deposit.data.payments[0].status, "verified");
@@ -59,9 +63,13 @@ test("operational prerequisites lead to one commission calculation and block pre
   const postInstall = await repository.mockCasesRepository.recordAndVerifyPayment(staff, "case-002", { amountSen: 2000, paymentDate: "2026-08-25" });
   result = postInstall;
   assert.equal(result.ok, true);
-  result = await repository.mockCasesRepository.transition(staff, "case-002", "installation_scheduled");
+  result = await repository.mockCasesRepository.proposeInstallationDate(staff, "case-002", "2026-09-01", "09:00");
   assert.equal(result.ok, true);
-  result = await repository.mockCasesRepository.recordInstallation(staff, "case-002", "2026-09-01");
+  assert.equal(result.data.status, "installation_pending_confirmation");
+  result = await repository.mockCasesRepository.confirmInstallationDate(agent, "case-002");
+  assert.equal(result.ok, true);
+  assert.equal(result.data.status, "installation_scheduled");
+  result = await repository.mockCasesRepository.recordInstallation(staff, "case-002", "2026-09-01", "09:00");
   assert.equal(result.ok, true);
   result = await repository.mockCasesRepository.verifySavings(staff, "case-002", 2500, 7500);
   assert.equal(result.ok, true);
