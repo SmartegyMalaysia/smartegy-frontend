@@ -52,7 +52,7 @@ export function LoginPage() {
             <p>Access your workspace securely.</p>
           </div>
 
-          <form onSubmit={handleSubmit} noValidate>
+          <form method="post" onSubmit={handleSubmit} noValidate>
             <div className="form-field">
               <label htmlFor="email">Work email</label>
               <TextInput id="email" name="email" type="email" autoComplete="email" placeholder="you@company.com" value={email} onChange={(event) => setEmail(event.target.value)} required />
