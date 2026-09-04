@@ -13,6 +13,7 @@ function pageTitleFor(pathname: string) {
   if (pathname === "/signup") return "Sign Up";
   if (pathname === "/forgot-password") return "Forgot Password";
   if (pathname === "/reset-password") return "Reset Password";
+  if (pathname === "/accept-invitation") return "Accept Invitation";
   if (pathname === "/join" || pathname.startsWith("/join/")) return "Registration";
   if (pathname === "/onboarding/status") return "Onboarding Status";
   if (pathname === "/permission-denied") return "Access Denied";
@@ -31,6 +32,7 @@ function isPublicRoute(pathname: string) {
     || pathname === "/signup"
     || pathname === "/forgot-password"
     || pathname === "/reset-password"
+    || pathname === "/accept-invitation"
     || pathname === "/join"
     || pathname.startsWith("/join/")
     || pathname === "/onboarding/status";

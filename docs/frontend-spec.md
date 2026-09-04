@@ -60,6 +60,7 @@ Proposed route structure; adjust to the actual Next.js architecture without chan
 | `/join/[code]` | Invitation/referral-based registration, OTP verification, and payment proof | Public/invited applicant |
 | `/forgot-password` | Request password reset instructions | Public |
 | `/reset-password` | Set a new password from a valid reset session | Public/reset session |
+| `/accept-invitation` | Complete an invited staff profile and create a password | Public/invitation session |
 | `/onboarding/status` | Registration and fee status | Pending agent |
 | `/dashboard` | Role-aware dashboard | All |
 | `/cases` | Case list | All, permission-filtered |
@@ -393,6 +394,6 @@ A screen is not done until:
 
 ## 15. Password Recovery
 
-The public authentication routes are `/forgot-password` and `/reset-password`. Forgot-password requests always show a neutral response so the interface does not reveal whether an email is registered. The reset page validates the provider/service password policy, confirmation matching, reset-link validity/expiry, and one-time use.
+The public authentication routes are `/forgot-password`, `/reset-password`, and `/accept-invitation`. Forgot-password requests always show a neutral response so the interface does not reveal whether an email is registered. The reset page validates the provider/service password policy, confirmation matching, reset-link validity/expiry, and one-time use. Staff invitation emails open the separate invitation page, which validates the invitation session, collects the staff member's profile and password, preserves the server-assigned email and role, and leaves the account invited until an administrator activates it.
 
 The current frontend has no Supabase configuration, so local preview behavior uses the replaceable auth service with an eight-character minimum password policy. Supabase Auth should replace the mock request/session implementation when configured, without changing the routes or page contract.

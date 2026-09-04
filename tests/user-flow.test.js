@@ -38,3 +38,21 @@ test("user updates validate required fields and protect the current administrato
   assert.equal(selfChange.ok, false);
   assert.equal(selfChange.error.code, "CONFLICT");
 });
+
+test("only administrators can create invited staff accounts", async () => {
+  repository.resetMockUsers();
+  const forbidden = await repository.userRepository.createStaff(staff, { displayName: "New Staff", email: "new.staff@smartegy.example", phone: "" });
+  assert.equal(forbidden.ok, false);
+  assert.equal(forbidden.error.code, "FORBIDDEN");
+
+  const created = await repository.userRepository.createStaff(admin, { displayName: "New Staff", email: "NEW.STAFF@smartegy.example", phone: "+60 12-000 0000" });
+  assert.equal(created.ok, true);
+  assert.equal(created.data.role, "staff");
+  assert.equal(created.data.accountStatus, "invited");
+  assert.equal(created.data.email, "new.staff@smartegy.example");
+
+  const duplicate = await repository.userRepository.createStaff(admin, { displayName: "Duplicate", email: "new.staff@smartegy.example", phone: "" });
+  assert.equal(duplicate.ok, false);
+  assert.equal(duplicate.error.code, "CONFLICT");
+  assert.ok(duplicate.error.fieldErrors.email);
+});

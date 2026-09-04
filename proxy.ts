@@ -6,6 +6,7 @@ const publicPaths = new Set([
   "/signup",
   "/forgot-password",
   "/reset-password",
+  "/accept-invitation",
   "/join",
   "/onboarding/status",
   "/api/auth/login",
