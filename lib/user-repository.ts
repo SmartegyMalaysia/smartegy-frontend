@@ -13,7 +13,7 @@ const mockUsers: ManageUser[] = [
   { id: "user-002", displayName: "Farid Iskandar", email: "farid@smartegy.example", phone: "+60 13-210 7788", role: "staff", accountStatus: "active", agentCode: null, lastActiveAt: "2026-08-18T03:40:00Z", createdAt: "2026-05-14T07:30:00Z" },
   { id: "user-001", displayName: "Aisha Rahman", email: "aisha@smartegy.example", phone: "+60 12-345 6789", role: "agent", accountStatus: "active", agentCode: "AG-001", lastActiveAt: "2026-08-17T09:12:00Z", createdAt: "2026-05-18T01:00:00Z" },
   { id: "user-004", displayName: "Daniel Lim", email: "daniel@smartegy.example", phone: "+60 16-445 2301", role: "agent", accountStatus: "active", agentCode: "AG-002", lastActiveAt: "2026-08-16T08:05:00Z", createdAt: "2026-06-03T04:50:00Z" },
-  { id: "user-005", displayName: "Nadia Yusuf", email: "nadia@smartegy.example", phone: "+60 11-5534 8821", role: "agent", accountStatus: "invited", agentCode: "AG-003", lastActiveAt: null, createdAt: "2026-08-14T06:20:00Z" },
+  { id: "user-005", displayName: "Nadia Yusuf", email: "nadia@smartegy.example", phone: "+60 11-5534 8821", role: "agent", accountStatus: "invited", agentCode: "AG-003", lastActiveAt: null, createdAt: "2026-08-14T06:20:00Z", registrationStatus: "pending_approval", registrationFeeStatus: "pending_verification", accountActivationBlocked: true },
   { id: "user-006", displayName: "Hafiz Roslan", email: "hafiz@smartegy.example", phone: "+60 17-929 1104", role: "agent", accountStatus: "active", agentCode: "AG-004", lastActiveAt: "2026-08-15T02:30:00Z", createdAt: "2026-06-21T03:45:00Z" },
   { id: "user-007", displayName: "Siti Noraini", email: "siti@smartegy.example", phone: "+60 14-876 5100", role: "staff", accountStatus: "inactive", agentCode: null, lastActiveAt: "2026-07-31T01:16:00Z", createdAt: "2026-06-28T08:05:00Z" },
 ];
@@ -70,6 +70,7 @@ export const mockUserRepository: UserRepository = {
     const fieldErrors = validate(input); if (Object.keys(fieldErrors).length) return fail("VALIDATION_ERROR", "Check the highlighted fields and try again.", fieldErrors);
     const user = users.find((item) => item.id === userId); if (!user) return fail("NOT_FOUND", "User not found.");
     if (user.id === actor.id && (input.role !== user.role || input.accountStatus !== (actor.accountStatus ?? "active"))) return fail("CONFLICT", "You cannot change your own role or account status from this screen.");
+    if (user.role === "agent" && user.accountStatus !== "active" && input.accountStatus === "active" && user.accountActivationBlocked) return fail("CONFLICT", "This agent cannot be enabled until the registration fee has been verified or waived and the registration is active.");
     user.displayName = input.displayName.trim(); user.phone = input.phone.trim() || null; user.role = input.role; user.accountStatus = input.accountStatus;
     return { ok: true, data: structuredClone(user) };
   },
@@ -139,7 +140,7 @@ export const supabaseUserRepository: UserRepository = {
 };
 
 function mapSupabaseUser(row: Record<string, unknown>): ManageUser {
-  return { id: String(row.id), displayName: String(row.display_name ?? ""), email: typeof row.email === "string" ? row.email : null, phone: typeof row.phone === "string" ? row.phone : null, role: row.role as UserRole, accountStatus: row.account_status as AccountStatus, agentCode: typeof row.agent_code === "string" ? row.agent_code : null, lastActiveAt: typeof row.last_active_at === "string" ? row.last_active_at : null, createdAt: String(row.created_at) };
+  return { id: String(row.id), displayName: String(row.display_name ?? ""), email: typeof row.email === "string" ? row.email : null, phone: typeof row.phone === "string" ? row.phone : null, role: row.role as UserRole, accountStatus: row.account_status as AccountStatus, agentCode: typeof row.agent_code === "string" ? row.agent_code : null, lastActiveAt: typeof row.last_active_at === "string" ? row.last_active_at : null, createdAt: String(row.created_at), registrationStatus: (row.registration_status as ManageUser["registrationStatus"]) ?? null, registrationFeeStatus: (row.registration_fee_status as ManageUser["registrationFeeStatus"]) ?? null, accountActivationBlocked: Boolean(row.account_activation_blocked) };
 }
 
 async function downloadServerExport(path: string): Promise<UserResult<true>> {

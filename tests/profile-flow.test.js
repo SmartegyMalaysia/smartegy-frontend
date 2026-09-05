@@ -46,6 +46,15 @@ test("email changes clear verification and protected fields are rejected", async
   assert.equal(protectedChange.error.code, "FORBIDDEN");
 });
 
+test("an agent can update their self-declared payout bank details", async () => {
+  const updated = await repository.agentProfileRepository.updateBankDetails(own, { bankName: "CIMB Bank", accountHolderName: "Aisha Rahman", accountNumber: "8001234567" });
+  assert.equal(updated.ok, true);
+  assert.equal(updated.data.bankDetails.bankName, "CIMB Bank");
+  const invalid = await repository.agentProfileRepository.updateBankDetails(own, { bankName: "", accountHolderName: "A", accountNumber: "12" });
+  assert.equal(invalid.ok, false);
+  assert.deepEqual(invalid.error.fieldErrors.accountNumber, ["Enter a valid bank account number."]);
+});
+
 test("pending agent profile exposes restricted registration state", async () => {
   const pending = await repository.agentProfileRepository.getMine({ id: "user-registration-001", role: "agent", displayName: "Nadia Yusuf", email: "nadia@smartegy.example", agentId: "registration-001" });
   assert.equal(pending.ok, true);
