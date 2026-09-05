@@ -50,6 +50,7 @@ export interface AgentPromotionAudit { id: ID; agentId: ID; previousLevel: Agent
 export interface AgentLevelChangeRequest { id: ID; agentId: ID; previousLevel: AgentLevel; requestedLevel: AgentLevel; requestedById: ID; requestedByDisplayName: string; requestedAt: ISODateTime; status: "pending" | "approved" | "rejected"; reviewedById: ID | null; reviewedByDisplayName: string | null; reviewedAt: ISODateTime | null; reason: string | null; }
 export interface AgentLevelChangeApproval extends AgentLevelChangeRequest { agent: AgentSummary; }
 export interface AgentSummary { id: ID; agentCode: string; displayName: string; currentLevel: AgentLevel; uplineAgentId: ID | null; uplineName: string | null; directAgentCount: number; successfulCaseCount: number; personalSalesSen: MoneySen; referralSalesSen: MoneySen; annualSalesSen: MoneySen; commissionEarnedSen: MoneySen; status: "active" | "inactive"; registrationStatus?: RegistrationStatus | null; qualification: AgentQualificationProgress; promotionHistory: AgentPromotionAudit[]; levelChangeRequests: AgentLevelChangeRequest[]; }
+export interface AgentBankDetails { bankName: string; accountHolderName: string; accountNumber: string; verifiedAt: ISODateTime | null; }
 export interface AgentWorkspaceDetail { agent: AgentSummary; sales: CaseSummary[]; commissions: CommissionSummary[]; uplineAgents: AgentSummary[]; downlineAgents: AgentSummary[]; }
 export interface PayoutBankAccount { bankName: string; accountHolderName: string; accountNumberMasked: string; }
 export interface PayoutTransaction { id: ID; payoutMonth: string; agentId: ID; agentName: string; agentCode: string; bankAccount: PayoutBankAccount; commissionId: ID; caseNumber: string; customerDisplayName: string; amountSen: MoneySen; settlementStatus: PayoutSettlementStatus; settledAt: ISODateTime | null; settledById: ID | null; settledByDisplayName: string | null; bankReference: string | null; }
@@ -71,9 +72,11 @@ export interface AgentProfile {
   uplineName: string | null;
   currentLevel: AgentLevel;
   profileComplete: boolean;
+  bankDetails: AgentBankDetails | null;
 }
 
 export interface UpdateAgentProfileInput { fullName: string; mobileNumber: string; email: string; }
+export interface UpdateAgentBankDetailsInput { bankName: string; accountHolderName: string; accountNumber: string; }
 
 export type ProfileActionResult<T> =
   | { ok: true; data: T }
