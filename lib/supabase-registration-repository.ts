@@ -68,6 +68,17 @@ async function fetchRegistration(id: string, includeAudit = true) {
   return mapRegistration(row, proof, audit ?? []);
 }
 
+async function fetchOwnRegistration(authUserId: string, includeAudit = true) {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) throw new Error("Supabase is not configured");
+  const { data: row, error } = await supabase.from("agent_registrations").select("*,referring_agent:agents!agent_registrations_referring_agent_id_fkey(legal_name)").eq("auth_user_id", authUserId).maybeSingle();
+  if (error) throw error;
+  if (!row) throw new Error("Registration application not found.");
+  const { data: proof } = await supabase.from("registration_documents").select("*").eq("id", row.payment_proof_document_id).maybeSingle();
+  const { data: audit } = includeAudit ? await supabase.from("audit_log").select("*").eq("table_name", "agent_registrations").eq("record_id", row.id).order("occurred_at", { ascending: false }) : { data: [] };
+  return mapRegistration(row, proof, audit ?? []);
+}
+
 export const supabaseRegistrationRepository: RegistrationRepository = {
   async getPaymentConfig() {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
@@ -104,7 +115,7 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
     if (error) return errorResult(error);
     return { ok: true, data: mapRegistration(firstRow(data)) };
   },
-  async getRegistration(_actor, registrationId) { try { return { ok: true, data: await fetchRegistration(registrationId) }; } catch (error) { return errorResult(error as any); } },
+  async getRegistration(actor, registrationId) { try { return { ok: true, data: registrationId ? await fetchRegistration(registrationId) : await fetchOwnRegistration(actor.id) }; } catch (error) { return errorResult(error as any); } },
   async verifyEmail(_actor, registrationId) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
     const { data, error } = await supabase.rpc("mark_registration_email_verified", { p_registration_id: registrationId });
