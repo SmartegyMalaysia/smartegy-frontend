@@ -50,6 +50,14 @@ test("valid invitation signup locks the confirmed upline and invalid codes fail"
   assert.deepEqual(invalidMobile.error.fieldErrors.mobileNumber, ["Enter a valid mobile number, for example 012345678."]);
 });
 
+test("pending applicant can load only their own registration status without a URL registration ID", async () => {
+  const pendingApplicant = { id: "user-registration-001", role: "agent", displayName: "Nadia Yusuf", email: "nadia@smartegy.example", agentId: "registration-001" };
+  const registration = await repository.registrationRepository.getRegistration(pendingApplicant, "");
+  assert.equal(registration.ok, true);
+  assert.equal(registration.data.registrationStatus, "pending_approval");
+  assert.equal(registration.data.feeStatus, "pending_verification");
+});
+
 test("premature activation is blocked, self-verification is forbidden, and verified payment activates complete applications", async () => {
   const created = await repository.registrationRepository.createApplication({ fullName: "Test Applicant", email: "test@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "password123", referralCode: "K7Q2M8", acceptedTerms: true });
   const id = created.data.id;

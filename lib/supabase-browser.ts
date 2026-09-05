@@ -59,7 +59,7 @@ export function normalizeSupabaseError(error: { code?: string | null; message?: 
     ? "FORBIDDEN"
     : /not found|no rows/i.test(message)
       ? "NOT_FOUND"
-      : /duplicate|already exists|unique/i.test(message)
+    : /duplicate|already exists|already registered|unique/i.test(message)
         ? "DUPLICATE"
         : /required|invalid|unsupported|must be|cannot/i.test(message)
           ? "VALIDATION_ERROR"

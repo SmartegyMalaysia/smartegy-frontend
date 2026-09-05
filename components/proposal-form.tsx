@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "./ui";
-import { MoneyInput, TextArea, TextInput } from "./form-controls";
+import { MoneyInput, ReadOnlyField, TextArea, TextInput } from "./form-controls";
 import { DatePicker } from "./date-picker";
 import { PopupModal } from "./popup-modal";
 import { casesRepository } from "@/lib/case-repository";
@@ -101,13 +101,13 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
   return <PopupModal open title="Prepare Proposal" description="Review the customer details, twelve months of TNB readings, and server-calculated payment values before issuing the proposal." size="lg" className="proposal-dialog" onClose={onClose} hasUnsavedChanges={!busy} closeOnBackdrop={false}>
     <div className="proposal-form">
       <div className="proposal-form-grid">
-        <TextInput title="Customer" value={caseDetail.customer.displayName} readOnly />
-        <TextInput title="Contact Person" value={caseDetail.customer.contactName ?? "Not provided"} readOnly />
-        <TextArea title="Service Address" value={caseDetail.service.siteAddress || "Not provided"} readOnly />
+        <ReadOnlyField id="proposal-customer" title="Customer" value={caseDetail.customer.displayName} />
+        <ReadOnlyField id="proposal-service-address" title="Service Address" value={caseDetail.service.siteAddress || "Not provided"} multiline />
+        <ReadOnlyField id="proposal-contact-person" title="Contact Person" value={caseDetail.customer.contactName ?? "Not provided"} />
+        <ReadOnlyField id="proposal-customer-email" title="Contact Email" value={caseDetail.customer.email ?? "Not provided"} />
         <TextInput title="Sales Representative" value={salesRepName} onChange={(event) => setSalesRepName(event.target.value)} required fieldClassName={showWarnings && fieldWarnings.salesRepName ? "case-field-warning" : ""} />
         <DatePicker id="proposal-date" title="Proposal Date" value={proposalDate} onChange={setProposalDate} required fieldClassName={showWarnings && fieldWarnings.proposalDate ? "case-field-warning" : ""} />
         <MoneyInput id="proposal-sale-amount" title="Sale Amount" inputMode="decimal" value={saleAmount} onChange={(event) => setSaleAmount(event.target.value)} required fieldClassName={showWarnings && (fieldWarnings.saleAmount || (Boolean(input) && !preview)) ? "case-field-warning" : ""} />
-        <TextInput title="Customer Email" value={caseDetail.customer.email ?? "Not provided"} readOnly />
         <TextArea title="Project Remarks" value={projectRemarks} onChange={(event) => setProjectRemarks(event.target.value)} placeholder="Add project-specific remarks" />
       </div>
       <section className="proposal-readings-section">

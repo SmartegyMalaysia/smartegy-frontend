@@ -63,6 +63,8 @@ Version 2 is not part of the Version 1 implementation or acceptance criteria.
 
 Detailed differences between Staff and Admin must be confirmed before production. Until then, the mock frontend exposes the same navigation and dashboard content for both roles; the server must independently enforce the eventual permission matrix.
 
+Only an active administrator can invite a new Staff user. The invitation opens a dedicated staff account-setup page where the recipient confirms their display name and phone number and creates a password. Email and role come from the trusted invitation and cannot be changed during setup. Completing setup does not activate the account; it remains `invited` until an administrator activates it from user management.
+
 ## 5. Core Workflows
 
 ### 5.1 Case Submission and Processing

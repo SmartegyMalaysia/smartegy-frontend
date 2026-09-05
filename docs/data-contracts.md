@@ -90,6 +90,8 @@ export type RegistrationFeeStatus =
 
 The enum values above are proposed and must be kept aligned across TypeScript, validation schemas, database constraints, and UI labels.
 
+Staff invitations are administrator-created and server-authoritative. The acceptance flow may update only the invited staff user's display name, phone number, and Auth password; it must not accept email, role, or account status as writable fields. Successful completion preserves `role = "staff"` and `account_status = "invited"` until a later administrator activation.
+
 ## 4. Identity and Profile
 
 ```ts

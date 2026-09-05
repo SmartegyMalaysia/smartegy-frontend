@@ -182,7 +182,8 @@ export const mockRegistrationRepository: RegistrationRepository = {
   },
 
   async getRegistration(actor, registrationId) {
-    const found = getOwnedRegistration(actor, registrationId);
+    const resolvedRegistrationId = registrationId || registrations.find((item) => item.id === actor.agentId || item.profile.email === actor.email)?.id || "";
+    const found = getOwnedRegistration(actor, resolvedRegistrationId);
     if (!found.ok) return found;
     return actor.role === "agent" ? { ok: true, data: applicantRegistrationView(found.data) } : found;
   },

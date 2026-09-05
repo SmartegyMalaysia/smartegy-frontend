@@ -5,7 +5,7 @@ import { DragEvent, KeyboardEvent, useRef, useState } from "react";
 import { caseDocumentConfig, validateCaseDocument, validateFileSignature } from "@/lib/document-config";
 import type { CaseDocumentInput } from "@/lib/types";
 
-export function CaseDocumentUpload({ id, type, files, multiple = false, error, uploading = false, progress = 0, onFilesChange, onError }: { id: string; type: CaseDocumentInput["type"]; files: File[]; multiple?: boolean; error?: string; uploading?: boolean; progress?: number; onFilesChange: (files: File[]) => void; onError: (message: string | null) => void }) {
+export function CaseDocumentUpload({ id, type, files, multiple = false, error, uploading = false, progress = 0, showReady = true, onFilesChange, onError }: { id: string; type: CaseDocumentInput["type"]; files: File[]; multiple?: boolean; error?: string; uploading?: boolean; progress?: number; showReady?: boolean; onFilesChange: (files: File[]) => void; onError: (message: string | null) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   async function addFiles(incoming: FileList | File[]) {
@@ -29,7 +29,7 @@ export function CaseDocumentUpload({ id, type, files, multiple = false, error, u
     </div>
     {files.length > 0 && <div className="case-upload-files" aria-live="polite">{files.map((file, index) => <div className="case-upload-file" key={`${file.name}-${file.size}-${index}`}><div><strong>{file.name}</strong><span>{Math.ceil(file.size / 1024)} KB</span></div><button type="button" onClick={() => removeFile(index)} disabled={uploading}>Remove</button></div>)}</div>}
     {uploading && files.length > 0 && <div className="case-upload-progress" role="status"><span>Uploading documents…</span><strong>{progress}%</strong><div><i style={{ width: `${progress}%` }} /></div></div>}
-    {!uploading && files.length > 0 && <p className="case-upload-success" role="status">Ready for submission.</p>}
+    {!uploading && showReady && !error && files.length > 0 && <p className="case-upload-success" role="status">Ready for submission.</p>}
     {error && <p id={`${id}-error`} className="case-upload-error-message" role="alert">{error}</p>}
   </div>;
 }

@@ -21,6 +21,17 @@ async function functionFailure<T>(error: any): Promise<CaseResult<T>> {
 function moneyToSen(value: unknown) { return value == null ? null : Math.round(Number(value) * 100); }
 function moneyToRm(value: number | null | undefined) { return value == null ? null : value / 100; }
 function status(value: string) { return value as CaseStatus; }
+function splitLegacyAddress(value: unknown) {
+  const address = typeof value === "string" ? value.trim() : "";
+  if (!address) return { addressLine1: "", addressLine2: "", postcode: "", city: "", state: "" };
+  const parts = address.split(/\s*,\s*/).map((part) => part.trim()).filter(Boolean);
+  const postcodeIndex = parts.findIndex((part) => /^\d{5}\s+/.test(part));
+  if (postcodeIndex >= 0) {
+    const [postcode, ...cityParts] = parts[postcodeIndex].split(/\s+/);
+    return { addressLine1: parts.slice(0, postcodeIndex).join(", "), addressLine2: "", postcode, city: cityParts.join(" "), state: parts[postcodeIndex + 1] ?? "" };
+  }
+  return { addressLine1: parts[0] ?? address, addressLine2: parts.slice(1, -1).join(", "), postcode: "", city: "", state: parts.length > 1 ? parts[parts.length - 1] : "" };
+}
 function automaticAllocations(schedules: CaseDetail["paymentSchedules"], amountSen: number) {
   let remaining = amountSen;
   const allocations: Array<{ scheduleId: ID; amountSen: number }> = [];
@@ -57,21 +68,33 @@ async function loadCase(caseId: string): Promise<CaseDetail> {
   if (proposalReadingsError) throw proposalReadingsError;
   const generatedDocumentIds = new Set((financialDocuments ?? []).flatMap((doc: any) => [doc.case_document_id, doc.pdf_case_document_id]).filter(Boolean));
   const docs: CaseDocument[] = (documents ?? []).filter((doc: any) => !generatedDocumentIds.has(doc.id)).map((doc: any) => ({ id: doc.id, caseId: doc.case_id, type: doc.type === "supporting" ? "supporting_document" : doc.type === "proforma" ? "invoice" : doc.type, fileName: doc.original_filename, mimeType: doc.mime_type, sizeBytes: Number(doc.size_bytes ?? 0), uploadedBy: doc.uploaded_by ?? "system", uploadedAt: doc.uploaded_at ?? doc.created_at, bucketId: doc.bucket_id, objectPath: doc.object_path, visibleToAgent: doc.visible_to_agent }));
+  const legacyAddress = splitLegacyAddress(customer?.site_address ?? customer?.billing_address);
+  const addressLine1 = customer?.address_line_1 || legacyAddress.addressLine1;
+  const addressLine2 = customer?.address_line_2 || legacyAddress.addressLine2;
+  const postcode = customer?.postcode || legacyAddress.postcode;
+  const city = customer?.city || legacyAddress.city;
+  const state = customer?.state || legacyAddress.state;
   const scheduleRows = (schedules ?? []).map((item: any) => ({ id: item.id, caseId: item.case_id, sequence: Number(item.sequence_no), kind: item.kind, dueDate: item.due_date, amountDueSen: moneyToSen(item.amount_due) ?? 0, amountPaidSen: moneyToSen(item.amount_paid) ?? 0, status: item.status }));
+  const paymentRows = (payments ?? []).map((payment: any) => ({ id: payment.id, caseId: payment.case_id, amountSen: moneyToSen(payment.amount) ?? 0, paymentDate: payment.paid_on, reference: payment.reference, proofDocumentId: payment.proof_document_id ?? null, rejectionReason: payment.rejection_reason ?? null, status: payment.status, recordedBy: payment.submitted_by ?? "system", recordedAt: payment.created_at, verifiedBy: payment.verified_by, verifiedAt: payment.verified_at }));
   const outstanding = scheduleRows.reduce((sum: number, item: any) => sum + item.amountDueSen - item.amountPaidSen, 0);
+  const paymentStatus = paymentRows.some((payment: any) => payment.status === "pending_verification")
+    ? "pending_verification"
+    : scheduleRows.length && outstanding <= 0
+      ? "verified"
+      : "not_recorded";
   return {
-    id: row.id, caseNumber: row.case_number, customerDisplayName: row.customer_name, agentId: row.agent_id, agentName: row.agent_name, status: status(row.status), paymentStatus: scheduleRows.length ? (outstanding <= 0 ? "verified" : "pending_verification") : "not_recorded", saleAmountSen: moneyToSen(row.sale_amount), submittedAt: row.created_at, updatedAt: row.status_changed_at,
+    id: row.id, caseNumber: row.case_number, customerDisplayName: row.customer_name, agentId: row.agent_id, agentName: row.agent_name, status: status(row.status), paymentStatus, saleAmountSen: moneyToSen(row.sale_amount), submittedAt: row.created_at, updatedAt: row.status_changed_at,
     customer: { id: baseCase.customer_id, displayName: row.customer_name, companyRegistrationNumber: row.registration_number, contactName: row.contact_name, email: customer?.email ?? null, phone: customer?.phone ?? null },
-    service: { siteAddress: customer?.site_address ?? customer?.billing_address ?? "", addressLine1: customer?.address_line_1 ?? "", addressLine2: customer?.address_line_2 ?? "", postcode: customer?.postcode ?? "", city: customer?.city ?? "", state: customer?.state ?? "", electricityAccountNumber: null, notes: baseCase.service_notes ?? null },
+    service: { siteAddress: customer?.site_address ?? customer?.billing_address ?? "", addressLine1, addressLine2, postcode, city, state, electricityAccountNumber: null, notes: baseCase.service_notes ?? null },
     documents: docs,
     proposal: proposalRow ? { id: proposalRow.id, caseId: proposalRow.case_id, version: Number(proposalRow.version), reference: proposalRow.reference, status: proposalRow.status, proposalDate: proposalRow.proposal_date, salesRepName: proposalRow.sales_rep_name, saleAmountSen: moneyToSen(proposalRow.sale_amount) ?? 0, deposit1Sen: moneyToSen(proposalRow.deposit_1) ?? 0, deposit2Sen: moneyToSen(proposalRow.deposit_2) ?? 0, downpaymentTotalSen: moneyToSen(proposalRow.downpayment_total) ?? 0, balanceSen: moneyToSen(proposalRow.balance) ?? 0, option1MonthlySen: moneyToSen(proposalRow.option_1_monthly) ?? 0, option2MonthlySen: moneyToSen(proposalRow.option_2_monthly) ?? 0, avgRate: Number(proposalRow.avg_rate), avgKwh: Number(proposalRow.avg_kwh), avgBillSen: moneyToSen(proposalRow.avg_bill) ?? 0, avgDayKwh: Number(proposalRow.avg_day_kwh), beforeInstallKwh: Number(proposalRow.before_install_kwh), afterInstallKwh: Number(proposalRow.after_install_kwh), savingKwhMonth: Number(proposalRow.saving_kwh_month), savingRmMonthSen: moneyToSen(proposalRow.saving_rm_month) ?? 0, savingRmYearSen: moneyToSen(proposalRow.saving_rm_year) ?? 0, savingRm2YSen: moneyToSen(proposalRow.saving_rm_2y) ?? 0, savingRm15YSen: moneyToSen(proposalRow.saving_rm_15y) ?? 0, acceptedByName: proposalRow.accepted_by_name, acceptanceDate: proposalRow.acceptance_date, selectedTermMonths: proposalRow.selected_term_months, signedDocumentId: proposalRow.signed_document_id, issuedAt: proposalRow.issued_at, acceptedAt: proposalRow.accepted_at } : null,
     proposalReadings: (proposalReadings ?? []).map((reading: any) => ({ sequence: Number(reading.sequence_no), month: reading.month_label, tnbRate: Number(reading.tnb_rate), kwhUsed: Number(reading.kwh_used), billAmountSen: moneyToSen(reading.bill_amount) ?? 0, operationDays: Number(reading.operation_days), dailyKwh: Number(reading.daily_kwh) })),
     activity: (history ?? []).map((event: any) => ({ id: String(event.id), action: "status_changed", actorDisplayName: event.changed_by ?? "System", occurredAt: event.changed_at, summary: `${event.from_status ?? "Created"} → ${event.to_status}${event.reason ? ` — ${event.reason}` : ""}`, reason: event.reason ?? null })),
     quote: { saleAmountSen: moneyToSen(row.sale_amount), averageMonthlyKwh: baseCase.average_monthly_kwh == null ? null : Number(baseCase.average_monthly_kwh), averageTnbRate: baseCase.average_tnb_rate == null ? null : Number(baseCase.average_tnb_rate), quotedSavingsKwh: baseCase.quoted_savings_kwh == null ? null : Number(baseCase.quoted_savings_kwh), quotedMonthlySavingsSen: moneyToSen(baseCase.quoted_monthly_savings_rm) },
     verifiedSavings: { savingsKwh: baseCase.verified_savings_kwh == null ? null : Number(baseCase.verified_savings_kwh), monthlySavingsSen: moneyToSen(baseCase.verified_monthly_savings_rm), verifiedAt: baseCase.savings_verified_at ?? null },
-    installationDate: baseCase.installation_date, monitoringStartedOn: baseCase.monitoring_started_on, trialDecisionOn: baseCase.trial_decision_on, customerContinues: baseCase.customer_continues, installmentTermMonths: baseCase.installment_term_months,
+    installationDate: baseCase.installation_date, installationTime: baseCase.installation_time, installationProposedDate: baseCase.installation_proposed_date, installationProposedTime: baseCase.installation_proposed_time, installationProposedAt: baseCase.installation_proposed_at, installationConfirmationRequestedReason: baseCase.installation_confirmation_requested_reason, installationConfirmedAt: baseCase.installation_confirmed_at, monitoringStartedOn: baseCase.monitoring_started_on, trialDecisionOn: baseCase.trial_decision_on, customerContinues: baseCase.customer_continues, installmentTermMonths: baseCase.installment_term_months,
     paymentSchedules: scheduleRows,
-    payments: (payments ?? []).map((payment: any) => ({ id: payment.id, caseId: payment.case_id, amountSen: moneyToSen(payment.amount) ?? 0, paymentDate: payment.paid_on, reference: payment.reference, status: payment.status, recordedBy: payment.submitted_by ?? "system", recordedAt: payment.created_at, verifiedBy: payment.verified_by, verifiedAt: payment.verified_at })),
+    payments: paymentRows,
     financialDocuments: (financialDocuments ?? []).map((doc: any) => ({ id: doc.id, caseDocumentId: doc.case_document_id ?? undefined, pdfCaseDocumentId: doc.pdf_case_document_id ?? undefined, sourceId: doc.payment_schedule_id ?? doc.payment_id ?? undefined, documentNumber: doc.number, type: doc.type === "proforma" ? "invoice" : doc.type === "quotation" ? "quotation" : "receipt", amountSen: moneyToSen(doc.issued_snapshot?.amount ?? doc.issued_snapshot?.payment_schedule?.amount_due ?? doc.issued_snapshot?.proposal?.sale_amount ?? doc.issued_snapshot?.payment?.amount) ?? 0, issueDate: doc.issued_at?.slice(0, 10) ?? doc.created_at.slice(0, 10), status: doc.status === "void" ? "cancelled" : doc.status, createdAt: doc.created_at })),
     commissionIds: Array.from(new Set((commissions ?? []).map((entry: any) => entry.calculation_id ?? entry.id))),
   };
@@ -80,6 +103,22 @@ async function loadCase(caseId: string): Promise<CaseDetail> {
 async function rpcCase(actor: CurrentUser, name: string, args: Record<string, unknown>, caseId: string) {
   const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
   const { error } = await supabase.rpc(name, args); if (error) return failure<CaseDetail>(error); return { ok: true, data: await loadCase(caseId) } as CaseResult<CaseDetail>;
+}
+
+async function submitAgentPayment(caseId: string, input: RecordPaymentInput): Promise<CaseResult<CaseDetail>> {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
+  if (!input.proof) return failure<CaseDetail>({ code: "VALIDATION_ERROR", message: "Payment proof is required." });
+  const { data: registered, error: registerError } = await supabase.rpc("register_case_document", { p_case_id: caseId, p_type: "payment_proof", p_filename: input.proof.fileName, p_mime_type: input.proof.mimeType, p_visible_to_agent: true });
+  if (registerError) return failure(registerError);
+  const metadata = (registered as any[])[0] ?? registered as any;
+  const { error: uploadError } = await supabase.storage.from(metadata.bucket_id).upload(metadata.object_path, input.proof.file, { contentType: input.proof.mimeType, upsert: false });
+  if (uploadError) return failure(uploadError);
+  const { error: finalizeError } = await supabase.rpc("finalize_case_document", { p_document_id: metadata.document_id ?? metadata.id, p_size_bytes: input.proof.sizeBytes });
+  if (finalizeError) return failure(finalizeError);
+  const { error: paymentError } = await supabase.rpc("record_payment", { p_case_id: caseId, p_amount: input.amountSen / 100, p_paid_on: input.paymentDate, p_reference: input.reference ?? null, p_proof_document_id: metadata.document_id ?? metadata.id });
+  if (paymentError) return failure(paymentError);
+  return { ok: true, data: await loadCase(caseId) };
 }
 
 export const supabaseCasesRepository: CasesRepository = {
@@ -121,6 +160,12 @@ export const supabaseCasesRepository: CasesRepository = {
   async requestChanges(actor, caseId, reason) { return this.transition(actor, caseId, "changes_requested", reason); },
   async cancel(actor, caseId, reason) { return this.transition(actor, caseId, "cancelled", reason); },
   async generatePaymentSchedule(_actor, caseId, input: GeneratePaymentScheduleInput) { return rpcCase(_actor, "generate_initial_payment_schedule", { p_case_id: caseId, p_deposit_due: input.depositDue, p_post_installation_due: input.postInstallationDue }, caseId); },
+  async proposeInstallationDate(_actor, caseId, date, time) { return rpcCase(_actor, "propose_installation_date", { p_case_id: caseId, p_installation_date: date, p_installation_time: time }, caseId); },
+  async confirmInstallationDate(_actor, caseId) { return rpcCase(_actor, "confirm_installation_date", { p_case_id: caseId }, caseId); },
+  async requestInstallationReschedule(_actor, caseId, reason) { return rpcCase(_actor, "request_installation_reschedule", { p_case_id: caseId, p_reason: reason }, caseId); },
+  async submitDeposit(_actor, caseId, input: RecordPaymentInput) { return submitAgentPayment(caseId, input); },
+  async submitPostInstallationPayment(_actor, caseId, input) { return submitAgentPayment(caseId, input); },
+  async rejectPayment(_actor, paymentId, reason) { const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" }); const { data: payment, error } = await supabase.rpc("reject_payment", { p_payment_id: paymentId, p_reason: reason }); if (error) return failure(error); return { ok: true, data: await loadCase((payment as any).case_id) }; },
   async recordPayment(_actor, caseId, input: RecordPaymentInput) { return rpcCase(_actor, "record_payment", { p_case_id: caseId, p_amount: input.amountSen / 100, p_paid_on: input.paymentDate, p_reference: input.reference ?? null, p_proof_document_id: null }, caseId); },
   async recordAndVerifyPayment(actor, caseId, input: RecordPaymentInput) {
     let current: CaseDetail;
@@ -139,7 +184,7 @@ export const supabaseCasesRepository: CasesRepository = {
     return this.verifyPayment(actor, { paymentId: payment.id, allocations });
   },
   async verifyPayment(_actor, input: VerifyPaymentInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" }); const { data: payment, error } = await supabase.rpc("verify_payment", { p_payment_id: input.paymentId, p_allocations: input.allocations.map((allocation) => ({ schedule_id: allocation.scheduleId, amount: allocation.amountSen / 100 })) }); if (error) return failure(error); const paymentCase = (payment as any)?.case_id; if (!paymentCase) return failure<CaseDetail>({ message: "Verified payment did not return its case." }); return { ok: true, data: await loadCase(paymentCase) }; },
-  async recordInstallation(_actor, caseId, installationDate) { return rpcCase(_actor, "record_installation", { p_case_id: caseId, p_installation_date: installationDate }, caseId); },
+  async recordInstallation(_actor, caseId, installationDate, installationTime) { return rpcCase(_actor, "record_installation", { p_case_id: caseId, p_installation_date: installationDate, p_installation_time: installationTime }, caseId); },
   async verifySavings(_actor, caseId, savingsKwh, monthlySavingsSen) { return rpcCase(_actor, "verify_case_savings", { p_case_id: caseId, p_savings_kwh: savingsKwh, p_monthly_savings_rm: monthlySavingsSen / 100 }, caseId); },
   async acceptTrial(_actor, caseId, input: AcceptTrialInput) { return rpcCase(_actor, "accept_trial_and_continue", { p_case_id: caseId, p_installment_start: input.installmentStart, p_term_months: input.termMonths }, caseId); },
   async saveProposalDraft(_actor, caseId, input: ProposalInput) {
