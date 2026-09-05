@@ -15,7 +15,7 @@ export type PayoutSettlementStatus = "pending" | "settled";
 export type RegistrationDocumentType = "payment_proof";
 export type DocumentType = "electricity_bill" | "supporting_document" | "signed_proposal" | "quotation" | "invoice" | "receipt" | "other";
 export interface CurrentUser { id: ID; role: UserRole; displayName: string; email: string | null; agentId: ID | null; accountStatus?: AccountStatus; emailVerified?: boolean; }
-export interface ManageUser { id: ID; displayName: string; email: string | null; phone: string | null; role: UserRole; accountStatus: AccountStatus; agentCode: string | null; lastActiveAt: ISODateTime | null; createdAt: ISODateTime; }
+export interface ManageUser { id: ID; displayName: string; email: string | null; phone: string | null; role: UserRole; accountStatus: AccountStatus; agentCode: string | null; lastActiveAt: ISODateTime | null; createdAt: ISODateTime; registrationStatus?: RegistrationStatus | null; registrationFeeStatus?: RegistrationFeeStatus | null; accountActivationBlocked?: boolean; }
 export interface UpdateManageUserInput { displayName: string; phone: string; role: UserRole; accountStatus: AccountStatus; }
 export interface CaseSummary { id: ID; caseNumber: string; customerDisplayName: string; agentId: ID; agentName: string; status: CaseStatus; paymentStatus: PaymentStatus; saleAmountSen: MoneySen | null; submittedAt: ISODateTime; updatedAt: ISODateTime; }
 export interface CustomerRecord { id: ID; displayName: string; companyRegistrationNumber: string | null; contactName: string | null; email: string | null; phone: string | null; }
