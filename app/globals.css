@@ -995,9 +995,9 @@ input::placeholder, textarea::placeholder { font-weight: 400; }
 .profile-form { display: grid; gap: 16px; padding: 4px 20px 20px; }
 .profile-field { display: grid; gap: 7px; min-width: 0; }
 .profile-field label { color: var(--text); font-size: 13px; font-weight: 700; }
-.profile-field input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; color: var(--text); padding: 0 12px; font: inherit; }
-.profile-field input:focus { outline: none; border-color: #06b6d4; background: white; box-shadow: 0 0 0 3px #22d3ee33; }
-.profile-field-error input { border-color: var(--danger); background: var(--danger-bg); }
+.profile-field input, .profile-field select { width: 100%; min-width: 0; min-height: 44px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; color: var(--text); padding: 0 12px; font: inherit; }
+.profile-field input:focus, .profile-field select:focus { outline: none; border-color: #06b6d4; background: white; box-shadow: 0 0 0 3px #22d3ee33; }
+.profile-field-error input, .profile-field-error select { border-color: var(--danger); background: var(--danger-bg); }
 .profile-field .field-error { margin: 0; }
 .profile-inline-note { margin: -4px 0 0; padding: 10px 12px; border: 1px solid #a5f3fc; border-radius: 7px; background: #ecfeff; color: #334155; font-size: 12px; line-height: 1.45; }
 .profile-verification-panel { display: grid; gap: 10px; margin: 0 20px 20px; padding: 12px; border: 1px solid #a5f3fc; border-radius: 8px; background: #ecfeff; color: #334155; }
