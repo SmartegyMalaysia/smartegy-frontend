@@ -2,7 +2,7 @@ import { isValidEmail } from "./auth-repository";
 import { isValidMobileNumber } from "./registration-repository";
 import type { AgentProfile, CurrentUser, ID, ProfileActionResult, UpdateAgentBankDetailsInput, UpdateAgentProfileInput } from "./types";
 
-const activeProfile: AgentProfile = { id: "agent-001", profile: { fullName: "Aisha Rahman", email: "aisha@smartegy.example", mobileNumber: "+60123456789" }, agentNumber: "AG-001", applicationNumber: "SMG-REG-0001", accountStatus: "active", registrationStatus: "active", feeStatus: "verified", emailVerified: true, joinedDate: "2026-05-18", referralCode: "K7Q2M8", uplineName: null, currentLevel: 2, profileComplete: true, bankDetails: { bankName: "Maybank", accountHolderName: "Aisha Rahman", accountNumber: "1234567890", verifiedAt: "2026-08-01T09:00:00.000Z" } };
+const activeProfile: AgentProfile = { id: "agent-001", profile: { fullName: "Aisha Rahman", email: "aisha@smartegy.example", mobileNumber: "+60123456789" }, agentNumber: "AG-001", applicationNumber: "SMG-REG-0001", accountStatus: "active", registrationStatus: "active", feeStatus: "verified", emailVerified: true, joinedDate: "2026-05-18", referralCode: "K7Q2M8", uplineName: null, currentLevel: 2, profileComplete: true, bankDetails: { bankName: "Malayan Banking Berhad (Maybank)", accountHolderName: "Aisha Rahman", accountNumber: "1234567890" } };
 const pendingProfile: AgentProfile = { id: "registration-001", profile: { fullName: "Nadia Yusuf", email: "nadia@smartegy.example", mobileNumber: "+60123456789" }, agentNumber: "Not assigned", applicationNumber: "SMG-REG-0001", accountStatus: "inactive", registrationStatus: "pending_approval", feeStatus: "pending_verification", emailVerified: true, joinedDate: "2026-08-05", referralCode: "N4X8TP", uplineName: "Aisha Rahman", currentLevel: 1, profileComplete: true, bankDetails: null };
 let profiles = [activeProfile, pendingProfile];
 const emailVerificationCodes = new Map<string, string>();
@@ -28,7 +28,7 @@ export const mockAgentProfileRepository: AgentProfileRepository = {
   async updateBankDetails(actor, input) {
     const found = ownedProfile(actor); if (!found.ok) return found;
     const fieldErrors = validateBankDetails(input); if (Object.keys(fieldErrors).length) return failure("VALIDATION_ERROR", "Check the highlighted bank details and try again.", fieldErrors);
-    found.data.bankDetails = { bankName: input.bankName.trim(), accountHolderName: input.accountHolderName.trim(), accountNumber: input.accountNumber.trim(), verifiedAt: null };
+    found.data.bankDetails = { bankName: input.bankName.trim(), accountHolderName: input.accountHolderName.trim(), accountNumber: input.accountNumber.trim() };
     return { ok: true, data: found.data };
   },
   async requestEmailVerification(actor) {
