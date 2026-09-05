@@ -8,7 +8,6 @@ const publicPaths = new Set([
   "/reset-password",
   "/accept-invitation",
   "/join",
-  "/onboarding/status",
   "/api/auth/login",
   "/api/auth/forgot-password",
 ]);
@@ -21,6 +20,13 @@ function unauthorized(request: NextRequest, response: NextResponse) {
   const nextResponse = request.nextUrl.pathname.startsWith("/api/")
     ? NextResponse.json({ message: "Authentication is required." }, { status: 401 })
     : NextResponse.redirect(new URL("/", request.url));
+  response.cookies.getAll().forEach((cookie) => nextResponse.cookies.set(cookie));
+  nextResponse.headers.set("Cache-Control", "private, no-store");
+  return nextResponse;
+}
+
+function onboardingRequired(request: NextRequest, response: NextResponse) {
+  const nextResponse = NextResponse.redirect(new URL("/onboarding/status", request.url));
   response.cookies.getAll().forEach((cookie) => nextResponse.cookies.set(cookie));
   nextResponse.headers.set("Cache-Control", "private, no-store");
   return nextResponse;
@@ -52,6 +58,20 @@ export async function proxy(request: NextRequest) {
   });
   const { data, error } = await supabase.auth.getClaims();
   if (error || typeof data?.claims?.sub !== "string") return unauthorized(request, response);
+
+  if (request.nextUrl.pathname === "/onboarding/status") return response;
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("role, account_status")
+    .eq("id", data.claims.sub)
+    .maybeSingle();
+
+  if (profileError || !profile) return unauthorized(request, response);
+  if (profile.role === "agent" && profile.account_status !== "active") {
+    return onboardingRequired(request, response);
+  }
+
   return response;
 }
 

@@ -34,8 +34,7 @@ function isPublicRoute(pathname: string) {
     || pathname === "/reset-password"
     || pathname === "/accept-invitation"
     || pathname === "/join"
-    || pathname.startsWith("/join/")
-    || pathname === "/onboarding/status";
+    || pathname.startsWith("/join/");
 }
 
 function defaultRoleForPath(pathname: string): UserRole {
@@ -55,21 +54,24 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
   return (
     <PreviewUserProvider defaultRole={defaultRoleForPath(pathname)}>
-      <AuthenticatedWorkspaceShell hideSidebar={pathname === "/settings/profile"}>
+      <AuthenticatedWorkspaceShell
+        hideSidebar={pathname === "/settings/profile"}
+        onboardingOnly={pathname === "/onboarding/status"}
+      >
         {children}
       </AuthenticatedWorkspaceShell>
     </PreviewUserProvider>
   );
 }
 
-function AuthenticatedWorkspaceShell({ children, hideSidebar }: { children: ReactNode; hideSidebar: boolean }) {
+function AuthenticatedWorkspaceShell({ children, hideSidebar, onboardingOnly }: { children: ReactNode; hideSidebar: boolean; onboardingOnly: boolean }) {
   const { user, setRole, ready, authenticated } = usePreviewUser();
   useEffect(() => {
     if (ready && !authenticated) window.location.replace(new URL("/", window.location.href).toString());
   }, [authenticated, ready]);
   if (ready && !authenticated) return null;
   return (
-    <AppShell user={user} onRoleChange={setRole} hideSidebar={hideSidebar} authLoading={!ready}>
+    <AppShell user={user} onRoleChange={setRole} hideSidebar={hideSidebar} onboardingOnly={onboardingOnly} authLoading={!ready}>
       {children}
     </AppShell>
   );
