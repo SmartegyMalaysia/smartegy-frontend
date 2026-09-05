@@ -22,10 +22,10 @@ test("only administrators can list and update user accounts", async () => {
   const forbidden = await repository.userRepository.list(staff);
   assert.equal(forbidden.ok, false);
   assert.equal(forbidden.error.code, "FORBIDDEN");
-  const updated = await repository.userRepository.update(admin, "user-005", { displayName: "Nadia Yusuf", phone: "+60 12-111 2222", role: "agent", accountStatus: "active" });
-  assert.equal(updated.ok, true);
-  assert.equal(updated.data.accountStatus, "active");
-  assert.equal(updated.data.phone, "+60 12-111 2222");
+  const blocked = await repository.userRepository.update(admin, "user-005", { displayName: "Nadia Yusuf", phone: "+60 12-111 2222", role: "agent", accountStatus: "active" });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.error.code, "CONFLICT");
+  assert.match(blocked.error.message, /registration fee/i);
 });
 
 test("user updates validate required fields and protect the current administrator", async () => {
