@@ -66,6 +66,7 @@ export const mockAgentRepository: AgentRepository = {
   async manualPromote(actor, input) {
     if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can manually promote an agent.");
     const agent = agents.find((item) => item.id === input.agentId); if (!agent) return fail("NOT_FOUND", "Agent not found.");
+    if (agent.status !== "active" || ["pending_approval", "rejected", "suspended"].includes(agent.registrationStatus ?? "")) return fail("FORBIDDEN", "Only active, staff-approved agents can be manually promoted.");
     if (agent.qualification.nextLevel === null) return fail("NOT_ELIGIBLE", "This agent is already at the highest level.");
     if (agent.levelChangeRequests.some((request) => request.status === "pending")) return fail("CONFLICT", "This agent already has a level-change request awaiting admin review.");
     const previousLevel = agent.currentLevel; const requestedLevel = agent.qualification.nextLevel;

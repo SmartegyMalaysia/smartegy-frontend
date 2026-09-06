@@ -31,6 +31,7 @@ async function mapAgent(row: any, supabase: any): Promise<AgentSummary> {
   const metric = Array.isArray(metrics) ? metrics[0] : metrics;
   const mappedHistory: AgentPromotionAudit[] = (history ?? []).map((item: any) => ({ id: item.id, agentId: item.agent_id, previousLevel: level(item.from_level), newLevel: level(item.to_level), actorId: item.approved_by ?? "system", actorDisplayName: "Administrator", occurredAt: item.effective_at, note: item.reason }));
   const summary: AgentSummary = { id: row.id, agentCode: row.agent_code, displayName: row.legal_name, currentLevel, uplineAgentId: row.upline_agent_id, uplineName: row.upline?.legal_name ?? null, directAgentCount: Number(metric?.active_direct_recruits ?? 0), successfulCaseCount: Number(metric?.personal_successful_cases ?? 0), personalSalesSen: 0, referralSalesSen: rmToSen(metric?.annual_organization_sales), annualSalesSen: rmToSen(metric?.annual_organization_sales), commissionEarnedSen: 0, status: row.is_active ? "active" : "inactive", qualification: qualification(metric, currentLevel), promotionHistory: mappedHistory, levelChangeRequests: (requests ?? []).map((item: any) => ({ id: item.id, agentId: item.agent_id, previousLevel: currentLevel, requestedLevel: level(item.requested_level), requestedById: item.requested_by, requestedByDisplayName: "Staff", requestedAt: item.requested_at, status: item.status, reviewedById: item.reviewed_by, reviewedByDisplayName: null, reviewedAt: item.reviewed_at, reason: item.review_reason ?? item.metrics_snapshot?.request_reason ?? null })) };
+  summary.registrationStatus = row.registration_status ?? null;
   return summary;
 }
 
@@ -147,6 +148,7 @@ export const supabaseAgentRepository: AgentRepository = {
     const { data: agent, error: agentError } = await supabase.from("agents").select("*,upline:agents!upline_agent_id(legal_name)").eq("id", input.agentId).single();
     if (agentError) return errorResult(agentError);
     const currentLevel = level(agent.current_level);
+    if (!agent.is_active || (agent.registration_status && agent.registration_status !== "active")) return errorResult({ code: "42501", message: "Only active, staff-approved agents can be manually promoted." });
     const requestedLevel = currentLevel === 1 ? "level_2" : currentLevel === 2 ? "level_3" : null;
     if (requestedLevel === null) return errorResult({ message: "This agent is already at the highest level." });
     const { error } = await supabase.rpc("request_agent_promotion", { p_agent_id: input.agentId, p_requested_level: requestedLevel, p_manual_override: true, p_reason: input.reason?.trim() || "Manual promotion override." });
