@@ -67,6 +67,7 @@
 .login-message-info span { background: #a5f3fc; color: #334155; }
 .login-message-error { background: var(--danger-bg); border: 1px solid #fecaca; color: #991b1b; }
 .login-message-error span { background: #fecaca; color: #991b1b; }
+.login-card > .login-message { margin: 0 0 24px; }
 .login-submit { width: 100%; min-height: 46px; border: 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 9px; background: var(--brand); color: white; cursor: pointer; font-size: 14px; font-weight: 750; transition: background .15s cubic-bezier(.23,1,.32,1), transform .15s cubic-bezier(.23,1,.32,1); }
 .login-submit:hover:not(:disabled) { background: var(--brand-dark); transform: translateY(-1px); }
 .login-submit:active:not(:disabled) { transform: scale(.98); }
