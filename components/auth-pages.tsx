@@ -63,15 +63,29 @@ export function ResetPasswordPage() {
     let active = true;
     const supabase = getSupabaseBrowserClient();
     if (!supabase) { setLinkState(getMockResetLinkState(token)); return () => { active = false; }; }
-    const validateRecoverySession = async () => {
-      // createBrowserClient is configured with detectSessionInUrl, so it
-      // exchanges the one-time PKCE code during client initialization.
-      // Calling exchangeCodeForSession here would consume a valid link twice.
-      const { data } = await supabase.auth.getSession();
-      if (active) setLinkState(data.session ? "ready" : "invalid");
+    // createBrowserClient exchanges the one-time PKCE code automatically.
+    // Its initial getSession call can complete before that exchange, so wait
+    // for PASSWORD_RECOVERY instead of rejecting a valid link immediately.
+    const hasRecoveryCode = new URLSearchParams(window.location.search).has("code")
+      || window.location.hash.includes("access_token=");
+    let settled = false;
+    const settle = (state: ReturnType<typeof getMockResetLinkState>) => {
+      if (!active || settled) return;
+      settled = true;
+      setLinkState(state);
     };
-    void validateRecoverySession();
-    return () => { active = false; };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: unknown) => {
+      if (event === "PASSWORD_RECOVERY" && session) settle("ready");
+    });
+    void supabase.auth.getSession().then(({ data }: { data: { session: unknown } }) => {
+      if (data.session) settle("ready");
+      else if (!hasRecoveryCode) settle("invalid");
+    }).catch(() => settle("invalid"));
+    const timeout = window.setTimeout(() => {
+      void supabase.auth.getSession().then(({ data }: { data: { session: unknown } }) => settle(data.session ? "ready" : "invalid"))
+        .catch(() => settle("invalid"));
+    }, hasRecoveryCode ? 5000 : 0);
+    return () => { active = false; window.clearTimeout(timeout); subscription.unsubscribe(); };
   }, [token]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
