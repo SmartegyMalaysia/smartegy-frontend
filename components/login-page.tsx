@@ -46,6 +46,7 @@ export function LoginPage() {
 
       <section className="login-form-side" aria-labelledby="login-title">
         <div className="login-card">
+          {message && <div className={`login-message login-message-${messageTone}`} role="status"><span aria-hidden="true">{messageTone === "error" ? "!" : "i"}</span>{message}</div>}
           <div className="login-card-heading">
             <p className="login-kicker">Welcome back</p>
             <h2 id="login-title">Sign in to Smartegy</h2>
@@ -62,7 +63,6 @@ export function LoginPage() {
               <div className="password-input"><TextInput id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Enter your password" value={password} onChange={(event) => setPassword(event.target.value)} required /><button className="password-toggle" type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? "Hide" : "Show"}</button></div>
             </div>
             <label className="remember-row"><TextInput type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /><span>Keep me signed in on this device</span></label>
-            {message && <div className={`login-message login-message-${messageTone}`} role="status"><span aria-hidden="true">{messageTone === "error" ? "!" : "i"}</span>{message}</div>}
             <button className="login-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? <><span className="button-spinner" aria-hidden="true" />Signing in…</> : <>Sign in <Icon name="arrow" size={16} /></>}</button>
           </form>
 

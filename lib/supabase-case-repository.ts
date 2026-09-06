@@ -95,7 +95,7 @@ async function loadCase(caseId: string): Promise<CaseDetail> {
     installationDate: baseCase.installation_date, installationTime: baseCase.installation_time, installationProposedDate: baseCase.installation_proposed_date, installationProposedTime: baseCase.installation_proposed_time, installationProposedAt: baseCase.installation_proposed_at, installationConfirmationRequestedReason: baseCase.installation_confirmation_requested_reason, installationConfirmedAt: baseCase.installation_confirmed_at, monitoringStartedOn: baseCase.monitoring_started_on, trialDecisionOn: baseCase.trial_decision_on, customerContinues: baseCase.customer_continues, installmentTermMonths: baseCase.installment_term_months,
     paymentSchedules: scheduleRows,
     payments: paymentRows,
-    financialDocuments: (financialDocuments ?? []).map((doc: any) => ({ id: doc.id, caseDocumentId: doc.case_document_id ?? undefined, pdfCaseDocumentId: doc.pdf_case_document_id ?? undefined, sourceId: doc.payment_schedule_id ?? doc.payment_id ?? undefined, documentNumber: doc.number, type: doc.type === "proforma" ? "invoice" : doc.type === "quotation" ? "quotation" : "receipt", amountSen: moneyToSen(doc.issued_snapshot?.amount ?? doc.issued_snapshot?.payment_schedule?.amount_due ?? doc.issued_snapshot?.proposal?.sale_amount ?? doc.issued_snapshot?.payment?.amount) ?? 0, issueDate: doc.issued_at?.slice(0, 10) ?? doc.created_at.slice(0, 10), status: doc.status === "void" ? "cancelled" : doc.status, createdAt: doc.created_at })),
+    financialDocuments: (financialDocuments ?? []).map((doc: any) => ({ id: doc.id, caseDocumentId: doc.case_document_id ?? undefined, pdfCaseDocumentId: doc.pdf_case_document_id ?? undefined, sourceId: doc.payment_schedule_id ?? doc.payment_id ?? undefined, documentNumber: doc.number, type: doc.type === "proforma" ? "invoice" : doc.type === "quotation" ? "quotation" : "receipt", amountSen: moneyToSen(doc.issued_snapshot?.amount ?? doc.issued_snapshot?.payment_schedule?.amount_due ?? doc.issued_snapshot?.proposal?.sale_amount ?? doc.issued_snapshot?.payment?.amount) ?? 0, issueDate: doc.issued_at?.slice(0, 10) ?? doc.created_at.slice(0, 10), status: doc.status === "void" ? "cancelled" : doc.status, createdAt: doc.created_at, issuedAt: doc.issued_at })),
     commissionIds: Array.from(new Set((commissions ?? []).map((entry: any) => entry.calculation_id ?? entry.id))),
   };
 }
@@ -199,6 +199,21 @@ export const supabaseCasesRepository: CasesRepository = {
   },
   async acceptProposal(_actor, caseId, input: AcceptanceInput) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
+    try {
+      const latestCase = await loadCase(caseId);
+      if (latestCase.proposal?.status === "accepted") {
+        const invoice = latestCase.financialDocuments?.find((document) => document.type === "invoice" && document.status !== "cancelled");
+        if (!invoice?.sourceId) return failure<CaseDetail>({ message: "The accepted proposal is missing its deposit invoice." });
+        if (invoice.status !== "issued" || !invoice.caseDocumentId) {
+          const { data, error } = await supabase.functions.invoke("generate-document", { body: { case_id: caseId, type: "proforma", payment_schedule_id: invoice.sourceId } });
+          if (error) return functionFailure<CaseDetail>(error);
+          if (data?.error) return failure<CaseDetail>({ message: data.error });
+        }
+        return { ok: true, data: await loadCase(caseId) };
+      }
+    } catch (error) {
+      return failure<CaseDetail>(error as any);
+    }
     const { data: registered, error: registerError } = await supabase.rpc("register_case_document", { p_case_id: caseId, p_type: "signed_proposal", p_filename: input.signedProposal.name, p_mime_type: input.signedProposal.type || "application/pdf", p_visible_to_agent: true });
     if (registerError) return failure<CaseDetail>(registerError);
     const metadata: any = registered;
