@@ -21,13 +21,13 @@ export interface UpdateManageUserInput { displayName: string; phone: string; rol
 export interface CaseSummary { id: ID; caseNumber: string; customerDisplayName: string; agentId: ID; agentName: string; status: CaseStatus; paymentStatus: PaymentStatus; saleAmountSen: MoneySen | null; submittedAt: ISODateTime; updatedAt: ISODateTime; }
 export interface CustomerRecord { id: ID; displayName: string; companyRegistrationNumber: string | null; contactName: string | null; email: string | null; phone: string | null; }
 export interface ServiceRecord { siteAddress: string; addressLine1: string; addressLine2: string; postcode: string; city: string; state: string; electricityAccountNumber: string | null; notes: string | null; }
-export interface CaseDocument { id: ID; caseId: ID; type: DocumentType; fileName: string; mimeType: string; sizeBytes: number; uploadedBy: ID; uploadedAt: ISODateTime; bucketId?: string; objectPath?: string; visibleToAgent?: boolean; }
+export interface CaseDocument { id: ID; caseId: ID; type: DocumentType; fileName: string; mimeType: string; sizeBytes: number; uploadedBy: ID; uploadedAt: ISODateTime; bucketId?: string; objectPath?: string; visibleToAgent?: boolean; file?: File; }
 export interface CaseActivity { id: ID; action: string; actorDisplayName: string; occurredAt: ISODateTime; summary: string; reason?: string | null; }
 export type PaymentScheduleKind = "deposit" | "post_installation" | "installment" | "adjustment";
 export type PaymentScheduleStatus = "scheduled" | "partially_paid" | "paid" | "waived" | "cancelled";
 export type CasePaymentStatus = "pending_verification" | "verified" | "rejected" | "reversed";
 export interface PaymentSchedule { id: ID; caseId: ID; sequence: number; kind: PaymentScheduleKind; dueDate: ISODate; amountDueSen: MoneySen; amountPaidSen: MoneySen; status: PaymentScheduleStatus; }
-export interface CasePayment { id: ID; caseId: ID; amountSen: MoneySen; paymentDate: ISODate; reference: string | null; proofDocumentId?: ID | null; rejectionReason?: string | null; status: CasePaymentStatus; recordedBy: ID; recordedAt: ISODateTime; verifiedBy: ID | null; verifiedAt: ISODateTime | null; }
+export interface CasePayment { id: ID; caseId: ID; amountSen: MoneySen; paymentDate: ISODate; reference: string | null; proofDocumentId?: ID | null; proofFileName?: string | null; proofMimeType?: string | null; rejectionReason?: string | null; status: CasePaymentStatus; recordedBy: ID; recordedAt: ISODateTime; verifiedBy: ID | null; verifiedAt: ISODateTime | null; }
 export interface ProposalEnergyReading { sequence: number; month: string; tnbRate: number; kwhUsed: number; billAmountSen: MoneySen; operationDays: number; dailyKwh?: number; }
 export interface ProposalRecord { id: ID; caseId: ID; version: number; reference: string | null; status: "draft" | "issued" | "accepted" | "void"; proposalDate: ISODate; salesRepName: string; saleAmountSen: MoneySen; deposit1Sen: MoneySen; deposit2Sen: MoneySen; downpaymentTotalSen: MoneySen; balanceSen: MoneySen; option1MonthlySen: MoneySen; option2MonthlySen: MoneySen; avgRate: number; avgKwh: number; avgBillSen: MoneySen; avgDayKwh: number; beforeInstallKwh: number; afterInstallKwh: number; savingKwhMonth: number; savingRmMonthSen: MoneySen; savingRmYearSen: MoneySen; savingRm2YSen: MoneySen; savingRm15YSen: MoneySen; acceptedByName: string | null; acceptanceDate: ISODate | null; selectedTermMonths: 10 | 20 | null; signedDocumentId: ID | null; issuedAt: ISODateTime | null; acceptedAt: ISODateTime | null; }
 export interface ProposalInput { salesRepName: string; proposalDate: ISODate; saleAmountSen: MoneySen; readings: ProposalEnergyReading[]; }
@@ -142,6 +142,7 @@ export interface AgentRegistration {
   bankReference: string | null;
   proof: RegistrationPaymentProof | null;
   rejectionReason: string | null;
+  previousRejectionReason?: string | null;
   submittedAt: ISODateTime | null;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;

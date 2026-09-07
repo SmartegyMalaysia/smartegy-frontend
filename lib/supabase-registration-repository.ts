@@ -25,7 +25,59 @@ function errorResult<T>(error: { code?: string | null; details?: string | null; 
   return { ok: false, error: { code: normalized.code as any, message: normalized.message, response } };
 }
 
+async function fetchRegistrationProof(supabase: any, registrationId: string, proofId: string | null) {
+  if (proofId) {
+    const { data, error } = await supabase.from("registration_documents").select("*").eq("id", proofId).maybeSingle();
+    if (error) throw error;
+    if (data) return data;
+  }
+  const { data, error } = await supabase.from("registration_documents").select("*").eq("registration_id", registrationId).eq("status", "available").order("uploaded_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function checkSignupEmail(email: string): Promise<RegistrationActionResult<true>> {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) return errorResult({ message: "Supabase is not configured" });
+  try {
+    const { data, error } = await supabase.functions.invoke("check-signup-email", {
+      body: { email: email.trim().toLowerCase() },
+    });
+    let payload = data as {
+      ok?: boolean;
+      code?: string;
+      message?: string;
+      fieldErrors?: Record<string, string[]>;
+    } | null;
+    if (error) {
+      try {
+        const response = error.context as Response | undefined;
+        payload = response ? await response.clone().json() : payload;
+      } catch {
+        // Keep the generic Functions SDK error when the response is not JSON.
+      }
+    }
+    if (error || payload?.ok === false) {
+      return {
+        ok: false,
+        error: {
+          code: payload?.code === "DUPLICATE" ? "CONFLICT" : "VALIDATION_ERROR",
+          message: payload?.message ?? error?.message ?? "Signup is temporarily unavailable. Try again shortly.",
+          ...(payload?.fieldErrors ? { fieldErrors: payload.fieldErrors } : {}),
+        },
+      };
+    }
+    return { ok: true, data: true };
+  } catch {
+    return {
+      ok: false,
+      error: { code: "VALIDATION_ERROR", message: "Signup is temporarily unavailable. Try again shortly." },
+    };
+  }
+}
+
 function mapRegistration(row: RegistrationRow, proof?: RegistrationRow | null, audit: RegistrationRow[] = []): AgentRegistration {
+  const previousRejectionReason = row.rejection_reason ?? audit.find((event) => event.new_data?.fee_status === "rejected" && event.new_data?.rejection_reason)?.new_data?.rejection_reason ?? audit.find((event) => event.old_data?.fee_status === "rejected" && event.old_data?.rejection_reason)?.old_data?.rejection_reason ?? null;
   return {
     id: row.id,
     applicationNumber: row.application_number,
@@ -48,10 +100,11 @@ function mapRegistration(row: RegistrationRow, proof?: RegistrationRow | null, a
     bankReference: row.bank_reference,
     proof: proof ? { id: proof.id, fileName: proof.original_filename, mimeType: proof.mime_type, sizeBytes: Number(proof.size_bytes ?? 0), uploadedAt: proof.uploaded_at ?? proof.created_at } : null,
     rejectionReason: row.rejection_reason,
+    previousRejectionReason,
     submittedAt: row.submitted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    audit: audit.map((event) => ({ id: String(event.id), entityType: event.table_name === "agent_registrations" ? "registration" : "registration_fee", entityId: event.record_id, action: event.action, previousStatus: event.old_data?.registration_status ?? event.old_data?.fee_status ?? null, newStatus: event.new_data?.registration_status ?? event.new_data?.fee_status ?? null, actorId: event.actor_id ?? "system", actorDisplayName: event.actor?.display_name ?? "System", occurredAt: event.occurred_at, reason: event.reason })),
+    audit: audit.map((event) => ({ id: String(event.id), entityType: event.table_name === "agent_registrations" ? "registration" : "registration_fee", entityId: event.record_id, action: event.action, previousStatus: event.old_data?.registration_status ?? event.old_data?.fee_status ?? null, newStatus: event.new_data?.registration_status ?? event.new_data?.fee_status ?? null, actorId: event.actor_id ?? "system", actorDisplayName: event.actor?.display_name ?? "System", occurredAt: event.occurred_at, reason: event.reason ?? event.new_data?.rejection_reason ?? event.old_data?.rejection_reason ?? null })),
   };
 }
 
@@ -60,7 +113,7 @@ async function fetchRegistration(id: string, includeAudit = true) {
   if (!supabase) throw new Error("Supabase is not configured");
   const { data: row, error } = await supabase.from("agent_registrations").select("*,referring_agent:agents!agent_registrations_referring_agent_id_fkey(legal_name)").eq("id", id).single();
   if (error) throw error;
-  const { data: proof } = await supabase.from("registration_documents").select("*").eq("id", row.payment_proof_document_id).maybeSingle();
+  const proof = await fetchRegistrationProof(supabase, id, row.payment_proof_document_id);
   // audit_log.actor_id is intentionally not a foreign key (deleted users must
   // not delete audit history), so resolve the actor name separately only when
   // a future screen needs it. The audit row remains available to admins.
@@ -74,7 +127,7 @@ async function fetchOwnRegistration(authUserId: string, includeAudit = true) {
   const { data: row, error } = await supabase.from("agent_registrations").select("*,referring_agent:agents!agent_registrations_referring_agent_id_fkey(legal_name)").eq("auth_user_id", authUserId).maybeSingle();
   if (error) throw error;
   if (!row) throw new Error("Registration application not found.");
-  const { data: proof } = await supabase.from("registration_documents").select("*").eq("id", row.payment_proof_document_id).maybeSingle();
+  const proof = await fetchRegistrationProof(supabase, row.id, row.payment_proof_document_id);
   const { data: audit } = includeAudit ? await supabase.from("audit_log").select("*").eq("table_name", "agent_registrations").eq("record_id", row.id).order("occurred_at", { ascending: false }) : { data: [] };
   return mapRegistration(row, proof, audit ?? []);
 }
@@ -96,6 +149,8 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
   },
   async sendEmailOtp(email) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
+    const availability = await checkSignupEmail(email);
+    if (!availability.ok) return availability;
     const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
     return error ? errorResult(error) : { ok: true, data: { expiresInSeconds: 600 } };
   },
@@ -130,7 +185,7 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
     const file = input.proof.file;
     if (!file) return errorResult({ message: "The payment proof file is required." });
-    const metadataError = validateCaseDocument(file, "supporting_document");
+    const metadataError = validateCaseDocument(file, "payment_proof");
     if (metadataError) return errorResult({ message: metadataError });
     const signatureError = await validateFileSignature(file);
     if (signatureError) return errorResult({ message: signatureError });
@@ -166,9 +221,14 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
   async getPaymentProof(_actor, registrationId): Promise<RegistrationActionResult<RegistrationPaymentProofAccess>> {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
     const { data: registration, error: registrationError } = await supabase.from("agent_registrations").select("payment_proof_document_id").eq("id", registrationId).single();
-    if (registrationError || !registration.payment_proof_document_id) return errorResult(registrationError ?? { message: "No payment proof has been uploaded." });
-    const { data: document, error: documentError } = await supabase.from("registration_documents").select("*").eq("id", registration.payment_proof_document_id).single();
-    if (documentError) return errorResult(documentError);
+    if (registrationError) return errorResult(registrationError);
+    let document: RegistrationRow | null = null;
+    try {
+      document = await fetchRegistrationProof(supabase, registrationId, registration.payment_proof_document_id);
+    } catch (documentError) {
+      return errorResult(documentError as any);
+    }
+    if (!document) return errorResult({ message: "No payment proof has been uploaded." });
     const { data: signed, error: signedError } = await supabase.storage.from(document.bucket_id).createSignedUrl(document.object_path, 300);
     if (signedError || !signed.signedUrl) return errorResult(signedError ?? { message: "The payment proof could not be opened." });
     return { ok: true, data: { fileName: document.original_filename, mimeType: document.mime_type, accessToken: signed.signedUrl, expiresAt: new Date(Date.now() + 300000).toISOString() } };

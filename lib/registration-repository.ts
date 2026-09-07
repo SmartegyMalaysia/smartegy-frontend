@@ -20,6 +20,7 @@ import type {
 
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+const duplicateEmailMessage = "An account already exists for this email address.";
 export function isValidMobileNumber(value: string) { return /^(?:\+?6?01)[0-9]{7,9}$/.test(value.replace(/[\s-]/g, "")); }
 
 export const mockRegistrationConfig: RegistrationPaymentConfig = {
@@ -125,8 +126,10 @@ export const mockRegistrationRepository: RegistrationRepository = {
   },
 
   async sendEmailOtp(email) {
-    if (!email.trim().includes("@")) return failure("VALIDATION_ERROR", "Enter a valid email address.", { email: ["Enter a valid email address."] });
-    mockOtpByEmail.set(email.trim().toLowerCase(), "123456");
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return failure("VALIDATION_ERROR", "Enter a valid email address.", { email: ["Enter a valid email address."] });
+    if (registrations.some((item) => item.profile.email.toLowerCase() === normalizedEmail)) return failure("CONFLICT", duplicateEmailMessage, { email: [duplicateEmailMessage] });
+    mockOtpByEmail.set(normalizedEmail, "123456");
     return { ok: true, data: { expiresInSeconds: 600 } };
   },
 
@@ -149,6 +152,7 @@ export const mockRegistrationRepository: RegistrationRepository = {
     if (!input.acceptedTerms) fieldErrors.acceptedTerms = ["Accept the Terms of Use and Privacy Notice to continue."];
     if (!invitation) return failure("VALIDATION_ERROR", "Check the invitation or referral code and try again.", { ...fieldErrors, referralCode: ["This invitation or referral code is invalid or expired."] });
     if (Object.keys(fieldErrors).length) return failure("VALIDATION_ERROR", "Check the highlighted fields and try again.", fieldErrors);
+    if (registrations.some((item) => item.profile.email.toLowerCase() === input.email.trim().toLowerCase())) return failure("CONFLICT", duplicateEmailMessage, { email: [duplicateEmailMessage] });
     const timestamp = now();
     const registration: AgentRegistration = {
       id: id("registration"),

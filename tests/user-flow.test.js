@@ -39,6 +39,27 @@ test("user updates validate required fields and protect the current administrato
   assert.equal(selfChange.error.code, "CONFLICT");
 });
 
+test("agent roles stay isolated while staff and admin roles can switch", async () => {
+  repository.resetMockUsers();
+  const agentToStaff = await repository.userRepository.update(admin, "user-001", { displayName: "Aisha Rahman", phone: "+60 12-345 6789", role: "staff", accountStatus: "active" });
+  assert.equal(agentToStaff.ok, false);
+  assert.equal(agentToStaff.error.code, "CONFLICT");
+  assert.match(agentToStaff.error.message, /agent accounts cannot be converted/i);
+  const staffToAgent = await repository.userRepository.update(admin, "user-002", { displayName: "Farid Iskandar", phone: "+60 13-210 7788", role: "agent", accountStatus: "active" });
+  assert.equal(staffToAgent.ok, false);
+  assert.equal(staffToAgent.error.code, "CONFLICT");
+  const adminToAgent = await repository.userRepository.update(admin, "user-003", { displayName: "Mei Tan", phone: "+60 12-889 0042", role: "agent", accountStatus: "active" });
+  assert.equal(adminToAgent.ok, false);
+  assert.equal(adminToAgent.error.code, "CONFLICT");
+  const staffToAdmin = await repository.userRepository.update(admin, "user-002", { displayName: "Farid Iskandar", phone: "+60 13-210 7788", role: "admin", accountStatus: "active" });
+  assert.equal(staffToAdmin.ok, true);
+  assert.equal(staffToAdmin.data.role, "admin");
+  const anotherAdmin = { id: "admin-002", role: "admin", displayName: "Second Admin", email: "second.admin@smartegy.example", agentId: null, accountStatus: "active" };
+  const adminToStaff = await repository.userRepository.update(anotherAdmin, "user-003", { displayName: "Mei Tan", phone: "+60 12-889 0042", role: "staff", accountStatus: "active" });
+  assert.equal(adminToStaff.ok, true);
+  assert.equal(adminToStaff.data.role, "staff");
+});
+
 test("only administrators can create invited staff accounts", async () => {
   repository.resetMockUsers();
   const forbidden = await repository.userRepository.createStaff(staff, { displayName: "New Staff", email: "new.staff@smartegy.example", phone: "" });
