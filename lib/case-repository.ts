@@ -6,7 +6,7 @@ import type { AcceptTrialInput, AcceptanceInput, CaseDetail, CaseDocumentInput, 
 
 type CaseErrorCode = "VALIDATION_ERROR" | "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR" | "CONFLICT";
 export type CaseResult<T> = { ok: true; data: T } | { ok: false; error: { code: CaseErrorCode; message: string; fieldErrors?: Record<string, string[]> } };
-export interface CaseDirectoryQuery { search?: string; stage?: "new" | "under_review" | "changes_requested" | "quotation_payment" | "installation_monitoring" | "trial_review" | "commission_active" | "completed_cancelled"; paymentStatus?: PaymentStatus; agentId?: ID; page?: number; pageSize?: number; sortBy?: "updated" | "newest" | "amount"; sortDirection?: "asc" | "desc"; }
+export interface CaseDirectoryQuery { search?: string; stage?: CaseStatus; paymentStatus?: PaymentStatus; agentId?: ID; page?: number; pageSize?: number; sortBy?: "updated" | "newest" | "customer" | "agent" | "amount" | "status" | "payment_status"; sortDirection?: "asc" | "desc"; }
 export interface CaseDirectoryPage { items: CaseSummary[]; totalItems: number; totalPages: number; agentOptions: Array<{ value: ID; label: string }>; }
 
 const seededCases = mockDashboard("staff").cases;
@@ -108,10 +108,19 @@ export const mockCasesRepository: CasesRepository = {
   async listPage(actor, query) {
     const all = Array.from(caseStore.values()).filter((item) => actor.role !== "agent" || item.agentId === actor.agentId);
     const term = query.search?.trim().toLowerCase() ?? "";
-    const stageMatch = (item: CaseSummary) => !query.stage || (query.stage === "new" ? ["draft", "submitted"].includes(item.status) : query.stage === "under_review" ? item.status === "under_review" : query.stage === "changes_requested" ? item.status === "changes_requested" : query.stage === "quotation_payment" ? ["quotation_issued", "awaiting_deposit_submission", "deposit_pending_verification"].includes(item.status) : query.stage === "installation_monitoring" ? ["awaiting_installation_scheduling", "installation_pending_confirmation", "installation_scheduled", "awaiting_post_installation_payment", "post_installation_payment_pending_verification", "installed_monitoring"].includes(item.status) : query.stage === "trial_review" ? item.status === "trial_review" : query.stage === "commission_active" ? item.status === "active_installments" : ["completed", "cancelled"].includes(item.status));
+    const stageMatch = (item: CaseSummary) => !query.stage || item.status === query.stage;
     const filtered = all.filter((item) => (!term || `${item.caseNumber} ${item.customerDisplayName} ${item.agentName}`.toLowerCase().includes(term)) && stageMatch(item) && (!query.paymentStatus || item.paymentStatus === query.paymentStatus) && (!query.agentId || item.agentId === query.agentId));
     const direction = query.sortDirection === "asc" ? 1 : -1;
-    const sorted = [...filtered].sort((a, b) => (query.sortBy === "amount" ? (a.saleAmountSen ?? 0) - (b.saleAmountSen ?? 0) : query.sortBy === "newest" ? a.submittedAt.localeCompare(b.submittedAt) : a.updatedAt.localeCompare(b.updatedAt)) * direction);
+    const sorted = [...filtered].sort((a, b) => {
+      const comparison = query.sortBy === "amount" ? (a.saleAmountSen ?? 0) - (b.saleAmountSen ?? 0)
+        : query.sortBy === "newest" ? a.submittedAt.localeCompare(b.submittedAt)
+          : query.sortBy === "customer" ? a.customerDisplayName.localeCompare(b.customerDisplayName)
+            : query.sortBy === "agent" ? a.agentName.localeCompare(b.agentName)
+              : query.sortBy === "status" ? a.status.localeCompare(b.status)
+                : query.sortBy === "payment_status" ? a.paymentStatus.localeCompare(b.paymentStatus)
+                  : a.updatedAt.localeCompare(b.updatedAt);
+      return comparison * direction;
+    });
     const pageSize = Math.min(10000, Math.max(1, query.pageSize ?? 5)); const page = Math.max(1, query.page ?? 1);
     return { ok: true, data: { items: sorted.slice((page - 1) * pageSize, page * pageSize).map((item) => ({ ...item })), totalItems: sorted.length, totalPages: Math.max(1, Math.ceil(sorted.length / pageSize)), agentOptions: Array.from(new Map(all.map((item) => [item.agentId, { value: item.agentId, label: item.agentName }])).values()).sort((a, b) => a.label.localeCompare(b.label)) } };
   },
