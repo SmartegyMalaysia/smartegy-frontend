@@ -11,7 +11,7 @@ export function caseActionLabels(status: CaseStatus, role: CurrentUser["role"], 
     if (status === "quotation_issued" && !hasPaymentSchedule) actions.push({ kind: "accept_proposal", label: "Accept Proposal", variant: "primary" });
     const canSubmitMore = paymentBalanceSen > pendingPaymentAmountSen;
     if (canSubmitMore && (status === "awaiting_deposit_submission" || (status === "deposit_pending_verification" && hasPaymentSchedule && !depositPaid))) actions.push({ kind: "submit_deposit", label: status === "deposit_pending_verification" ? "Record Another Deposit Payment" : "Record Deposit", variant: "primary" });
-    else if (canSubmitMore && status === "awaiting_post_installation_payment") actions.push({ kind: "submit_post_installation_payment", label: "Record Post-Installation Payment", variant: "primary" });
+    else if (canSubmitMore && (status === "awaiting_post_installation_payment" || (status === "post_installation_payment_pending_verification" && hasPaymentSchedule && !postInstallationPaid))) actions.push({ kind: "submit_post_installation_payment", label: status === "post_installation_payment_pending_verification" ? "Record Another Post-Installation Payment" : "Record Post-Installation Payment", variant: "primary" });
     else if (canSubmitMore && status === "active_installments") actions.push({ kind: "submit_installment_payment", label: "Record Installment Payment", variant: "primary" });
     if (status === "installation_pending_confirmation") actions.push({ kind: "confirm_installation", label: "Confirm Installation Date", variant: "primary" });
     if (status === "draft") actions.push({ kind: "delete_case", label: "Delete Case", variant: "danger" });
