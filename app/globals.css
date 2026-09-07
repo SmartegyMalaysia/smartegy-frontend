@@ -306,8 +306,11 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .date-picker-disabled, .date-picker-disabled summary { cursor: not-allowed !important; }
 .filter-select-menu { position: absolute; z-index: 9999; top: calc(100% + 6px); left: 0; right: 0; display: grid; gap: 3px; min-width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); box-shadow: 0 12px 24px -16px #0f172a66; }
 .filter-select-menu-portal { position: fixed; z-index: 1000; right: auto; min-width: 0; max-width: calc(100vw - 32px); max-height: min(320px, calc(100vh - 32px)); overflow-y: auto; animation: popover-enter .14s ease-out both; transform-origin: top left; }
-.filter-select-menu button { width: 100%; min-height: 34px; overflow: hidden; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; text-align: left; text-overflow: ellipsis; white-space: nowrap; font: inherit; font-size: 13px; font-weight: 400; text-transform: capitalize; }
+.filter-select-menu button { width: 100%; min-height: 34px; overflow: hidden; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; text-align: left; overflow-wrap: anywhere; text-overflow: clip; white-space: normal; font: inherit; font-size: 13px; font-weight: 400; text-transform: none; }
 .filter-select-menu button:hover, .filter-select-menu button:focus-visible, .filter-select-menu .filter-option-selected { background: var(--brand-green-soft); color: var(--brand); outline: none; }
+.table-sort-button { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; margin: -4px 0; padding: 4px 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; text-transform: inherit; }
+.table-sort-button:hover, .table-sort-button:focus-visible { color: var(--brand); outline: none; }
+.table-sort-indicator { color: var(--brand); font-size: 13px; line-height: 1; text-transform: none; }
 .case-table-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--border); }
 .case-page-summary { color: var(--muted); font-size: 12px; }
 .case-table-actions, .pagination { display: flex; align-items: center; gap: 10px; }
