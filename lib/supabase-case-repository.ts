@@ -75,7 +75,7 @@ async function loadCase(caseId: string): Promise<CaseDetail> {
   const city = customer?.city || legacyAddress.city;
   const state = customer?.state || legacyAddress.state;
   const scheduleRows = (schedules ?? []).map((item: any) => ({ id: item.id, caseId: item.case_id, sequence: Number(item.sequence_no), kind: item.kind, dueDate: item.due_date, amountDueSen: moneyToSen(item.amount_due) ?? 0, amountPaidSen: moneyToSen(item.amount_paid) ?? 0, status: item.status }));
-  const paymentRows = (payments ?? []).map((payment: any) => ({ id: payment.id, caseId: payment.case_id, amountSen: moneyToSen(payment.amount) ?? 0, paymentDate: payment.paid_on, reference: payment.reference, proofDocumentId: payment.proof_document_id ?? null, rejectionReason: payment.rejection_reason ?? null, status: payment.status, recordedBy: payment.submitted_by ?? "system", recordedAt: payment.created_at, verifiedBy: payment.verified_by, verifiedAt: payment.verified_at }));
+  const paymentRows = (payments ?? []).map((payment: any) => { const proof = docs.find((document) => document.id === payment.proof_document_id); return { id: payment.id, caseId: payment.case_id, amountSen: moneyToSen(payment.amount) ?? 0, paymentDate: payment.paid_on, reference: payment.reference, proofDocumentId: payment.proof_document_id ?? null, proofFileName: proof?.fileName ?? null, proofMimeType: proof?.mimeType ?? null, rejectionReason: payment.rejection_reason ?? null, status: payment.status, recordedBy: payment.submitted_by ?? "system", recordedAt: payment.created_at, verifiedBy: payment.verified_by, verifiedAt: payment.verified_at }; });
   const outstanding = scheduleRows.reduce((sum: number, item: any) => sum + item.amountDueSen - item.amountPaidSen, 0);
   const paymentStatus = paymentRows.some((payment: any) => payment.status === "pending_verification")
     ? "pending_verification"
@@ -165,6 +165,7 @@ export const supabaseCasesRepository: CasesRepository = {
   async requestInstallationReschedule(_actor, caseId, reason) { return rpcCase(_actor, "request_installation_reschedule", { p_case_id: caseId, p_reason: reason }, caseId); },
   async submitDeposit(_actor, caseId, input: RecordPaymentInput) { return submitAgentPayment(caseId, input); },
   async submitPostInstallationPayment(_actor, caseId, input) { return submitAgentPayment(caseId, input); },
+  async submitInstallmentPayment(_actor, caseId, input) { return submitAgentPayment(caseId, input); },
   async rejectPayment(_actor, paymentId, reason) { const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" }); const { data: payment, error } = await supabase.rpc("reject_payment", { p_payment_id: paymentId, p_reason: reason }); if (error) return failure(error); return { ok: true, data: await loadCase((payment as any).case_id) }; },
   async recordPayment(_actor, caseId, input: RecordPaymentInput) { return rpcCase(_actor, "record_payment", { p_case_id: caseId, p_amount: input.amountSen / 100, p_paid_on: input.paymentDate, p_reference: input.reference ?? null, p_proof_document_id: null }, caseId); },
   async recordAndVerifyPayment(actor, caseId, input: RecordPaymentInput) {

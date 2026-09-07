@@ -20,6 +20,9 @@ const case004Agent = { id: "user-004", role: "agent", displayName: "Nadia Yusuf"
 
 test("case action visibility gives staff and admin the same normal processing actions", () => {
   assert.deepEqual(workflow.caseActionLabels("under_review", "staff"), workflow.caseActionLabels("under_review", "admin"));
+  assert.ok(workflow.caseActionLabels("quotation_issued", "agent").some((action) => action.label === "Accept Proposal"));
+  assert.ok(!workflow.caseActionLabels("quotation_issued", "staff").some((action) => action.label === "Accept Proposal"));
+  assert.ok(!workflow.caseActionLabels("quotation_issued", "admin").some((action) => action.label === "Accept Proposal"));
   assert.ok(workflow.caseActionLabels("under_review", "staff").some((action) => action.label === "Request Changes" && action.requiresReason));
   const awaitingDeposit = workflow.caseActionLabels("awaiting_deposit_submission", "staff");
   assert.ok(!awaitingDeposit.some((action) => action.label === "Verify Deposit"));
@@ -30,11 +33,25 @@ test("case action visibility gives staff and admin the same normal processing ac
   assert.ok(!depositPaid.some((action) => action.label === "Record Deposit"));
   assert.ok(depositPaid.some((action) => action.label === "Set Installation Date"));
   const agentPendingDeposit = workflow.caseActionLabels("deposit_pending_verification", "agent", true, false, true);
-  assert.ok(!agentPendingDeposit.some((action) => action.label === "Record Deposit"));
+  assert.ok(!agentPendingDeposit.some((action) => action.label.includes("Verify")));
+  const agentPartialDeposit = workflow.caseActionLabels("deposit_pending_verification", "agent", true, false, false);
+  assert.ok(agentPartialDeposit.some((action) => action.label === "Record Another Deposit Payment"));
+  assert.ok(workflow.caseActionLabels("active_installments", "agent", true, true, false).some((action) => action.label === "Record Installment Payment"));
+  assert.ok(workflow.caseActionLabels("active_installments", "staff", true, true, true).some((action) => action.label === "Verify Installment Payment"));
   assert.equal(workflow.caseActionLabels("changes_requested", "agent")[0].label, "Resubmit for Review");
   assert.ok(!workflow.caseActionLabels("completed", "staff").some((action) => action.label === "Delete Case"));
   assert.ok(workflow.caseActionLabels("draft", "agent").some((action) => action.label === "Delete Case"));
   assert.ok(!workflow.caseActionLabels("under_review", "agent").some((action) => action.label === "Delete Case"));
+});
+
+test("proposal acceptance is restricted to the submitting agent", async () => {
+  const input = { acceptedByName: "Customer", acceptanceDate: "2026-09-07", depositDue: "2026-09-07", postInstallationDue: "2026-09-21", selectedTermMonths: 10, signedProposal: { name: "signed.pdf", type: "application/pdf", size: 100 } };
+  const staffAttempt = await repository.mockCasesRepository.acceptProposal(staff, "case-001", input);
+  assert.equal(staffAttempt.ok, false);
+  assert.equal(staffAttempt.error.code, "FORBIDDEN");
+  const otherAgentAttempt = await repository.mockCasesRepository.acceptProposal(case004Agent, "case-001", input);
+  assert.equal(otherAgentAttempt.ok, false);
+  assert.equal(otherAgentAttempt.error.code, "FORBIDDEN");
 });
 
 test("request changes requires a reason and agents can edit and resubmit", async () => {
@@ -56,10 +73,20 @@ test("operational prerequisites lead to one commission calculation and block pre
   result = await repository.mockCasesRepository.generatePaymentSchedule(staff, "case-002", { depositDue: "2026-08-20", postInstallationDue: "2026-08-25" });
   assert.equal(result.ok, true);
   assert.equal(result.data.status, "awaiting_deposit_submission");
-  const deposit = await repository.mockCasesRepository.recordAndVerifyPayment(staff, "case-002", { amountSen: 1000, paymentDate: "2026-08-20" });
+  const depositSubmitted = await repository.mockCasesRepository.submitDeposit(agent, "case-002", { amountSen: 600, paymentDate: "2026-08-20", proof: { fileName: "deposit-1.png", mimeType: "image/png" } });
+  assert.equal(depositSubmitted.ok, true);
+  const agentVerifyAttempt = await repository.mockCasesRepository.verifyPayment(agent, { paymentId: depositSubmitted.data.payments[0].id, allocations: [{ scheduleId: depositSubmitted.data.paymentSchedules[0].id, amountSen: 1000 }] });
+  assert.equal(agentVerifyAttempt.ok, false);
+  assert.equal(agentVerifyAttempt.error.code, "FORBIDDEN");
+  const secondDepositSubmitted = await repository.mockCasesRepository.submitDeposit(agent, "case-002", { amountSen: 400, paymentDate: "2026-08-21", proof: { fileName: "deposit-2.png", mimeType: "image/png" } });
+  assert.equal(secondDepositSubmitted.ok, true);
+  const deposit = await repository.mockCasesRepository.verifyPayment(staff, { paymentId: depositSubmitted.data.payments[0].id, allocations: [{ scheduleId: depositSubmitted.data.paymentSchedules[0].id, amountSen: 600 }] });
   assert.equal(deposit.ok, true);
   assert.equal(deposit.data.payments[0].status, "verified");
-  assert.equal(deposit.data.paymentSchedules[0].amountPaidSen, 1000);
+  assert.equal(deposit.data.paymentSchedules[0].amountPaidSen, 600);
+  const completedDeposit = await repository.mockCasesRepository.verifyPayment(admin, { paymentId: secondDepositSubmitted.data.payments[1].id, allocations: [{ scheduleId: secondDepositSubmitted.data.paymentSchedules[0].id, amountSen: 400 }] });
+  assert.equal(completedDeposit.ok, true);
+  assert.equal(completedDeposit.data.paymentSchedules[0].amountPaidSen, 1000);
   const postInstall = await repository.mockCasesRepository.recordAndVerifyPayment(staff, "case-002", { amountSen: 2000, paymentDate: "2026-08-25" });
   result = postInstall;
   assert.equal(result.ok, true);
@@ -79,6 +106,12 @@ test("operational prerequisites lead to one commission calculation and block pre
   assert.equal(result.ok, true);
   assert.equal(result.data.status, "active_installments");
   assert.equal(result.data.commissionIds.length, 1);
+  const firstInstallment = result.data.paymentSchedules.find((schedule) => schedule.kind === "installment");
+  const installmentSubmitted = await repository.mockCasesRepository.submitInstallmentPayment(agent, "case-002", { amountSen: firstInstallment.amountDueSen, paymentDate: "2026-10-01", proof: {} });
+  assert.equal(installmentSubmitted.ok, true);
+  const installmentVerified = await repository.mockCasesRepository.verifyPayment(admin, { paymentId: installmentSubmitted.data.payments.at(-1).id, allocations: [{ scheduleId: firstInstallment.id, amountSen: firstInstallment.amountDueSen }] });
+  assert.equal(installmentVerified.ok, true);
+  assert.equal(installmentVerified.data.status, "active_installments");
   const incomplete = await repository.mockCasesRepository.transition(staff, "case-002", "completed");
   assert.equal(incomplete.ok, false);
   const remainingInstallments = result.data.paymentSchedules.filter((schedule) => schedule.kind === "installment").reduce((sum, schedule) => sum + schedule.amountDueSen - schedule.amountPaidSen, 0);

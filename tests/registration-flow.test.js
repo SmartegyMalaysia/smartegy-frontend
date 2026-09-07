@@ -20,6 +20,14 @@ function applicant(id) {
 
 test.beforeEach(() => repository.resetMockRegistrations());
 
+test("signup rejects an email that already belongs to an account", async () => {
+  const duplicate = await repository.registrationRepository.sendEmailOtp(" NADIA@SMARTEGY.EXAMPLE ");
+  assert.equal(duplicate.ok, false);
+  assert.equal(duplicate.error.code, "CONFLICT");
+  assert.equal(duplicate.error.message, "An account already exists for this email address.");
+  assert.deepEqual(duplicate.error.fieldErrors.email, ["An account already exists for this email address."]);
+});
+
 test("mock OTP verification gates application creation and accepts proof without applicant date or reference", async () => {
   const sent = await repository.registrationRepository.sendEmailOtp("new@example.com");
   assert.equal(sent.ok, true);
