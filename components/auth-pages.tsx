@@ -15,6 +15,7 @@ export function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [resetPath, setResetPath] = useState<string | null>(null);
+  const [isMockReset, setIsMockReset] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => {
@@ -24,11 +25,11 @@ export function ForgotPasswordPage() {
   }, [cooldown]);
 
   async function sendRequest() {
-    setError(null); setSuccess(null); setResetPath(null);
+    setError(null); setSuccess(null); setResetPath(null); setIsMockReset(false);
     if (!isValidEmail(email)) { setError("Enter a valid email address."); return; }
     setSubmitting(true);
     const result = await requestPasswordReset(email);
-    if (result.ok) { setSuccess(result.message); setResetPath(result.resetPath); setCooldown(result.cooldownSeconds || PASSWORD_RESET_COOLDOWN_SECONDS); }
+    if (result.ok) { setSuccess(result.message); setResetPath(result.resetPath ?? null); setIsMockReset(Boolean(result.isMock)); setCooldown(result.cooldownSeconds || PASSWORD_RESET_COOLDOWN_SECONDS); }
     else setError(result.message);
     setSubmitting(false);
   }
@@ -39,7 +40,7 @@ export function ForgotPasswordPage() {
     <form className="auth-form" onSubmit={submit} noValidate>
       <div className="form-field"><label htmlFor="reset-email">Email address</label><TextInput id="reset-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? "reset-email-error" : undefined} required/>{error && <p id="reset-email-error" className="field-error" role="alert">{error}</p>}</div>
       {success && <div className="login-message login-message-info" role="status"><span aria-hidden="true">i</span>{success}</div>}
-      {resetPath && <div className="mock-reset-link"><p>Mock preview is enabled for this local build.</p><Link className="button button-secondary" href={resetPath}>Open reset password preview <Icon name="arrow" size={14}/></Link></div>}
+      {isMockReset && resetPath && <div className="mock-reset-link"><p>Mock preview is enabled for this local build.</p><Link className="button button-secondary" href={resetPath}>Open reset password preview <Icon name="arrow" size={14}/></Link></div>}
       <button className="login-submit" type="submit" disabled={submitting || cooldown > 0}>{submitting ? "Sending reset link…" : cooldown > 0 ? `Resend available in ${cooldown}s` : "Send reset link"}</button>
     </form>
     <div className="auth-footer-links"><Link href="/">Return to sign in</Link>{success && <button className="text-button" type="button" onClick={sendRequest} disabled={submitting || cooldown > 0}>Resend reset link</button>}</div>

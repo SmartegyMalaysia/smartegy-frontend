@@ -12,7 +12,7 @@ const PASSWORD_RESET_LIFETIME_MS = 15 * 60 * 1000;
 const neutralResetMessage = "If an account exists for this email address, we have sent password reset instructions.";
 
 export type PasswordResetResult =
-  | { ok: true; message: string; resetPath: string; cooldownSeconds: number }
+  | { ok: true; message: string; resetPath?: string; cooldownSeconds: number; isMock?: boolean }
   | { ok: false; code: "INVALID_INPUT" | "RATE_LIMITED" | "NETWORK_ERROR"; message: string; fieldErrors?: Record<string, string[]>; cooldownSeconds?: number };
 
 export type ResetLinkState = "ready" | "invalid" | "expired" | "used";
@@ -46,9 +46,9 @@ export async function requestPasswordReset(email: string): Promise<PasswordReset
   }
   const now = Date.now();
   const remaining = mockResetSession ? Math.ceil((PASSWORD_RESET_COOLDOWN_SECONDS * 1000 - (now - mockResetSession.requestedAt)) / 1000) : 0;
-  if (remaining > 0) return { ok: true, message: neutralResetMessage, resetPath: "/reset-password?mock=valid", cooldownSeconds: remaining };
+  if (remaining > 0) return { ok: true, message: neutralResetMessage, resetPath: "/reset-password?mock=valid", cooldownSeconds: remaining, isMock: true };
   mockResetSession = { status: "ready", requestedAt: now, expiresAt: now + PASSWORD_RESET_LIFETIME_MS };
-  return { ok: true, message: neutralResetMessage, resetPath: "/reset-password?mock=valid", cooldownSeconds: PASSWORD_RESET_COOLDOWN_SECONDS };
+  return { ok: true, message: neutralResetMessage, resetPath: "/reset-password?mock=valid", cooldownSeconds: PASSWORD_RESET_COOLDOWN_SECONDS, isMock: true };
 }
 
 export function getPasswordResetCooldownSeconds() {

@@ -42,7 +42,7 @@ export function RegistrationReviewPage({ applicationNumber }: { applicationNumbe
     <div className="registration-detail-grid">
       <section className="panel detail-panel applicant-panel"><div className="panel-header"><div><h2>Applicant Information</h2><p>Confirmed registration details and upline.</p></div></div><dl className="detail-list detail-list-wide"><Detail label="Application number" value={registration.applicationNumber}/><Detail label="Full name" value={registration.profile.fullName}/><Detail label="Email address" value={registration.profile.email}/><Detail label="Mobile number" value={registration.profile.mobileNumber}/><Detail label="Referral code" value={registration.referralCode}/><Detail label="Confirmed upline" value={registration.referringAgentName}/><Detail label="Submitted" value={registration.submittedAt ? formatDate(registration.submittedAt) : "Not submitted"}/><Detail label="Email verification" value={<Badge status={registration.emailVerified ? "verified" : "unpaid"}/>}/></dl></section>
       <section className="panel detail-panel audit-section"><div className="panel-header"><div><h2>Audit History</h2><p>Internal activity for this application and payment review.</p></div></div>{registration.audit.length ? <DataTable caption="Registration audit history" headers={["Action", "Acting staff user", "Status change", "Reason or note"]}>{registration.audit.map((event) => <tr key={event.id}><td><span className="table-primary">{event.action.replaceAll("_", " ")}</span><span className="table-secondary">{formatDate(event.occurredAt)}</span></td><td>{event.actorDisplayName}</td><td>{event.previousStatus ?? "—"} → {event.newStatus ?? "—"}</td><td className="muted-cell">{event.reason ?? "—"}</td></tr>)}</DataTable> : <p className="detail-empty">No review activity recorded yet.</p>}</section>
-      <PaymentReview registration={registration} showVerificationFields={action !== "reject-fee"} onProof={setProofAccess} onVerify={(details) => { setVerification(details); setAction("verify"); }} onReject={() => { setPaymentRejectionError(false); setAction("reject-fee"); }}/>
+      <PaymentReview actor={user} registration={registration} showVerificationFields={action !== "reject-fee"} onProof={setProofAccess} onVerify={(details) => { setVerification(details); setAction("verify"); }} onReject={() => { setPaymentRejectionError(false); setAction("reject-fee"); }}/>
     </div>
     <ConfirmationDialog open={action === "verify"} title="Verify Payment?" description={`This verifies the RM50.00 fee for ${registration.applicationNumber}. If email and profile requirements are complete, the application will automatically be approved and activated.`} confirmLabel="Verify Payment" confirmVariant="primary" onCancel={() => setAction(null)} onConfirm={() => verification && run(registrationRepository.verifyFee(user, verification), "Payment Verified. Complete applications are automatically approved and activated.")}/>
     <ConfirmationDialog open={action === "reject-fee"} title="Reject Payment Proof?" description={`This marks the fee for ${registration.applicationNumber} as rejected and lets the applicant resubmit proof.`} confirmLabel="Reject Payment" onCancel={() => { setAction(null); setPaymentRejectionError(false); }} onConfirm={() => { if (!paymentReason.trim()) { setPaymentRejectionError(true); return; } void run(registrationRepository.rejectFee(user, { registrationId: registration.id, reason: paymentReason }), "Payment Rejected. The applicant can resubmit proof."); }}><label className="case-field"><span>Payment rejection reason *</span><TextArea value={paymentReason} onChange={(event) => { setPaymentRejectionError(false); setPaymentReason(event.target.value); }} placeholder="Enter a clear reason" aria-invalid={paymentRejectionError} required /></label>{paymentRejectionError && <p className="field-error" role="alert">Enter a rejection reason before confirming.</p>}</ConfirmationDialog>
@@ -64,8 +64,9 @@ function ProofViewer({ proof }: { proof: RegistrationPaymentProofAccess }) {
   return <object className="registration-proof-pdf" data={proof.accessToken} type={proof.mimeType || "application/pdf"} aria-label={`Proof of payment: ${proof.fileName}`}><div className="registration-proof-unavailable"><p>Unable to preview this document in the browser.</p><a className="text-link" href={proof.accessToken} target="_blank" rel="noreferrer">Open {proof.fileName} in a new tab</a></div></object>;
 }
 
-function PaymentReview({ registration, showVerificationFields, onProof, onVerify, onReject }: { registration: AgentRegistration; showVerificationFields: boolean; onProof: (proof: RegistrationPaymentProofAccess) => void; onVerify: (details: VerifyRegistrationFeeInput) => void; onReject: () => void }) {
+function PaymentReview({ actor, registration, showVerificationFields, onProof, onVerify, onReject }: { actor: Parameters<typeof registrationRepository.getPaymentProof>[0]; registration: AgentRegistration; showVerificationFields: boolean; onProof: (proof: RegistrationPaymentProofAccess) => void; onVerify: (details: VerifyRegistrationFeeInput) => void; onReject: () => void }) {
   const [message, setMessage] = useState<string | null>(null);
+  const [loadingProof, setLoadingProof] = useState(false);
   const [amount, setAmount] = useState("50.00");
   const [date, setDate] = useState(() => registration.paymentDate ?? new Date().toISOString().slice(0, 10));
   const reference = registration.paymentReference ?? "Manual verification";
@@ -85,11 +86,14 @@ function PaymentReview({ registration, showVerificationFields, onProof, onVerify
         <Detail label="Submitted payment date" value={registration.paymentDate ? formatDate(registration.paymentDate) : "Not provided"} />
         <Detail
           label="Proof of payment"
-          value={registration.proof ? <button className="text-link" type="button" onClick={async () => {
-            const result = await registrationRepository.getPaymentProof({ id: "user-002", role: "staff", displayName: "Farid Iskandar", email: null, agentId: null }, registration.id);
+          value={registration.proof ? <button className="text-link" type="button" disabled={loadingProof} onClick={async () => {
+            setLoadingProof(true);
+            setMessage(null);
+            const result = await registrationRepository.getPaymentProof(actor, registration.id);
             if (result.ok) onProof(result.data);
             else setMessage(result.error.message);
-          }}>View securely: {registration.proof.fileName}</button> : "Not uploaded"}
+            setLoadingProof(false);
+          }}>{loadingProof ? "Opening proof…" : `View securely: ${registration.proof.fileName}`}</button> : "Not uploaded"}
         />
         <Detail label="Previous rejection reason" value={previousRejectionReason} />
       </dl>
