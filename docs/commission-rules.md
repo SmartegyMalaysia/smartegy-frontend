@@ -68,7 +68,7 @@ recipient minimum sale amount = initial-payment pool × recipient pool share ÷ 
 minimum project value = highest recipient minimum sale amount
 ```
 
-The frontend may show this minimum as an explanatory preview, but the trusted server calculates it from the active commission rule and performs the authoritative validation. For an RM3,120.00 initial-payment pool under the current rule, the minimum project value is RM34,036.37.
+The frontend may show this minimum as an explanatory preview, but the trusted server calculates it from the active commission rule and performs the authoritative validation. For RM3,120.00 in initial customer obligations, the commission pool is RM1,560.00 and the minimum project value is RM17,018.19.
 
 ## 5. Deferred Schedule
 
@@ -81,7 +81,7 @@ The frontend may show this minimum as an explanatory preview, but the trusted se
 Recommended deterministic allocation:
 
 ```text
-base instalment = floor(deferred balance in sen ÷ 17)
+base instalment = round(deferred balance in RM ÷ 17, 2)
 first 16 instalments = base instalment
 final instalment = deferred balance − sum(first 16 instalments)
 ```
@@ -161,7 +161,7 @@ These checks should be covered by automated tests when the calculation engine is
 
 Do not mark the commission engine production-ready until Smartegy confirms:
 
-1. The reusable formula for deriving the first-payment pool. RM1,747.20 is currently an approved input for the example only.
+1. The reusable first-payment pool is half of the deposit plus post-installation obligations: verified monthly RM savings × 3 ÷ 2.
 2. How recipients are selected from the referral hierarchy for each level.
 3. What happens if an eligible level is vacant or a recipient is inactive.
 4. Whether the Office always receives 10% and the stated first-payment share.

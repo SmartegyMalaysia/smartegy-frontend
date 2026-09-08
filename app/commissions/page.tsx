@@ -84,7 +84,7 @@ function CommissionRecords({ actor }: { actor: CurrentUser }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const filteredItems = (data?.items ?? []).filter((record) => paymentKind === "all" || paymentKindFor(record) === paymentKind);
+  const filteredItems = (data?.items ?? []).filter((record) => paymentKind === "all" || record.paymentKinds?.includes(paymentKind) || paymentKindFor(record) === paymentKind);
   const totalItems = filteredItems.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const currentPage = Math.min(page, totalPages);

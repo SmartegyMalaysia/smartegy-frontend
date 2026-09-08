@@ -44,6 +44,6 @@ test("overview values come from the trusted commission repository", async () => 
   assert.equal(overview.data.totalEntitlementSen, 134750);
   assert.equal(overview.data.paidToDateSen, 104832);
   assert.equal(overview.data.remainingBalanceSen, 29918);
-  assert.equal(overview.data.upcomingPayoutSen, 1759);
+  assert.equal(overview.data.upcomingPayoutSen, 1760);
   assert.equal(overview.data.upcomingPayoutDate, "2026-09-15");
 });

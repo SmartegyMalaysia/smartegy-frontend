@@ -1,13 +1,14 @@
 import { NextRequest } from "next/server";
 import { badRpc, csvResponse, serverSupabase } from "../_lib";
+import { aggregateCommissionRows, filterAndSortCommissionRecords, type CommissionRow } from "@/lib/commission-aggregation";
 
 export async function GET(request: NextRequest) {
   const { supabase, cookiesToSet, error } = await serverSupabase(request);
   if (error) return error;
   const params = request.nextUrl.searchParams;
-  const { data, error: rpcError } = await supabase.rpc("list_commission_directory", { p_search: params.get("search") || null, p_status: params.get("status") || null, p_month: params.get("month") || null, p_page: 1, p_page_size: 10000, p_sort_by: params.get("sort_by") || "updated", p_sort_direction: params.get("sort_direction") || "desc" });
-  if (rpcError) return badRpc(rpcError);
-  const payload = (data ?? {}) as Record<string, any>;
-  const rows = [["Case", "Customer", "Entitlement", "Paid", "Remaining", "Status", "Next payout", "Updated"], ...(payload.items ?? []).map((item: any) => [item.case_number, item.customer_name, item.amount, item.status === "paid" ? item.amount : 0, item.status === "paid" ? 0 : item.amount, item.status, item.due_date, item.paid_at ?? item.due_date])];
+  const { data, error: queryError } = await supabase.from("agent_commission_statement").select("*").order("due_date", { ascending: true });
+  if (queryError) return badRpc(queryError);
+  const records = filterAndSortCommissionRecords(aggregateCommissionRows((data ?? []) as CommissionRow[]), { search: params.get("search") || undefined, status: (params.get("status") || undefined) as any, month: params.get("month") || undefined, sortBy: (params.get("sort_by") || "updated") as any, sortDirection: (params.get("sort_direction") || "desc") as any });
+  const rows = [["Case", "Customer", "Entitlement", "Paid", "Remaining", "Status", "Next payout", "Updated"], ...records.map((item) => [item.caseNumber, item.customerDisplayName, item.entitlementSen / 100, item.paidToDateSen / 100, item.deferredBalanceSen / 100, item.status, item.nextPaymentDate ?? "", item.lastUpdatedAt])];
   return csvResponse(rows, "smartegy-commissions.csv", cookiesToSet);
 }

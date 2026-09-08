@@ -52,7 +52,8 @@ export function calculateProposalPreview(input: Pick<ProposalInput, "saleAmountS
   const deposit1Sen = savingRmMonthSen;
   const deposit2Sen = roundCents(savingRmMonthSen * 2);
   const downpaymentTotalSen = deposit1Sen + deposit2Sen;
-  const minimumSaleAmountSen = minimumSaleAmountSenForNonNegativeCommissions(downpaymentTotalSen);
+  const initialCommissionPoolSen = roundCents(downpaymentTotalSen / 2);
+  const minimumSaleAmountSen = minimumSaleAmountSenForNonNegativeCommissions(initialCommissionPoolSen);
   if (minimumSaleAmountSen === null) return null;
   const balanceSen = input.saleAmountSen - downpaymentTotalSen;
   if (balanceSen < 0) return null;
