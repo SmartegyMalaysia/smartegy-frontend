@@ -23,22 +23,19 @@ const readings = Array.from({ length: 12 }, (_, index) => ({
   operationDays: 30,
 }));
 
-test("proposal preview derives the minimum project value needed for non-negative commissions", () => {
+test("proposal preview calculates payment values without a commission floor", () => {
   const preview = calculations.calculateProposalPreview({ saleAmountSen: 2450000, readings });
   assert.ok(preview);
   assert.equal(preview.savingRmMonthSen, 104000);
   assert.equal(preview.downpaymentTotalSen, 312000);
-  assert.equal(preview.minimumSaleAmountSen, 3403637);
 });
 
-test("proposal drafts reject a project value below the commission floor", async () => {
+test("proposal drafts accept a project value below the former commission floor", async () => {
   const result = await mockCasesRepository.saveProposalDraft(staff, "case-004", {
     salesRepName: "Test Staff",
     proposalDate: "2026-09-08",
     saleAmountSen: 2450000,
     readings,
   });
-  assert.equal(result.ok, false);
-  assert.equal(result.error.code, "VALIDATION_ERROR");
-  assert.equal(result.error.message, "Sale amount must be at least RM 34036.37 to prevent negative commissions.");
+  assert.equal(result.ok, true);
 });
