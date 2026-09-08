@@ -2,6 +2,7 @@ import type { ProposalEnergyReading, ProposalInput } from "./types";
 
 export interface ProposalCalculationPreview {
   saleAmountSen: number;
+  minimumSaleAmountSen: number;
   deposit1Sen: number;
   deposit2Sen: number;
   downpaymentTotalSen: number;
@@ -24,6 +25,22 @@ export interface ProposalCalculationPreview {
 const roundCents = (value: number) => Math.round(value);
 const round = (value: number, decimals: number) => Number(value.toFixed(decimals));
 
+// This client-side rule is an explanatory preview only. The database uses the
+// active commission rule as the authoritative validation when saving or
+// issuing a proposal.
+const commissionFloorSlots = [
+  { saleRate: 0.055, initialShare: 0.6 },
+  { saleRate: 0.03, initialShare: 0.15 },
+  { saleRate: 0.015, initialShare: 0.05 },
+  { saleRate: 0.1, initialShare: 0.2 },
+] as const;
+
+export function minimumSaleAmountSenForNonNegativeCommissions(initialPaymentPoolSen: number) {
+  if (!Number.isFinite(initialPaymentPoolSen) || initialPaymentPoolSen < 0) return null;
+  const largestRequiredMultiplier = Math.max(...commissionFloorSlots.map((slot) => slot.initialShare / slot.saleRate));
+  return Math.ceil(initialPaymentPoolSen * largestRequiredMultiplier);
+}
+
 export function calculateProposalPreview(input: Pick<ProposalInput, "saleAmountSen" | "readings">): ProposalCalculationPreview | null {
   if (input.readings.length !== 12 || input.saleAmountSen <= 0 || input.readings.some((reading) => reading.tnbRate < 0 || reading.kwhUsed < 0 || reading.billAmountSen < 0 || reading.operationDays < 1 || reading.operationDays > 31)) return null;
   const avgRate = round(input.readings.reduce((sum, reading) => sum + reading.tnbRate, 0) / 12, 6);
@@ -35,10 +52,13 @@ export function calculateProposalPreview(input: Pick<ProposalInput, "saleAmountS
   const deposit1Sen = savingRmMonthSen;
   const deposit2Sen = roundCents(savingRmMonthSen * 2);
   const downpaymentTotalSen = deposit1Sen + deposit2Sen;
+  const minimumSaleAmountSen = minimumSaleAmountSenForNonNegativeCommissions(downpaymentTotalSen);
+  if (minimumSaleAmountSen === null) return null;
   const balanceSen = input.saleAmountSen - downpaymentTotalSen;
   if (balanceSen < 0) return null;
   return {
     saleAmountSen: input.saleAmountSen,
+    minimumSaleAmountSen,
     deposit1Sen,
     deposit2Sen,
     downpaymentTotalSen,

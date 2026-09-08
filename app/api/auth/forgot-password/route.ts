@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) return NextResponse.json({ ok: false, code: "NETWORK_ERROR", message: "Password reset is not configured." }, { status: 503 });
 
-  const response = NextResponse.json({ ok: true, message: neutralMessage, resetPath: "/reset-password", cooldownSeconds: 30 });
+  const response = NextResponse.json({ ok: true, message: neutralMessage, cooldownSeconds: 30, isMock: false });
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
       getAll: () => request.cookies.getAll(),

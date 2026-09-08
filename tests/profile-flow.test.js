@@ -61,4 +61,5 @@ test("pending agent profile exposes restricted registration state", async () => 
   assert.equal(pending.data.registrationStatus, "pending_approval");
   assert.equal(pending.data.feeStatus, "pending_verification");
   assert.equal(pending.data.accountStatus, "inactive");
+  assert.equal(pending.data.emailVerified, true);
 });

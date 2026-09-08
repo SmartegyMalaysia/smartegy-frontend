@@ -59,6 +59,17 @@ first payment = approved first-payment pool × recipient pool share
 deferred balance = total entitlement − first payment
 ```
 
+### Minimum Project Value
+
+The proposal sale amount must be high enough that every recipient's allocation from the initial-payment pool is no greater than that recipient's sale-based entitlement. The system rejects draft and issued proposals below the calculated minimum.
+
+```text
+recipient minimum sale amount = initial-payment pool × recipient pool share ÷ recipient sale rate
+minimum project value = highest recipient minimum sale amount
+```
+
+The frontend may show this minimum as an explanatory preview, but the trusted server calculates it from the active commission rule and performs the authoritative validation. For an RM3,120.00 initial-payment pool under the current rule, the minimum project value is RM34,036.37.
+
 ## 5. Deferred Schedule
 
 - Each recipient's deferred balance is paid over 17 months.
@@ -159,4 +170,3 @@ Do not mark the commission engine production-ready until Smartegy confirms:
 7. Rules for cancellations, refunds, clawbacks, agent exits, and withheld payments.
 8. Whether tax or statutory deductions affect the displayed or paid amounts.
 9. Who may approve, adjust, reverse, and mark commissions paid.
-
