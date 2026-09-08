@@ -17,9 +17,10 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 };
 
 const queueSource = fs.readFileSync(path.resolve(__dirname, "../components/case-queue.tsx"), "utf8");
+const filterSource = fs.readFileSync(path.resolve(__dirname, "../components/filter-select.tsx"), "utf8");
 const tableSource = fs.readFileSync(path.resolve(__dirname, "../components/data-table.tsx"), "utf8");
 const typesSource = fs.readFileSync(path.resolve(__dirname, "../lib/types.ts"), "utf8");
-const { mockCasesRepository } = require(path.resolve(__dirname, "../lib/case-repository.ts"));
+const { mockCasesRepository, derivePaymentStatus } = require(path.resolve(__dirname, "../lib/case-repository.ts"));
 
 const staff = {
   id: "user-002",
@@ -78,10 +79,28 @@ test("payment filter is named Payment Status and matches the case-directory paym
   assert.ok(queueSource.includes('allLabel="All payment statuses"'), "The cases payment filter must use payment-status wording.");
 });
 
-test("case table exposes clickable sortable column headers instead of a sort dropdown", () => {
+test("dropdown labels use consistent title case without changing filter values", () => {
+  assert.ok(filterSource.includes('replaceAll("_", " ")'), "Dropdown labels should keep snake_case values readable.");
+  assert.ok(filterSource.includes("replace(/\\b[a-z]/g"), "Dropdown labels should capitalise each word.");
+  assert.ok(queueSource.includes('pending_verification: "Pending verification"'), "The payment status value should remain unchanged for filtering.");
+});
+
+test("payment status is based on submitted payments and the current due schedule", () => {
+  const schedule = (dueDate, amountPaidSen = 0) => ({ id: dueDate, caseId: "case", sequence: 1, kind: "installment", dueDate, amountDueSen: 10000, amountPaidSen, status: amountPaidSen === 10000 ? "paid" : amountPaidSen ? "partially_paid" : "scheduled" });
+  assert.equal(derivePaymentStatus({ paymentSchedules: [schedule("2026-10-07")], payments: [] }, "2026-09-08"), "current");
+  assert.equal(derivePaymentStatus({ paymentSchedules: [schedule("2026-09-07")], payments: [] }, "2026-09-08"), "overdue");
+  assert.equal(derivePaymentStatus({ paymentSchedules: [schedule("2026-09-08", 5000)], payments: [] }, "2026-09-08"), "partially_paid");
+  assert.equal(derivePaymentStatus({ paymentSchedules: [schedule("2026-10-07")], payments: [{ status: "pending_verification" }] }, "2026-09-08"), "pending_verification");
+  assert.equal(derivePaymentStatus({ paymentSchedules: [schedule("2026-09-07", 10000)], payments: [] }, "2026-09-08"), "fully_paid");
+});
+
+test("case, status, and payment status headers are not sortable", () => {
   assert.ok(!queueSource.includes("<label><span>Sort by</span>"), "The cases table should not depend on the sort dropdown.");
   assert.ok(tableSource.includes("aria-sort={config?.ariaSort}"), "Sortable headers should expose their current direction.");
-  assert.ok(queueSource.includes("onClick={() => updateSort(key)}"), "Sortable headers should update the active sort when clicked.");
+  assert.ok(queueSource.includes("onClick={() => updateSort(key)}"), "Other sortable headers should still update the active sort when clicked.");
+  assert.ok(!queueSource.includes('sortableHeader("case", "Case")'), "Case should not be sortable.");
+  assert.ok(!queueSource.includes('sortableHeader("status", "Status")'), "Status should not be sortable.");
+  assert.ok(!queueSource.includes('sortableHeader("payment_status", "Payment Status")'), "Payment Status should not be sortable.");
 });
 
 test("case repository sorting remains available for clickable table headers", async () => {

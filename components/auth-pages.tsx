@@ -43,7 +43,7 @@ export function ForgotPasswordPage() {
       {isMockReset && resetPath && <div className="mock-reset-link"><p>Mock preview is enabled for this local build.</p><Link className="button button-secondary" href={resetPath}>Open reset password preview <Icon name="arrow" size={14}/></Link></div>}
       <button className="login-submit" type="submit" disabled={submitting || cooldown > 0}>{submitting ? "Sending reset link…" : cooldown > 0 ? `Resend available in ${cooldown}s` : "Send reset link"}</button>
     </form>
-    <div className="auth-footer-links"><Link href="/">Return to sign in</Link>{success && <button className="text-button" type="button" onClick={sendRequest} disabled={submitting || cooldown > 0}>Resend reset link</button>}</div>
+    <div className="auth-footer-links"><Link href="/">Return to sign in</Link></div>
   </AuthShell>;
 }
 
