@@ -7,6 +7,7 @@ import { FormField } from "./form-controls";
 import { PopupModalLayerContext } from "./popup-modal";
 
 type MenuPosition = { top: number; left: number; width: number };
+function titleCaseOption(value: string) { return value.replaceAll("_", " ").replace(/\b[a-z]/g, (character) => character.toUpperCase()); }
 
 export function FilterSelect<T extends string>({ id, allLabel, title, value, options, onChange, labels, disabled = false, ariaLabel, ariaInvalid = false, required = false }: { id?: string; allLabel: string; title?: string; value: T; options: T[]; onChange: (value: T) => void; labels?: Partial<Record<T, string>>; disabled?: boolean; ariaLabel?: string; ariaInvalid?: boolean; required?: boolean }) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -56,7 +57,7 @@ export function FilterSelect<T extends string>({ id, allLabel, title, value, opt
       if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
     };
   }, [open, menuMounted]);
-  function labelFor(option: T) { return labels?.[option] ?? (option === "" || option === "all" ? allLabel : option.replaceAll("_", " ")); }
+  function labelFor(option: T) { const label = labels?.[option] ?? (option === "" || option === "all" ? allLabel : option); return titleCaseOption(label); }
   const menu = <div className={`filter-select-menu filter-select-menu-portal ${insidePopupModal ? "popup-modal-popover" : ""} ${menuExiting ? "filter-select-menu-exiting" : ""}`.trim()} role="listbox" aria-label={allLabel} style={menuPosition ? { top: menuPosition.top, left: menuPosition.left, width: menuPosition.width } : undefined}>{options.map((option) => <button key={option} type="button" role="option" aria-selected={option === value} className={option === value ? "filter-option-selected" : ""} onClick={() => { onChange(option); if (detailsRef.current) detailsRef.current.open = false; setOpen(false); }}>{labelFor(option)}</button>)}</div>;
   const select = <details className={`filter-select ${disabled ? "filter-select-disabled" : ""}`} ref={detailsRef} open={disabled ? false : open} onToggle={(event) => { const isOpen = event.currentTarget.open; if (disabled && isOpen) { event.currentTarget.open = false; return; } setOpen(isOpen); if (isOpen) window.dispatchEvent(new CustomEvent("smartegy:popover-open", { detail: popoverId.current })); }}><summary id={id} ref={summaryRef} aria-label={ariaLabel} aria-invalid={ariaInvalid} aria-disabled={disabled} tabIndex={disabled ? -1 : undefined} onClick={(event) => { if (disabled) event.preventDefault(); }}><span className="filter-select-value">{labelFor(value)}</span><Icon name="chevron" size={14} /></summary>{menuMounted && !disabled && menuPosition && typeof document !== "undefined" ? createPortal(menu, document.body) : null}</details>;
   return title ? <FormField title={title} required={required}>{select}</FormField> : select;

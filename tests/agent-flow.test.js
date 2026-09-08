@@ -11,9 +11,16 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 };
 
 const repository = require(path.resolve(__dirname, "../lib/agent-repository.ts"));
+const agentDetailSource = fs.readFileSync(path.resolve(__dirname, "../app/agents/[agentId]/page.tsx"), "utf8");
 const staff = { id: "staff-001", role: "staff", displayName: "Staff User", email: "staff@smartegy.example", agentId: null };
 const admin = { id: "admin-001", role: "admin", displayName: "Admin User", email: "admin@smartegy.example", agentId: null };
 const agent = { id: "user-001", role: "agent", displayName: "Aisha Rahman", email: "aisha@smartegy.example", agentId: "agent-001" };
+
+test("agent sales table does not make Case, Case Status, or Payment Status sortable", () => {
+  assert.ok(!agentDetailSource.includes('sortableSalesHeader("case", "Case")'));
+  assert.ok(!agentDetailSource.includes('sortableSalesHeader("status", "Case Status")'));
+  assert.ok(!agentDetailSource.includes('sortableSalesHeader("payment_status", "Payment Status")'));
+});
 
 test("staff can list all agents with qualification data while agents cannot", async () => {
   repository.resetMockAgents();

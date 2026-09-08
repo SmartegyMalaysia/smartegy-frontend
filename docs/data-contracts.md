@@ -49,8 +49,10 @@ export type CaseStatus =
 export type PaymentStatus =
   | "not_recorded"
   | "pending_verification"
-  | "verified"
-  | "reversed";
+  | "current"
+  | "overdue"
+  | "partially_paid"
+  | "fully_paid";
 
 export type CommissionStatus =
   | "calculated"

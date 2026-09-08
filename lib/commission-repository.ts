@@ -2,7 +2,7 @@ import { mockDashboard } from "./mock-data";
 import type { AgentCommissionRecord, CommissionOverview, CommissionStatus, CurrentUser, ID } from "./types";
 
 export type CommissionResult<T> = { ok: true; data: T } | { ok: false; error: { code: "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR"; message: string } };
-export interface CommissionDirectoryQuery { search?: string; status?: CommissionStatus; month?: string; page?: number; pageSize?: number; sortBy?: "updated" | "next" | "balance" | "newest"; sortDirection?: "asc" | "desc"; }
+export interface CommissionDirectoryQuery { search?: string; status?: CommissionStatus; month?: string; page?: number; pageSize?: number; sortBy?: "updated" | "balance" | "customer"; sortDirection?: "asc" | "desc"; }
 export interface CommissionDirectoryPage { items: AgentCommissionRecord[]; totalItems: number; totalPages: number; }
 
 function addMonths(date: string, months: number) { const next = new Date(`${date}T00:00:00Z`); next.setUTCMonth(next.getUTCMonth() + months); return next.toISOString().slice(0, 10); }
@@ -35,7 +35,7 @@ export const mockAgentCommissionsRepository: AgentCommissionsRepository = {
     const term = query.search?.trim().toLowerCase() ?? "";
     const filtered = result.data.filter((item) => (!term || `${item.caseNumber} ${item.customerDisplayName}`.toLowerCase().includes(term)) && (!query.status || item.status === query.status) && (!query.month || item.nextPaymentDate?.startsWith(query.month)));
     const direction = query.sortDirection === "asc" ? 1 : -1;
-    const sorted = [...filtered].sort((a, b) => { const value = query.sortBy === "balance" ? b.deferredBalanceSen - a.deferredBalanceSen : query.sortBy === "next" ? (a.nextPaymentDate ?? "9999").localeCompare(b.nextPaymentDate ?? "9999") : query.sortBy === "newest" ? (b.qualifyingPaymentDate ?? "").localeCompare(a.qualifyingPaymentDate ?? "") : b.lastUpdatedAt.localeCompare(a.lastUpdatedAt); return value * direction; });
+    const sorted = [...filtered].sort((a, b) => { const value = query.sortBy === "balance" ? a.deferredBalanceSen - b.deferredBalanceSen : query.sortBy === "customer" ? a.customerDisplayName.localeCompare(b.customerDisplayName) : a.lastUpdatedAt.localeCompare(b.lastUpdatedAt); return value * direction; });
     const pageSize = Math.min(10000, Math.max(1, query.pageSize ?? 5)); const page = Math.max(1, query.page ?? 1);
     return { ok: true, data: { items: sorted.slice((page - 1) * pageSize, page * pageSize), totalItems: sorted.length, totalPages: Math.max(1, Math.ceil(sorted.length / pageSize)) } };
   },
