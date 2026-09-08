@@ -68,7 +68,6 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
   const [showWarnings, setShowWarnings] = useState(false);
   const input = useMemo(() => buildInput(salesRepName, proposalDate, saleAmount, readings), [salesRepName, proposalDate, saleAmount, readings]);
   const preview = useMemo(() => input ? calculateProposalPreview(input) : null, [input]);
-  const commissionFloorInvalid = Boolean(input && preview && input.saleAmountSen < preview.minimumSaleAmountSen);
   const fieldWarnings = useMemo(() => getProposalWarnings(salesRepName, proposalDate, saleAmount, readings), [salesRepName, proposalDate, saleAmount, readings]);
   const validationWarning = useMemo(() => firstProposalWarning(fieldWarnings), [fieldWarnings]);
 
@@ -81,7 +80,6 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
     if (validationWarning) { setWarning(validationWarning); return; }
     if (!input) { setWarning("Complete the sales representative, sale amount, date, and all twelve readings."); return; }
     if (!preview) { setWarning("The initial payment obligation cannot exceed the sale amount."); return; }
-    if (commissionFloorInvalid) { setWarning(`Sale Amount must be at least ${formatMoney(preview.minimumSaleAmountSen)} to prevent negative commissions.`); return; }
     setBusy(true); setWarning(null);
     const result = issue ? await casesRepository.issueProposal(user, caseDetail.id, input) : await casesRepository.saveProposalDraft(user, caseDetail.id, input);
     if (result.ok) {
@@ -110,8 +108,7 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
         <TextInput title="Sales Representative" value={salesRepName} onChange={(event) => setSalesRepName(event.target.value)} required fieldClassName={showWarnings && fieldWarnings.salesRepName ? "case-field-warning" : ""} />
         <DatePicker id="proposal-date" title="Proposal Date" value={proposalDate} onChange={setProposalDate} required fieldClassName={showWarnings && fieldWarnings.proposalDate ? "case-field-warning" : ""} />
         <div className="proposal-project-value-field">
-          <MoneyInput id="proposal-sale-amount" title="Sale Amount" inputMode="decimal" value={saleAmount} onChange={(event) => setSaleAmount(event.target.value)} required aria-invalid={showWarnings && commissionFloorInvalid} aria-describedby={preview ? "proposal-sale-amount-minimum" : undefined} fieldClassName={showWarnings && (fieldWarnings.saleAmount || (Boolean(input) && !preview) || commissionFloorInvalid) ? "case-field-warning" : ""} />
-          {preview && <p id="proposal-sale-amount-minimum" className={`proposal-project-value-hint${showWarnings && commissionFloorInvalid ? " proposal-project-value-hint-error" : ""}`}>Minimum for non-negative commissions: {formatMoney(preview.minimumSaleAmountSen)}</p>}
+          <MoneyInput id="proposal-sale-amount" title="Sale Amount" inputMode="decimal" value={saleAmount} onChange={(event) => setSaleAmount(event.target.value)} required aria-invalid={showWarnings && fieldWarnings.saleAmount} fieldClassName={showWarnings && (fieldWarnings.saleAmount || (Boolean(input) && !preview)) ? "case-field-warning" : ""} />
         </div>
         <TextArea title="Project Remarks" value={projectRemarks} onChange={(event) => setProjectRemarks(event.target.value)} placeholder="Add project-specific remarks" />
       </div>
