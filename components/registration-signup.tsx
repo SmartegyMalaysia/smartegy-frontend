@@ -434,17 +434,11 @@ export function RegistrationSignup({
                   {submitting ? (
                     "Please wait…"
                   ) : stage === "registration" ? (
-                    <>
-                      Send OTP <Icon name="arrow" size={16} />
-                    </>
+                    "Send OTP"
                   ) : stage === "otp_verification" ? (
-                    <>
-                      Verify OTP <Icon name="arrow" size={16} />
-                    </>
+                    "Verify OTP"
                   ) : (
-                    <>
-                      Submit payment proof <Icon name="arrow" size={16} />
-                    </>
+                    "Submit payment proof"
                   )}
                 </button>
               )}
@@ -529,6 +523,7 @@ function RegistrationFields({
         <Field
           id="referralCode"
           label="Invitation / Referral Code"
+          error={fieldErrors.referralCode}
           required={false}
         >
           <TextInput

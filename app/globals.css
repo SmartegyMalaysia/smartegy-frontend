@@ -198,11 +198,11 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .registration-intro { margin-bottom: 24px; }
 .registration-intro h1 { margin-bottom: 10px; }
 .registration-intro > p:not(.eyebrow) { color: var(--muted); max-width: 560px; line-height: 1.55; }
-.referral-confirmation { display: flex; align-items: center; gap: 12px; width: fit-content; max-width: 100%; margin-top: 24px; padding: 12px 14px; background: var(--brand-green-soft); border: 1px solid #bbf7d0; border-radius: 8px; color: #166534; }
+.referral-confirmation { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 100%; margin-top: 24px; padding: 12px 14px; background: var(--brand-green-soft); border: 1px solid #bbf7d0; border-radius: 8px; color: #166534; }
 .referral-confirmation > div { display: grid; min-width: 0; gap: 3px; overflow-wrap: anywhere; }
 .referral-confirmation strong { font-size: 13px; }
 .referral-confirmation span:not(.referral-check) { font-size: 12px; }
-.referral-confirmation .badge { margin-left: 8px; }
+.referral-confirmation .badge { margin-left: auto; }
 .referral-check { width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-green); color: white; font-weight: 800; }
 .registration-card { min-width: 0; max-width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; box-shadow: 0 0 0 1px #ffffff, 0 12px 32px -26px #0f172a55; }
 .onboarding-progress { display: flex; align-items: center; min-width: 0; max-width: 100%; gap: 10px; margin-bottom: 30px; }
@@ -577,6 +577,9 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 }
 .proposal-form, .proposal-acceptance-form { display: grid; gap: 18px; }
 .proposal-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.proposal-project-value-field { display: grid; gap: 4px; min-width: 0; }
+.proposal-project-value-hint { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.proposal-project-value-hint-error { color: var(--danger); font-weight: 650; }
 .proposal-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .proposal-section-heading h3 { margin: 0; color: var(--text); font-size: 14px; }
 .proposal-section-heading p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
@@ -1029,6 +1032,8 @@ input::placeholder, textarea::placeholder { font-weight: 400; }
 .profile-page { max-width: 1440px; }
 .profile-page-header { margin-bottom: 20px; }
 .profile-layout { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 16px; align-items: start; }
+.profile-layout:has(.profile-form-panel) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.profile-account-layout .profile-details-panel { grid-column: 1 / -1; }
 .profile-identity-panel, .profile-details-panel { min-width: 0; }
 .profile-identity-panel { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 20px; }
 .profile-identity { display: flex; align-items: center; gap: 14px; min-width: 0; }
@@ -1039,11 +1044,11 @@ input::placeholder, textarea::placeholder { font-weight: 400; }
 .profile-status-stack > span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .profile-form-panel, .profile-details-panel { min-height: 100%; }
 .profile-form { display: grid; gap: 16px; padding: 4px 20px 20px; }
-.profile-field { display: grid; gap: 7px; min-width: 0; }
-.profile-field label { color: var(--text); font-size: 13px; font-weight: 700; }
-.profile-field input, .profile-field select { width: 100%; min-width: 0; min-height: 44px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; color: var(--text); padding: 0 12px; font: inherit; }
+.profile-field, .profile-referral-field { display: grid; gap: 7px; min-width: 0; margin-bottom: 0; }
+.profile-field label, .profile-referral-field label { margin-bottom: 0; color: var(--text); font-size: 13px; font-weight: 700; }
+.profile-field input, .profile-field select, .profile-field .filter-select summary, .profile-referral-field input, .profile-verification-form input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid #e2e8f0; border-radius: 8px; background: white; color: var(--text); padding: 0 12px; font: inherit; }
 .profile-field input:focus, .profile-field select:focus { outline: none; border-color: #06b6d4; background: white; box-shadow: 0 0 0 3px #22d3ee33; }
-.profile-field-error input, .profile-field-error select { border-color: var(--danger); background: var(--danger-bg); }
+.profile-field-error input, .profile-field-error select, .profile-field-error .filter-select summary { border-color: var(--danger); background: var(--danger-bg); }
 .profile-field .field-error { margin: 0; }
 .profile-inline-note { margin: -4px 0 0; padding: 10px 12px; border: 1px solid #a5f3fc; border-radius: 7px; background: #ecfeff; color: #334155; font-size: 12px; line-height: 1.45; }
 .profile-verification-panel { display: grid; gap: 10px; margin: 0 20px 20px; padding: 12px; border: 1px solid #a5f3fc; border-radius: 8px; background: #ecfeff; color: #334155; }
@@ -1068,7 +1073,8 @@ input::placeholder, textarea::placeholder { font-weight: 400; }
 .profile-referral-field { display: grid; gap: 7px; min-width: 0; }
 .profile-referral-field label { min-height: 15px; color: var(--text); font-size: 12px; font-weight: 700; line-height: 15px; }
 .profile-referral-field > div { display: flex; align-items: stretch; min-width: 0; height: 40px; gap: 8px; }
-.profile-referral-field input { min-width: 0; flex: 1; min-height: 40px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-subtle); color: var(--text); padding: 0 10px; font: inherit; font-size: 12px; }
+.profile-referral-field input { min-width: 0; flex: 1; min-height: 40px; border: 1px solid var(--border); border-radius: 8px; background: white; color: var(--text); padding: 0 10px; font: inherit; font-size: 12px; }
+.profile-referral-field input[readonly] { background: var(--surface-subtle); color: var(--text); cursor: not-allowed; }
 .profile-referral-field input:focus { outline: 2px solid #38bdf8; outline-offset: 2px; }
 .profile-referral-field .button { flex: 0 0 auto; }
 .profile-referral-field .button { min-height: 40px; }
@@ -1104,7 +1110,7 @@ input::placeholder, textarea::placeholder { font-weight: 400; }
 .profile-back-button { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 18px; border: 0; background: transparent; color: var(--brand); cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; padding: 4px 0; }
 .profile-back-button:hover { color: var(--brand-dark); text-decoration: underline; }
 .profile-avatar-image { display: block; width: 64px; height: 64px; flex: 0 0 64px; border: 1px solid #a5f3fc; border-radius: 50%; background: var(--brand-green-soft); object-fit: cover; }
-@media (max-width: 760px) { .profile-identity-panel { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 16px; } .profile-status-stack { justify-content: flex-start; } .profile-layout { grid-template-columns: 1fr; } .profile-form { padding-left: 16px; padding-right: 16px; } .profile-detail-list { margin-left: 16px; margin-right: 16px; } .profile-referral-body { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; } .profile-referral-field > div { align-items: stretch; flex-direction: column; height: auto; } .profile-referral-field .button { width: 100%; } .profile-verification-panel { margin-left: 16px; margin-right: 16px; } .profile-verification-form > div { align-items: stretch; flex-direction: column; } .profile-verification-form .button { width: 100%; } .profile-pending-notice { grid-template-columns: 1fr; gap: 10px; } .profile-pending-notice .text-link { white-space: normal; } .profile-actions-panel { align-items: flex-start; flex-direction: column; padding: 16px; } .profile-account-actions { width: 100%; } .profile-account-actions .button { flex: 1; justify-content: center; } }
+@media (max-width: 760px) { .profile-identity-panel { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 16px; } .profile-status-stack { justify-content: flex-start; } .profile-layout, .profile-layout:has(.profile-form-panel) { grid-template-columns: 1fr; } .profile-form { padding-left: 16px; padding-right: 16px; } .profile-detail-list { margin-left: 16px; margin-right: 16px; } .profile-referral-body { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; } .profile-referral-field > div { align-items: stretch; flex-direction: column; height: auto; } .profile-referral-field .button { width: 100%; } .profile-verification-panel { margin-left: 16px; margin-right: 16px; } .profile-verification-form > div { align-items: stretch; flex-direction: column; } .profile-verification-form .button { width: 100%; } .profile-pending-notice { grid-template-columns: 1fr; gap: 10px; } .profile-pending-notice .text-link { white-space: normal; } .profile-actions-panel { align-items: flex-start; flex-direction: column; padding: 16px; } .profile-account-actions { width: 100%; } .profile-account-actions .button { flex: 1; justify-content: center; } }
 
 .users-page { max-width: 1480px; }
 .users-page .page-header { align-items: center; }

@@ -1,6 +1,6 @@
 "use client";
 
-import { TextInput, TextArea } from "@/components/form-controls";
+import { FormField, TextInput, TextArea } from "@/components/form-controls";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,7 @@ import {
   PermissionDenied,
 } from "@/components/ui";
 import { Icon } from "@/components/icons";
+import { FilterSelect } from "@/components/filter-select";
 import { agentProfileRepository } from "@/lib/profile-repository";
 import { MALAYSIAN_BANKS } from "@/lib/malaysian-banks";
 import { usePreviewUser } from "@/lib/preview-user";
@@ -268,7 +269,7 @@ function ProfileAccount({ user }: { user: CurrentUser }) {
           </p>
         </div>
       </div>
-      <div className="profile-layout">
+      <div className="profile-layout profile-account-layout">
         <section className="panel profile-identity-panel">
           <div className="profile-identity">
             <Image
@@ -380,8 +381,11 @@ function ReferralPanel({
         </div>
       </div>
       <div className="profile-referral-body">
-        <div className="profile-referral-field">
-          <label htmlFor="referral-link">Sign-up link</label>
+        <FormField
+          title="Sign-up link"
+          htmlFor="referral-link"
+          className="profile-referral-field"
+        >
           <div>
             <TextInput id="referral-link" value={referralLink} readOnly />
             <button
@@ -392,9 +396,12 @@ function ReferralPanel({
               {copied === "link" ? "Copied" : "Copy link"}
             </button>
           </div>
-        </div>
-        <div className="profile-referral-field">
-          <label htmlFor="referral-code">Referral code</label>
+        </FormField>
+        <FormField
+          title="Referral code"
+          htmlFor="referral-code"
+          className="profile-referral-field"
+        >
           <div>
             <TextInput id="referral-code" value={referralCode} readOnly />
             <button
@@ -408,7 +415,7 @@ function ReferralPanel({
           <small>
             Use this code when completing the referral field manually.
           </small>
-        </div>
+        </FormField>
       </div>
     </section>
   );
@@ -488,24 +495,21 @@ function ProfileField({
   options?: readonly string[];
 }) {
   return (
-    <div className={`profile-field ${error ? "profile-field-error" : ""}`}>
-      <label htmlFor={id}>{label}</label>
+    <FormField
+      title={label}
+      htmlFor={id}
+      className={`profile-field ${error ? "profile-field-error" : ""}`}
+    >
       {options ? (
-        <select
+        <FilterSelect
           id={id}
+          allLabel="Select a bank"
           value={value}
-          onChange={(event) => onChange(event.target.value)}
-          autoComplete={autoComplete}
-          aria-invalid={Boolean(error)}
-          aria-describedby={error ? `${id}-error` : undefined}
-        >
-          <option value="">Select a bank</option>
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+          options={[...options]}
+          onChange={onChange}
+          ariaLabel={label}
+          ariaInvalid={Boolean(error)}
+        />
       ) : (
         <TextInput
           id={id}
@@ -523,6 +527,6 @@ function ProfileField({
           {error}
         </p>
       )}
-    </div>
+    </FormField>
   );
 }
