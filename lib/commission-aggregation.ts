@@ -20,7 +20,7 @@ export type CommissionAggregationQuery = {
   search?: string;
   status?: CommissionStatus;
   month?: string;
-  sortBy?: "updated" | "next" | "balance" | "newest";
+  sortBy?: "updated" | "next" | "balance" | "customer";
   sortDirection?: "asc" | "desc";
 };
 
@@ -88,7 +88,7 @@ export function filterAndSortCommissionRecords(items: AgentCommissionRecord[], q
   });
   const direction = query.sortDirection === "asc" ? 1 : -1;
   return [...filtered].sort((a, b) => {
-    const value = query.sortBy === "balance" ? b.deferredBalanceSen - a.deferredBalanceSen : query.sortBy === "next" ? (a.nextPaymentDate ?? "9999").localeCompare(b.nextPaymentDate ?? "9999") : b.lastUpdatedAt.localeCompare(a.lastUpdatedAt);
+    const value = query.sortBy === "balance" ? a.deferredBalanceSen - b.deferredBalanceSen : query.sortBy === "customer" ? a.customerDisplayName.localeCompare(b.customerDisplayName) : query.sortBy === "next" ? (a.nextPaymentDate ?? "9999").localeCompare(b.nextPaymentDate ?? "9999") : a.lastUpdatedAt.localeCompare(b.lastUpdatedAt);
     return value * direction;
   });
 }

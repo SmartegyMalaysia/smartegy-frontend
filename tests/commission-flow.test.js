@@ -11,9 +11,21 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 };
 
 const repository = require(path.resolve(__dirname, "../lib/commission-repository.ts"));
+const pageSource = fs.readFileSync(path.resolve(__dirname, "../app/commissions/page.tsx"), "utf8");
 const agent = { id: "user-001", role: "agent", displayName: "Aisha Rahman", email: "aisha@smartegy.example", agentId: "agent-001" };
 const otherAgent = { id: "user-002", role: "agent", displayName: "Daniel Lim", email: "daniel@smartegy.example", agentId: "agent-002" };
 const staff = { id: "staff-001", role: "staff", displayName: "Staff User", email: "staff@smartegy.example", agentId: null };
+
+test("commissions sort controls are clickable table headers instead of a dropdown", () => {
+  assert.ok(!pageSource.includes('<label><span>Sort by</span>'), "The commissions page should not render a sort dropdown.");
+  assert.ok(pageSource.includes("sortableHeader(\"customer\", \"Customer\")"), "Customer should be sortable from the table header.");
+  assert.ok(!pageSource.includes("sortableHeader(\"newest\", \"Case\")"), "Case should not be the sortable replacement for Customer.");
+  assert.ok(pageSource.includes("sortableHeader(\"balance\", \"Remaining\")"), "Remaining should be sortable from the table header.");
+  assert.ok(pageSource.includes('"Next payout"'), "Next payout should remain visible in the table.");
+  assert.ok(!pageSource.includes("sortableHeader(\"next\", \"Next payout\")"), "Next payout should not be sortable from the table header.");
+  assert.ok(pageSource.includes("sortableHeader(\"updated\", \"Updated\")"), "Updated should be sortable from the table header.");
+  assert.ok(pageSource.includes("setSortDirection"), "Clicking the active header should toggle sort direction.");
+});
 
 test("agent can view only their own commission records and receives the full 17-month schedule", async () => {
   const list = await repository.mockAgentCommissionsRepository.list(agent);

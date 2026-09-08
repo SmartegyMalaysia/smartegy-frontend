@@ -115,7 +115,7 @@ export const supabaseAgentRepository: AgentRepository = {
         supabase.from("agents").select("*,upline:agents!upline_agent_id(legal_name)").eq("id", data.upline_agent_id),
         supabase.from("agents").select("*,upline:agents!upline_agent_id(legal_name)").eq("upline_agent_id", agentId),
       ]);
-      const mapSale = (row: any) => ({ id: row.id, caseNumber: row.case_number, customerDisplayName: row.customer_name, agentId: row.agent_id, agentName: row.agent_name, status: row.status, paymentStatus: Number(row.outstanding_customer_balance ?? 0) > 0 ? "pending_verification" : "verified", saleAmountSen: row.sale_amount == null ? null : rmToSen(row.sale_amount), submittedAt: row.created_at, updatedAt: row.status_changed_at });
+      const mapSale = (row: any) => ({ id: row.id, caseNumber: row.case_number, customerDisplayName: row.customer_name, agentId: row.agent_id, agentName: row.agent_name, status: row.status, paymentStatus: Number(row.outstanding_customer_balance ?? 0) > 0 ? "current" : "fully_paid", saleAmountSen: row.sale_amount == null ? null : rmToSen(row.sale_amount), submittedAt: row.created_at, updatedAt: row.status_changed_at });
       const mappedCommissions = aggregateCommissionRows((commissions ?? []) as CommissionRow[]).map((commission) => ({ ...commission, recipientName: agent.displayName }));
       return { ok: true, data: { agent, sales: (sales ?? []).map(mapSale), commissions: mappedCommissions, uplineAgents: await Promise.all((uplines ?? []).map((row: any) => mapAgent(row, supabase))), downlineAgents: await Promise.all((downlines ?? []).map((row: any) => mapAgent(row, supabase))) } as AgentWorkspaceDetail };
     } catch (error) { return errorResult(error); }

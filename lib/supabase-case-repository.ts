@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient, normalizeSupabaseError } from "./supabase-browser";
 import type { AcceptTrialInput, AcceptanceInput, CaseDetail, CaseDocument, CaseStatus, CurrentUser, CreateCaseInput, GeneratedDocumentResult, GeneratePaymentScheduleInput, ID, ProposalInput, RecordPaymentInput, UpdateCaseInput, VerifyPaymentInput } from "./types";
+import { derivePaymentStatus } from "./case-repository";
 import type { CaseDirectoryQuery, CaseResult, CasesRepository } from "./case-repository";
 import { validateFileSignature } from "./document-config";
 
@@ -76,12 +77,7 @@ async function loadCase(caseId: string): Promise<CaseDetail> {
   const state = customer?.state || legacyAddress.state;
   const scheduleRows = (schedules ?? []).map((item: any) => ({ id: item.id, caseId: item.case_id, sequence: Number(item.sequence_no), kind: item.kind, dueDate: item.due_date, amountDueSen: moneyToSen(item.amount_due) ?? 0, amountPaidSen: moneyToSen(item.amount_paid) ?? 0, status: item.status }));
   const paymentRows = (payments ?? []).map((payment: any) => { const proof = docs.find((document) => document.id === payment.proof_document_id); return { id: payment.id, caseId: payment.case_id, amountSen: moneyToSen(payment.amount) ?? 0, paymentDate: payment.paid_on, reference: payment.reference, proofDocumentId: payment.proof_document_id ?? null, proofFileName: proof?.fileName ?? null, proofMimeType: proof?.mimeType ?? null, rejectionReason: payment.rejection_reason ?? null, status: payment.status, recordedBy: payment.submitted_by ?? "system", recordedAt: payment.created_at, verifiedBy: payment.verified_by, verifiedAt: payment.verified_at }; });
-  const outstanding = scheduleRows.reduce((sum: number, item: any) => sum + item.amountDueSen - item.amountPaidSen, 0);
-  const paymentStatus = paymentRows.some((payment: any) => payment.status === "pending_verification")
-    ? "pending_verification"
-    : scheduleRows.length && outstanding <= 0
-      ? "verified"
-      : "not_recorded";
+  const paymentStatus = derivePaymentStatus({ paymentSchedules: scheduleRows, payments: paymentRows });
   return {
     id: row.id, caseNumber: row.case_number, customerDisplayName: row.customer_name, agentId: row.agent_id, agentName: row.agent_name, status: status(row.status), paymentStatus, saleAmountSen: moneyToSen(row.sale_amount), submittedAt: row.created_at, updatedAt: row.status_changed_at,
     customer: { id: baseCase.customer_id, displayName: row.customer_name, companyRegistrationNumber: row.registration_number, contactName: row.contact_name, email: customer?.email ?? null, phone: customer?.phone ?? null },
