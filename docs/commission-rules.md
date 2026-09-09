@@ -8,14 +8,16 @@ Do not infer a general formula from a single example. Any unresolved rule must r
 
 ## 2. Trigger
 
-- A commission is generated only after an authorised user verifies the relevant qualifying customer payment.
+- Commission entitlements are calculated from the original project amount, excluding the 10% financing interest on the 20-month customer option.
+- The initial commission entries become approved/payable only after authorised staff fully verify the post-installation payment (the Stage 5 two-month balance).
+- Deferred commission entries are created at that point as scheduled entries.
 - Payment verification must record the verifier and timestamp.
 - The same qualifying payment event must not generate duplicate commission schedules.
 - If a payment is reversed or corrected, the original calculation remains auditable and any reversal/adjustment is recorded separately.
 
 ## 3. Total Entitlement
 
-For the approved RM24,500 worked example, total commission is 20% of the sale:
+For the approved RM24,500 worked example, total commission is 20% of the original project amount:
 
 | Recipient | Percentage of sale | Total entitlement |
 |---|---:|---:|
@@ -28,13 +30,20 @@ For the approved RM24,500 worked example, total commission is 20% of the sale:
 Calculation:
 
 ```text
-total commission pool = sale amount × 20%
-recipient entitlement = sale amount × recipient percentage
+total commission pool = original project amount × 20%
+recipient entitlement = original project amount × recipient percentage
 ```
 
 The system must confirm which actual agent occupies each eligible level for the case. No payment should be assigned merely because a level exists in the table.
 
 ## 4. First-Payment Distribution
+
+The reusable first-payment commission pool is half of the initial customer obligations:
+
+```text
+first-payment commission pool = (final downpayment + post-installation payment) / 2
+post-installation payment = final downpayment × 2
+```
 
 For the worked example, Smartegy supplied an approved first-payment commission pool of RM1,747.20.
 
@@ -161,12 +170,10 @@ These checks should be covered by automated tests when the calculation engine is
 
 Do not mark the commission engine production-ready until Smartegy confirms:
 
-1. The reusable first-payment pool is half of the deposit plus post-installation obligations: verified monthly RM savings × 3 ÷ 2.
-2. How recipients are selected from the referral hierarchy for each level.
-3. What happens if an eligible level is vacant or a recipient is inactive.
-4. Whether the Office always receives 10% and the stated first-payment share.
-5. Whether partial customer payments trigger proportional commissions or no commission until a threshold is reached.
-6. When the 17-month schedule begins and how due dates are determined.
-7. Rules for cancellations, refunds, clawbacks, agent exits, and withheld payments.
-8. Whether tax or statutory deductions affect the displayed or paid amounts.
-9. Who may approve, adjust, reverse, and mark commissions paid.
+1. How recipients are selected from the referral hierarchy for each level.
+2. What happens if an eligible level is vacant or a recipient is inactive.
+3. Whether the Office always receives 10% and the stated first-payment share.
+4. When the 17-month deferred schedule begins and how due dates are determined.
+5. How agent exits and withheld payments are handled. Customer downpayments are non-refundable and case cancellation is a manual agent/staff/admin action; no automatic customer refund or commission clawback is created.
+6. Whether tax or statutory deductions affect the displayed or paid amounts.
+7. Who may adjust, reverse, and mark commissions paid after the automatic initial approval.

@@ -30,18 +30,20 @@ test("case action visibility gives staff and admin the same normal processing ac
   assert.ok(pendingDeposit.some((action) => action.label === "Verify Deposit" && action.variant === "primary"));
   assert.ok(!awaitingDeposit.some((action) => action.label === "Set Installation Date"));
   const depositPaid = workflow.caseActionLabels("awaiting_installation_scheduling", "staff", true, true);
-  assert.ok(!depositPaid.some((action) => action.label === "Record Deposit"));
+  assert.ok(!depositPaid.some((action) => action.kind === "submit_deposit"));
   assert.ok(depositPaid.some((action) => action.label === "Set Installation Date"));
   const agentPendingDeposit = workflow.caseActionLabels("deposit_pending_verification", "agent", true, false, true);
   assert.ok(!agentPendingDeposit.some((action) => action.label.includes("Verify")));
   const agentPartialDeposit = workflow.caseActionLabels("deposit_pending_verification", "agent", true, false, false);
-  assert.ok(agentPartialDeposit.some((action) => action.label === "Record Another Deposit Payment"));
+  assert.ok(agentPartialDeposit.some((action) => action.label === "Record Another Downpayment"));
   const agentPartialPostInstallation = workflow.caseActionLabels("post_installation_payment_pending_verification", "agent", true, true, true, false, 120000, 200000);
   assert.ok(agentPartialPostInstallation.some((action) => action.label === "Record Another Post-Installation Payment"));
   const agentFullyPendingPostInstallation = workflow.caseActionLabels("post_installation_payment_pending_verification", "agent", true, true, true, false, 200000, 200000);
   assert.ok(!agentFullyPendingPostInstallation.some((action) => action.kind === "submit_post_installation_payment"));
   assert.ok(workflow.caseActionLabels("active_installments", "agent", true, true, false).some((action) => action.label === "Record Installment Payment"));
   assert.ok(workflow.caseActionLabels("active_installments", "staff", true, true, true).some((action) => action.label === "Verify Installment Payment"));
+  assert.ok(workflow.caseActionLabels("installed_monitoring", "agent").some((action) => action.kind === "verify_savings"));
+  assert.ok(!workflow.caseActionLabels("installed_monitoring", "staff").some((action) => action.kind === "verify_savings"));
   assert.equal(workflow.caseActionLabels("changes_requested", "agent")[0].label, "Resubmit for Review");
   assert.ok(!workflow.caseActionLabels("completed", "staff").some((action) => action.label === "Delete Case"));
   assert.ok(workflow.caseActionLabels("draft", "agent").some((action) => action.label === "Delete Case"));
@@ -116,10 +118,13 @@ test("operational prerequisites lead to one commission calculation and block pre
   assert.equal(completedPostInstallationPayment.ok, true);
   assert.equal(completedPostInstallationPayment.data.status, "installed_monitoring");
   result = completedPostInstallationPayment;
-  result = await repository.mockCasesRepository.verifySavings(staff, "case-002", 2500, 7500);
+  result = await repository.mockCasesRepository.verifySavings(agent, "case-002", { readings: [
+    { sequence: 1, month: "2026-06", tnbRate: 0.3, kwhUsed: 2500, billAmountSen: 75000, operationDays: 30, dailyKwh: 83.333 },
+    { sequence: 2, month: "2026-07", tnbRate: 0.3, kwhUsed: 2500, billAmountSen: 75000, operationDays: 31, dailyKwh: 80.645 },
+    { sequence: 3, month: "2026-08", tnbRate: 0.3, kwhUsed: 2500, billAmountSen: 75000, operationDays: 31, dailyKwh: 80.645 },
+  ] });
   assert.equal(result.ok, true);
-  result = await repository.mockCasesRepository.transition(staff, "case-002", "trial_review");
-  assert.equal(result.ok, true);
+  assert.equal(result.data.status, "trial_review");
   result = await repository.mockCasesRepository.acceptTrial(admin, "case-002", { installmentStart: "2026-10-01", termMonths: 10 });
   assert.equal(result.ok, true);
   assert.equal(result.data.status, "active_installments");

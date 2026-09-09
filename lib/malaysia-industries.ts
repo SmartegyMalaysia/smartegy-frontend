@@ -1,0 +1,26 @@
+export const malaysiaIndustries = [
+  "Agriculture, Forestry and Fishing",
+  "Mining and Quarrying",
+  "Manufacturing",
+  "Electricity, Gas, Steam and Air Conditioning Supply",
+  "Water Supply, Sewerage, Waste Management and Remediation",
+  "Construction",
+  "Wholesale and Retail Trade",
+  "Transportation and Storage",
+  "Accommodation and Food Service Activities",
+  "Information and Communication",
+  "Financial and Insurance Activities",
+  "Real Estate Activities",
+  "Professional, Scientific and Technical Activities",
+  "Administrative and Support Service Activities",
+  "Public Administration and Defence",
+  "Education",
+  "Human Health and Social Work Activities",
+  "Arts, Entertainment and Recreation",
+  "Other Service Activities",
+  "Household Activities",
+  "Activities of Extraterritorial Organisations and Bodies",
+  "Other",
+] as const;
+
+export type MalaysiaIndustry = (typeof malaysiaIndustries)[number];

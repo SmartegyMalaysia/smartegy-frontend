@@ -71,7 +71,7 @@ export type DocumentType =
   | "receipt"
   | "other";
 
-export type FinancialDocumentType = "invoice" | "receipt";
+export type FinancialDocumentType = "invoice";
 export type AgentLevel = 1 | 2 | 3;
 
 export type AgentRegistrationStatus =
@@ -232,6 +232,8 @@ export interface CustomerRecord {
   contactName: string | null;
   email: string | null;
   phone: string | null;
+  businessType: string | null;
+  businessTypeOther: string | null;
 }
 
 export interface ServiceRecord {
@@ -260,13 +262,43 @@ export interface CaseDocumentInput {
 }
 
 export interface CreateCaseInput {
-  customer: Pick<CustomerRecord, "displayName" | "contactName" | "email" | "phone">;
+  customer: Pick<CustomerRecord, "displayName" | "contactName" | "email" | "phone" | "businessType" | "businessTypeOther">;
   service: Pick<ServiceRecord, "siteAddress" | "notes">;
   documents: CaseDocumentInput[];
 }
 ```
 
-For the Version 1 agent submission flow, `customer.displayName` and one `electricity_bill` document are required. Contact, email, phone, service address, electricity account number, notes, and `supporting_document` uploads remain optional. The upload boundary validates configured file types and maximum size, stores document metadata against the case, and enforces ownership when an agent reads a case or its documents.
+For the Version 1 agent submission flow, `customer.displayName`, `customer.businessType`, and one `electricity_bill` document are required. `businessTypeOther` is required only when `businessType` is `Other`. Contact, email, phone, service address, electricity account number, notes, and `supporting_document` uploads remain optional. The business type is not included in reports/exports. The upload boundary validates configured file types and maximum size, stores document metadata against the case, and enforces ownership when an agent reads a case or its documents.
+
+### 5.1 Proposal and Savings Records
+
+```ts
+export interface EnergyReading {
+  sequence: number;
+  month: string; // YYYY-MM; completed historical month only
+  billAmountSen: MoneySen;
+  kwhUsed: number;
+  tnbRate: number; // server-derived bill RM / kWh
+  operationDays: number; // server-derived calendar days, not editable
+  dailyKwh: number;
+}
+
+export interface ProposalInput {
+  salesRepName: string;
+  proposalDate: ISODate;
+  saleAmountSen: MoneySen; // original project amount
+  downpaymentSen?: MoneySen | null; // null uses highest bill × 8%
+  readings: EnergyReading[]; // 1–12 unique months
+}
+
+export interface SavingsVerificationInput {
+  readings: EnergyReading[]; // exactly three unique months
+}
+```
+
+The server recalculates every derived amount and stores the issued proposal snapshot. The final editable downpayment, its calculated suggestion, post-installation amount, original project amount, 10% 20-month financing interest, and 10/20-month schedule totals must remain reproducible. Existing accepted proposals and schedules are not recalculated by this rule change.
+
+Only the case-owner agent records the three post-installation savings rows. Submission requires no staff/admin confirmation and records the readings, averages, derived savings, actor, and timestamp for display in the case Savings card.
 
 ## 6. Payments
 
@@ -405,10 +437,7 @@ export interface FinancialDocumentSummary {
 export interface GenerateFinancialDocumentInput {
   caseId: ID;
   type: FinancialDocumentType;
-  amountSen: MoneySen;
-  issueDate: ISODate;
-  paymentId?: ID;
-  notes?: string;
+  paymentScheduleId: ID;
 }
 
 export interface GenerateFinancialDocumentResult {
@@ -417,7 +446,7 @@ export interface GenerateFinancialDocumentResult {
 }
 ```
 
-The server allocates the sequential document number, generates the PDF, stores it securely, and returns the resulting record. The client must not predict document numbers or submit a storage path. Registration-fee payments are handled by the registration contract below and do not generate a registration-fee receipt in this Version 1 flow.
+The server permits the case-owner agent, staff, or admin to allocate the sequential document number, generates a DOCX from the correct template, stores it securely, and returns the resulting record. There may be only one active invoice per payment schedule; a voided invoice may be regenerated under the server numbering rules. The client must not predict document numbers or submit a storage path. New case receipts and PDF variants are not generated. Historical receipt records remain readable. Registration-fee payments are handled by the registration contract below and do not generate a registration-fee receipt in this Version 1 flow.
 
 ## 9. Reports and Pagination
 

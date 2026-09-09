@@ -17,6 +17,8 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 };
 
 const queueSource = fs.readFileSync(path.resolve(__dirname, "../components/case-queue.tsx"), "utf8");
+const workspaceSource = fs.readFileSync(path.resolve(__dirname, "../components/case-workspace.tsx"), "utf8");
+const workflowSource = fs.readFileSync(path.resolve(__dirname, "../lib/case-workflow.ts"), "utf8");
 const filterSource = fs.readFileSync(path.resolve(__dirname, "../components/filter-select.tsx"), "utf8");
 const tableSource = fs.readFileSync(path.resolve(__dirname, "../components/data-table.tsx"), "utf8");
 const typesSource = fs.readFileSync(path.resolve(__dirname, "../lib/types.ts"), "utf8");
@@ -108,4 +110,35 @@ test("case repository sorting remains available for clickable table headers", as
   assert.equal(result.ok, true);
   const amounts = result.data.items.map((item) => item.saleAmountSen ?? 0);
   assert.deepEqual(amounts, [...amounts].sort((left, right) => left - right));
+});
+
+test("case workspace exposes the six-stage tracker and keeps detailed status handling", () => {
+  for (const stage of [
+    "Customer Details",
+    "Admin Review & Quotation",
+    "Bank Downpayment & Signed Proposal",
+    "Installation",
+    "Two-Month Balance",
+    "Recurring Balance",
+  ]) assert.ok(workflowSource.includes(stage), `The case tracker must include ${stage}.`);
+  assert.ok(workspaceSource.includes("getCaseFlowStageIndex(caseDetail.status)"), "The tracker must derive its current stage from the detailed status.");
+});
+
+test("case documents open their signed URL in a new tab and do not offer receipt generation", () => {
+  assert.ok(workspaceSource.includes('window.open(result.data, "_blank"'), "Document actions must open the signed URL in a new tab.");
+  assert.ok(!workspaceSource.includes('generateDocument("receipt"'), "The case workspace must not expose new receipt generation.");
+  assert.ok(!workspaceSource.includes("Generate Receipt"), "Receipt generation actions must be removed from the case workspace.");
+});
+
+test("case workspace wires savings verification to exactly three readings", () => {
+  assert.ok(workspaceSource.includes("const emptySavingsReadings = (): SavingsReadingDraft[] => Array.from({ length: 3 }"));
+  assert.ok(workspaceSource.includes("if (drafts.length !== 3) return null"));
+  assert.ok(workspaceSource.includes("verifySavings(user, caseDetail.id, { readings })"));
+  assert.ok(workspaceSource.includes("caseDetail.verifiedSavings.readings.map"));
+});
+
+test("case workspace offers invoice generation per active schedule row", () => {
+  assert.ok(workspaceSource.includes("activeInvoiceScheduleIds"), "Invoice candidates must be derived from payment schedules without issued invoices.");
+  assert.ok(workspaceSource.includes('generateDocument("proforma", schedule.id)'), "The existing financial-document repository method must be used for schedule invoices.");
+  assert.ok(workspaceSource.includes("canGenerateInvoice"), "Invoice generation must be permission-gated to the submitting agent or staff/admin.");
 });

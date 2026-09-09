@@ -2,7 +2,7 @@
 
 ## 1. Product Summary
 
-Smartegy needs a responsive web application that manages electricity-saving cases from agent submission through customer payment, commission calculation, and commission tracking. The system centralises case records, supporting documents, agent relationships, invoices, receipts, dashboards, and reports.
+Smartegy needs a responsive web application that manages electricity-saving cases from agent submission through customer payment, commission calculation, and commission tracking. The system centralises case records, supporting documents, agent relationships, invoices, dashboards, and reports. Existing receipt records may remain viewable, but the case workflow does not generate new receipts.
 
 The application replaces fragmented spreadsheet and manual follow-up work with a controlled source of truth for agents, operational staff, finance, and management.
 
@@ -24,7 +24,7 @@ Version 1 includes:
 1. Case tracking and document uploads.
 2. Agent and referral management.
 3. Commission calculation and tracking.
-4. Invoice and receipt generation and retrieval.
+4. Invoice generation and retrieval, with historical receipt visibility where applicable.
 5. Agent and administrative dashboards.
 6. Operational and management reports.
 7. Authentication and role-based access needed for the above functions.
@@ -57,9 +57,9 @@ Version 2 is not part of the Version 1 implementation or acceptance criteria.
 
 | Role | Primary responsibilities |
 |---|---|
-| Agent | Complete registration, submit the RM50 registration fee proof, submit cases, upload documents, track own cases, view own/referral information permitted by policy, and view own commissions |
-| Staff | Review and manage agent registrations, manually verify registration-fee payments, and manage cases, agents, documents, operational statuses, invoices, receipts, commissions, and reports. The Staff view currently matches the Admin view. |
-| Admin | Review and manage agent registrations, manually verify registration-fee payments, and manage cases, agents, documents, operational statuses, invoices, receipts, commissions, and reports. The Admin view currently matches the Staff view. |
+| Agent | Complete registration, submit the RM50 registration fee proof, submit cases, upload documents, track own cases, record post-installation savings, generate case invoices, view own/referral information permitted by policy, and view own commissions |
+| Staff | Review and manage agent registrations, manually verify registration-fee payments, and manage cases, agents, documents, operational statuses, invoices, commissions, and reports. The Staff view currently matches the Admin view. |
+| Admin | Review and manage agent registrations, manually verify registration-fee payments, and manage cases, agents, documents, operational statuses, invoices, commissions, and reports. The Admin view currently matches the Staff view. |
 
 Detailed differences between Staff and Admin must be confirmed before production. Until then, the mock frontend exposes the same navigation and dashboard content for both roles; the server must independently enforce the eventual permission matrix.
 
@@ -69,13 +69,32 @@ Only an active administrator can invite a new Staff user. The invitation opens a
 
 ### 5.1 Case Submission and Processing
 
+Every case page shows this six-stage tracker:
+
+1. Customer Details.
+2. Admin Review & Quotation.
+3. Bank Downpayment & Signed Proposal.
+4. Installation.
+5. Two-Month Balance.
+6. Recurring Balance.
+
+“Downpayment” is the customer-facing term. It is non-refundable. The existing internal `deposit` schedule kind remains a compatibility detail and must not leak into new UI copy.
+
 1. An authenticated agent creates a case.
 2. The agent enters required customer and case information.
 3. The agent uploads an electricity bill and other supporting documents.
 4. The system validates required fields and records the submission.
 5. Authorised staff review the case and documents.
 6. Staff update the case as it moves through quotation, acceptance, installation, payment, and completion.
-7. Related invoices, receipts, payments, and commissions are linked to the case.
+7. Related invoices, payments, and commissions are linked to the case. Historical receipts may remain visible.
+
+The customer details include a required Malaysian industry/type-of-business selection. Selecting `Other` requires a custom value. This field is an operational indicator for staff/admin and is excluded from reports and exports.
+
+Proposal preparation starts with one electricity-reading row and allows 1–12 unique completed historical months. Month/year selection fixes the operation-days value to the calendar days in that month. Users enter bill amount and kWh; the displayed TNB rate is derived as `bill RM / kWh` and shown to 4–6 decimal places. Money is stored to two decimal places. The current document template remains in use until Smartegy supplies the new repeatable-row template.
+
+For newly created proposals, the suggested downpayment is 8% of the highest submitted monthly TNB bill and remains editable before the proposal is issued. The post-installation payment is twice the final edited downpayment. Ten-month recurring payments divide the remaining original project amount after those two payments. Twenty-month financing adds 10% of the original project amount before subtracting the two initial payments and dividing the remainder over 20 months. Issued proposal values are snapshotted so existing cases continue under their issued rules.
+
+After installation and full verification of the post-installation payment, the case owner records exactly three post-installation monthly readings. No staff/admin savings approval is required; the case page stores and displays those readings and derived savings in a dedicated card. Staff/admin chooses the first recurring instalment date and may select or change the 10/20-month term immediately before starting the trial schedule.
 
 Case statuses:
 
@@ -138,19 +157,20 @@ Each agent must manually transfer RM50.00 as part of registration. The system di
 
 All mathematical and policy details are defined in `commission-rules.md`.
 
-### 5.5 Invoice and Receipt Processing
+### 5.5 Invoice Processing
 
-Authorised staff can:
+The case owner agent, staff, or admin can:
 
-- Generate an invoice for a qualifying case.
-- Generate a receipt after payment verification.
+- Manually generate one active invoice for the downpayment, post-installation payment, or each recurring instalment schedule.
 - Assign sequential document numbers on the server.
-- Link the document to its case, customer, agent, and payment where relevant.
-- Download the generated PDF.
+- Link the document to its case, customer, agent, and payment schedule.
+- Open the generated DOCX in a new browser tab. PDF generation is disabled because the current PDF output is incorrect.
 - View previously issued documents.
 - Record issue/payment dates, amounts, and references.
 
-Smartegy must supply approved invoice and receipt templates, company details, numbering rules, tax wording, and required fields.
+An invoice remains open until fully paid. Unpaid value does not carry forward into the next invoice, and no late charge or grace-period adjustment is added. Existing receipt records can remain viewable, but no new case receipts are generated.
+
+Smartegy must supply the replacement proposal template later. Until then, the correct existing DOCX template remains authoritative.
 
 ### 5.6 Reporting
 

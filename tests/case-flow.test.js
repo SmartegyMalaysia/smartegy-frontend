@@ -12,12 +12,30 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 };
 
 const repository = require(path.resolve(__dirname, "../lib/case-repository.ts"));
+const newCaseSource = fs.readFileSync(path.resolve(__dirname, "../app/cases/new/page.tsx"), "utf8");
+const { malaysiaIndustries } = require(path.resolve(__dirname, "../lib/malaysia-industries.ts"));
 const agent = { id: "user-001", role: "agent", displayName: "Aisha Rahman", email: "aisha@smartegy.example", agentId: "agent-001" };
 const otherAgent = { id: "user-002", role: "agent", displayName: "Daniel Lim", email: "daniel@smartegy.example", agentId: "agent-002" };
 
 function input(documents) {
-  return { customer: { displayName: "Test Customer", contactName: "Test Contact", email: "customer@example.com", phone: "012345678" }, service: { siteAddress: "12 Test Street", electricityAccountNumber: "ACC-123", notes: "Optional context" }, documents };
+  return { customer: { displayName: "Test Customer", contactName: "Test Contact", email: "customer@example.com", phone: "012345678", businessType: "Wholesale and Retail Trade", businessTypeOther: null }, service: { siteAddress: "12 Test Street", electricityAccountNumber: "ACC-123", notes: "Optional context" }, documents };
 }
+
+test("new case captures required Malaysian business type and conditional Other value", () => {
+  assert.ok(newCaseSource.includes('label="Type of Business"'), "The new-case form must include a Type of Business field.");
+  assert.ok(newCaseSource.includes("malaysiaIndustries"), "The new-case form must use the shared Malaysian industry list.");
+  assert.ok(newCaseSource.includes('businessType === "Other"'), "The Other business type must reveal its custom field.");
+  assert.ok(newCaseSource.includes('required={businessType === "Other"}'), "The custom Other business type must be required when shown.");
+  assert.ok(newCaseSource.includes("businessType, businessTypeOther:"), "The create input must pass the selected business type.");
+  assert.ok(newCaseSource.includes("businessTypeOther:"), "The create input must pass the custom business type value.");
+  assert.ok(newCaseSource.includes('Select the type of business.'), "The form must validate the required business type.");
+});
+
+test("Malaysian industry options are broad, unique, and end with Other", () => {
+  assert.ok(malaysiaIndustries.length >= 15, "The industry list should cover broad Malaysian sectors.");
+  assert.equal(new Set(malaysiaIndustries).size, malaysiaIndustries.length, "Industry options should not be duplicated.");
+  assert.equal(malaysiaIndustries.at(-1), "Other", "Other should be the final fallback option.");
+});
 
 test("case submission requires the latest electricity bill", async () => {
   const result = await repository.mockCasesRepository.create(agent, input([]));
