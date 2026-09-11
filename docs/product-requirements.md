@@ -75,7 +75,7 @@ Every case page shows this six-stage tracker:
 2. Admin Review & Quotation.
 3. Bank Downpayment & Signed Proposal.
 4. Installation.
-5. Two-Month Balance.
+5. Post-Installation Payment.
 6. Recurring Balance.
 
 “Downpayment” is the customer-facing term. It is non-refundable. The existing internal `deposit` schedule kind remains a compatibility detail and must not leak into new UI copy.

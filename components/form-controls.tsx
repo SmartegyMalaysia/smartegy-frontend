@@ -2,13 +2,15 @@ import { forwardRef, type CSSProperties, type InputHTMLAttributes, type ReactNod
 
 type ControlSizing = { controlHeight?: CSSProperties["height"] };
 type FieldTitle = { title?: string; fieldClassName?: string };
+type InputPrefix = { prefix?: ReactNode };
 
 export function FormField({ title, htmlFor, required = false, className = "", children }: { title: string; htmlFor?: string; required?: boolean; className?: string; children: ReactNode }) {
   return <div className={`case-field ${className}`}><label htmlFor={htmlFor}>{title}{required && <span className="required-mark"> *</span>}</label>{children}</div>;
 }
 
-export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & ControlSizing & FieldTitle>(function TextInput({ controlHeight = 38, style, title, fieldClassName, ...props }, ref) {
-  const input = <input ref={ref} style={{ ...style, height: controlHeight, minHeight: controlHeight }} {...props} />;
+export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & ControlSizing & FieldTitle & InputPrefix>(function TextInput({ controlHeight = 38, style, title, fieldClassName, prefix, ...props }, ref) {
+  const inputElement = <input ref={ref} style={{ ...style, height: controlHeight, minHeight: controlHeight }} {...props} />;
+  const input = prefix ? <div className="text-input-with-prefix"><span className="text-input-prefix" aria-hidden="true">{prefix}</span>{inputElement}</div> : inputElement;
   return title ? <FormField title={title} htmlFor={props.id} required={props.required} className={fieldClassName}>{input}</FormField> : input;
 });
 

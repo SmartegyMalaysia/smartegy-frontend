@@ -9,7 +9,7 @@ Do not infer a general formula from a single example. Any unresolved rule must r
 ## 2. Trigger
 
 - Commission entitlements are calculated from the original project amount, excluding the 10% financing interest on the 20-month customer option.
-- The initial commission entries become approved/payable only after authorised staff fully verify the post-installation payment (the Stage 5 two-month balance).
+- The initial commission entries become approved/payable only after authorised staff fully verify the post-installation payment (Stage 5).
 - Deferred commission entries are created at that point as scheduled entries.
 - Payment verification must record the verifier and timestamp.
 - The same qualifying payment event must not generate duplicate commission schedules.

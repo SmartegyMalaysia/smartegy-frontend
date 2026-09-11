@@ -106,7 +106,8 @@ async function rpcCase(actor: CurrentUser, name: string, args: Record<string, un
   const { error } = await supabase.rpc(name, args); if (error) return failure<CaseDetail>(error); return { ok: true, data: await loadCase(caseId) } as CaseResult<CaseDetail>;
 }
 
-async function submitAgentPayment(caseId: string, input: RecordPaymentInput): Promise<CaseResult<CaseDetail>> {
+async function submitAgentPayment(actor: CurrentUser, caseId: string, input: RecordPaymentInput): Promise<CaseResult<CaseDetail>> {
+  if (actor.role !== "agent") return failure<CaseDetail>({ code: "42501", message: "Only the submitting agent can record this payment." });
   const supabase = getSupabaseBrowserClient();
   if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
   if (!input.proof) return failure<CaseDetail>({ code: "VALIDATION_ERROR", message: "Payment proof is required." });
@@ -164,9 +165,9 @@ export const supabaseCasesRepository: CasesRepository = {
   async proposeInstallationDate(_actor, caseId, date, time) { return rpcCase(_actor, "propose_installation_date", { p_case_id: caseId, p_installation_date: date, p_installation_time: time }, caseId); },
   async confirmInstallationDate(_actor, caseId) { return rpcCase(_actor, "confirm_installation_date", { p_case_id: caseId }, caseId); },
   async requestInstallationReschedule(_actor, caseId, reason) { return rpcCase(_actor, "request_installation_reschedule", { p_case_id: caseId, p_reason: reason }, caseId); },
-  async submitDeposit(_actor, caseId, input: RecordPaymentInput) { return submitAgentPayment(caseId, input); },
-  async submitPostInstallationPayment(_actor, caseId, input) { return submitAgentPayment(caseId, input); },
-  async submitInstallmentPayment(_actor, caseId, input) { return submitAgentPayment(caseId, input); },
+  async submitDeposit(actor, caseId, input: RecordPaymentInput) { return submitAgentPayment(actor, caseId, input); },
+  async submitPostInstallationPayment(actor, caseId, input) { return submitAgentPayment(actor, caseId, input); },
+  async submitInstallmentPayment(actor, caseId, input) { return submitAgentPayment(actor, caseId, input); },
   async rejectPayment(_actor, paymentId, reason) { const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" }); const { data: payment, error } = await supabase.rpc("reject_payment", { p_payment_id: paymentId, p_reason: reason }); if (error) return failure(error); return { ok: true, data: await loadCase((payment as any).case_id) }; },
   async recordPayment(_actor, caseId, input: RecordPaymentInput) { return rpcCase(_actor, "record_payment", { p_case_id: caseId, p_amount: input.amountSen / 100, p_paid_on: input.paymentDate, p_reference: input.reference ?? null, p_proof_document_id: null }, caseId); },
   async recordAndVerifyPayment(actor, caseId, input: RecordPaymentInput) {
@@ -196,7 +197,9 @@ export const supabaseCasesRepository: CasesRepository = {
   },
   async issueProposal(_actor, caseId, input: ProposalInput) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
-    const { data, error } = await supabase.functions.invoke("generate-document", { body: { case_id: caseId, type: "quotation", proposal: { sales_rep_name: input.salesRepName, proposal_date: input.proposalDate, sale_amount: input.saleAmountSen / 100, downpayment_override: moneyToRm(input.downpaymentSen) }, readings: input.readings.map((reading) => ({ month: reading.month, kwh_used: reading.kwhUsed, bill_amount: reading.billAmountSen / 100 })) } });
+    const proposal = { sales_rep_name: input.salesRepName, proposal_date: input.proposalDate, sale_amount: input.saleAmountSen / 100, downpayment_override: moneyToRm(input.downpaymentSen) };
+    const readings = input.readings.map((reading) => ({ month: reading.month, kwh_used: reading.kwhUsed, bill_amount: reading.billAmountSen / 100 }));
+    const { data, error } = await supabase.functions.invoke("generate-document", { body: { case_id: caseId, type: "quotation", proposal, readings } });
     if (error) return functionFailure<CaseDetail>(error); if (data?.error) return failure<CaseDetail>({ message: data.error }); return { ok: true, data: await loadCase(caseId) };
   },
   async acceptProposal(_actor, caseId, input: AcceptanceInput) {

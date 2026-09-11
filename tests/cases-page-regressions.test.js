@@ -22,6 +22,7 @@ const workflowSource = fs.readFileSync(path.resolve(__dirname, "../lib/case-work
 const filterSource = fs.readFileSync(path.resolve(__dirname, "../components/filter-select.tsx"), "utf8");
 const tableSource = fs.readFileSync(path.resolve(__dirname, "../components/data-table.tsx"), "utf8");
 const typesSource = fs.readFileSync(path.resolve(__dirname, "../lib/types.ts"), "utf8");
+const iconsSource = fs.readFileSync(path.resolve(__dirname, "../components/icons.tsx"), "utf8");
 const { mockCasesRepository, derivePaymentStatus } = require(path.resolve(__dirname, "../lib/case-repository.ts"));
 
 const staff = {
@@ -118,14 +119,20 @@ test("case workspace exposes the six-stage tracker and keeps detailed status han
     "Admin Review & Quotation",
     "Bank Downpayment & Signed Proposal",
     "Installation",
-    "Two-Month Balance",
+    "Post-Installation Payment",
     "Recurring Balance",
   ]) assert.ok(workflowSource.includes(stage), `The case tracker must include ${stage}.`);
   assert.ok(workspaceSource.includes("getCaseFlowStageIndex(caseDetail.status)"), "The tracker must derive its current stage from the detailed status.");
 });
 
-test("case documents open their signed URL in a new tab and do not offer receipt generation", () => {
-  assert.ok(workspaceSource.includes('window.open(result.data, "_blank"'), "Document actions must open the signed URL in a new tab.");
+test("case documents use the preview component with download and new-tab actions", () => {
+  assert.ok(workspaceSource.includes("previewTimelineDocument(document)"), "Document actions must open the preview popup.");
+  assert.ok(workspaceSource.includes("documentPreviewAccess"), "The case workspace must manage document preview access.");
+  assert.ok(workspaceSource.includes(">Download"), "The reusable preview component must offer document downloads.");
+  assert.ok(workspaceSource.includes("Open in new tab"), "The reusable preview component must offer a new-tab action.");
+  assert.ok(workspaceSource.includes("headerActions={documentPreviewAccess"), "Preview actions must sit beside the modal close control.");
+  assert.ok(iconsSource.includes("download:"), "The download action must use the shared icon set.");
+  assert.ok(iconsSource.includes('"external-link"'), "The new-tab action must use the shared icon set.");
   assert.ok(!workspaceSource.includes('generateDocument("receipt"'), "The case workspace must not expose new receipt generation.");
   assert.ok(!workspaceSource.includes("Generate Receipt"), "Receipt generation actions must be removed from the case workspace.");
 });
@@ -141,4 +148,5 @@ test("case workspace offers invoice generation per active schedule row", () => {
   assert.ok(workspaceSource.includes("activeInvoiceScheduleIds"), "Invoice candidates must be derived from payment schedules without issued invoices.");
   assert.ok(workspaceSource.includes('generateDocument("proforma", schedule.id)'), "The existing financial-document repository method must be used for schedule invoices.");
   assert.ok(workspaceSource.includes("canGenerateInvoice"), "Invoice generation must be permission-gated to the submitting agent or staff/admin.");
+  assert.ok(workspaceSource.includes("<Badge status={schedule.status} />"), "Payment schedule badges must reflect the schedule status instead of assuming every unpaid schedule is pending verification.");
 });

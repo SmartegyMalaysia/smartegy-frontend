@@ -8,7 +8,7 @@ export const caseFlowStages = [
   "Admin Review & Quotation",
   "Bank Downpayment & Signed Proposal",
   "Installation",
-  "Two-Month Balance",
+  "Post-Installation Payment",
   "Recurring Balance",
 ] as const;
 

@@ -4,6 +4,7 @@ import { createContext, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CSSProperties, ReactNode } from "react";
 import { useScrollLock } from "./use-scroll-lock";
+import { Icon } from "./icons";
 
 export type PopupModalSize = "sm" | "md" | "lg";
 export type PopupModalTone = "brand" | "danger" | "success" | "neutral";
@@ -15,6 +16,7 @@ export type PopupModalProps = {
   title: string;
   description?: string;
   icon?: ReactNode;
+  headerActions?: ReactNode;
   children?: ReactNode;
   footer?: ReactNode;
   onClose: () => void;
@@ -38,6 +40,7 @@ export function PopupModal({
   title,
   description,
   icon,
+  headerActions,
   children,
   footer,
   onClose,
@@ -62,6 +65,7 @@ export function PopupModal({
   const [rendered, setRendered] = useState(open);
   const [mounted, setMounted] = useState(false);
   const [exiting, setExiting] = useState(false);
+  const [discardChangesOpen, setDiscardChangesOpen] = useState(false);
   const stateRef = useRef({ onClose, closeOnEscape, closeOnBackdrop, hasUnsavedChanges, unsavedChangesMessage });
 
   useEffect(() => {
@@ -95,8 +99,16 @@ export function PopupModal({
 
   function requestClose() {
     const state = stateRef.current;
-    if (state.hasUnsavedChanges && !window.confirm(state.unsavedChangesMessage)) return;
+    if (state.hasUnsavedChanges) {
+      setDiscardChangesOpen(true);
+      return;
+    }
     state.onClose();
+  }
+
+  function discardChanges() {
+    setDiscardChangesOpen(false);
+    stateRef.current.onClose();
   }
 
   useEffect(() => {
@@ -141,5 +153,8 @@ export function PopupModal({
   if (!rendered || !mounted) return null;
   const style = { ...(accentColor ? { "--popup-modal-accent": accentColor } : {}), ...(exiting ? { animation: "popup-modal-exit 180ms ease-in both" } : {}) } as CSSProperties;
   className = `${className} ${exiting ? "popup-modal-exiting" : ""}`.trim();
-  return createPortal(<PopupModalLayerContext.Provider value><div className="dialog-backdrop popup-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && stateRef.current.closeOnBackdrop) requestClose(); }}><section ref={dialogRef} className={`dialog popup-modal popup-modal-size-${size} popup-modal-tone-${tone} ${className}`.trim()} style={style} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}><header className="popup-modal-header"><div className="popup-modal-heading">{icon && <span className="popup-modal-icon" aria-hidden="true">{icon}</span>}<div><h2 id={titleId}>{title}</h2>{description && <p id={descriptionId} className="popup-modal-description">{description}</p>}</div></div>{showCloseButton && <button className="popup-modal-close dialog-close" type="button" aria-label={closeLabel} onClick={(event) => { event.preventDefault(); event.stopPropagation(); requestClose(); }}>×</button>}</header><div className={`popup-modal-body ${bodyClassName}`.trim()}>{children}</div>{footer && <footer className="popup-modal-footer">{footer}</footer>}</section></div></PopupModalLayerContext.Provider>, document.body);
+  return <>
+    {createPortal(<PopupModalLayerContext.Provider value><div className="dialog-backdrop popup-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && stateRef.current.closeOnBackdrop) requestClose(); }}><section ref={dialogRef} className={`dialog popup-modal popup-modal-size-${size} popup-modal-tone-${tone} ${className}`.trim()} style={style} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}><header className="popup-modal-header"><div className="popup-modal-heading">{icon && <span className="popup-modal-icon" aria-hidden="true">{icon}</span>}<div><h2 id={titleId}>{title}</h2>{description && <p id={descriptionId} className="popup-modal-description">{description}</p>}</div></div>{(headerActions || showCloseButton) && <div className="popup-modal-header-actions">{headerActions}{showCloseButton && <button className="popup-modal-close dialog-close" type="button" aria-label={closeLabel} onClick={(event) => { event.preventDefault(); event.stopPropagation(); requestClose(); }}><Icon name="close" size={17} /></button>}</div>}</header><div className={`popup-modal-body ${bodyClassName}`.trim()}>{children}</div>{footer && <footer className="popup-modal-footer">{footer}</footer>}</section></div></PopupModalLayerContext.Provider>, document.body)}
+    {discardChangesOpen && <PopupModal open title="You have unsaved changes" description="Any changes you made will be lost. Discard them?" size="sm" tone="danger" onClose={() => setDiscardChangesOpen(false)} closeOnBackdrop={false} footer={<div className="dialog-actions"><button className="button button-secondary" type="button" onClick={() => setDiscardChangesOpen(false)}>Keep Editing</button><button className="button button-danger" type="button" onClick={discardChanges}>Discard Changes</button></div>} />}
+  </>;
 }
