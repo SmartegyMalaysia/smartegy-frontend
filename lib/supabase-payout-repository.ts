@@ -1,5 +1,5 @@
 import { getSupabaseBrowserClient, normalizeSupabaseError } from "./supabase-browser";
-import type { AgentMonthlyPayout, CurrentUser, PayoutMonthSummary, PayoutTransaction } from "./types";
+import type { AgentMonthlyPayout, CommissionStatus, CurrentUser, PayoutMonthSummary, PayoutTransaction } from "./types";
 import type { PayoutDirectoryQuery, PayoutRepository, PayoutResult } from "./payout-repository";
 
 function rmToSen(value: unknown) { return Math.round(Number(value ?? 0) * 100); }
@@ -20,6 +20,7 @@ async function loadTransactions(supabase: any, payoutMonth: string): Promise<Pay
     caseNumber: row.case_number,
     customerDisplayName: row.customer_name,
     amountSen: rmToSen(row.amount),
+    commissionStatus: row.status as CommissionStatus,
     settlementStatus: row.status === "paid" ? "settled" : "pending",
     settledAt: row.paid_at,
     settledById: null,
@@ -32,7 +33,7 @@ async function loadDirectory(supabase: any, payoutMonth: string, query: PayoutDi
   const { data, error } = await supabase.rpc("get_monthly_payout_directory", { p_payment_period: `${payoutMonth}-01`, p_search: query.search?.trim() || null, p_agent_id: query.agentId || null, p_settlement_status: query.settlementStatus || null, p_page: query.page ?? 1, p_page_size: query.pageSize ?? 5, p_sort_by: query.sortBy ?? "agent", p_sort_direction: query.sortDirection ?? "asc", p_view: query.view ?? "transactions" });
   if (error) throw error;
   const payload = data as Record<string, any>;
-  const transactions = (payload.transactions ?? []).map((row: any) => ({ id: row.commission_entry_id, payoutMonth, agentId: row.agent_id, agentName: row.agent_name, agentCode: row.agent_code, bankAccount: { bankName: row.bank_name ?? "Not provided", accountHolderName: row.account_holder_name ?? row.agent_name, accountNumberMasked: row.account_number_masked ?? "Not provided" }, commissionId: row.commission_entry_id, caseNumber: row.case_number, customerDisplayName: row.customer_name, amountSen: rmToSen(row.amount), settlementStatus: row.status === "paid" ? "settled" : "pending", settledAt: row.paid_at, settledById: null, settledByDisplayName: null, bankReference: row.bank_reference }) as PayoutTransaction);
+  const transactions = (payload.transactions ?? []).map((row: any) => ({ id: row.commission_entry_id, payoutMonth, agentId: row.agent_id, agentName: row.agent_name, agentCode: row.agent_code, bankAccount: { bankName: row.bank_name ?? "Not provided", accountHolderName: row.account_holder_name ?? row.agent_name, accountNumberMasked: row.account_number_masked ?? "Not provided" }, commissionId: row.commission_entry_id, caseNumber: row.case_number, customerDisplayName: row.customer_name, amountSen: rmToSen(row.amount), commissionStatus: row.status as CommissionStatus, settlementStatus: row.status === "paid" ? "settled" : "pending", settledAt: row.paid_at, settledById: null, settledByDisplayName: null, bankReference: row.bank_reference }) as PayoutTransaction);
   const agentPayouts = (payload.agent_payouts ?? []).map((row: any) => ({ agentId: row.agent_id, agentName: row.agent_name, agentCode: row.agent_code, bankAccount: { bankName: row.bank_name ?? "Not provided", accountHolderName: row.account_holder_name ?? row.agent_name, accountNumberMasked: row.account_number_masked ?? "Not provided" }, payoutMonth, totalSen: rmToSen(row.total_amount), settledSen: rmToSen(row.settled_amount), pendingSen: rmToSen(row.pending_amount), transactionCount: Number(row.transaction_count ?? 0), settledTransactionCount: Number(row.settled_transaction_count ?? 0), settlementStatus: row.settlement_status }) as AgentMonthlyPayout);
   const totalItems = Number(payload.total_items ?? transactions.length); const totalPages = Number(payload.total_pages ?? 1);
   const summary: PayoutMonthSummary = { payoutMonth, totalSen: agentPayouts.reduce((sum: number, item: AgentMonthlyPayout) => sum + item.totalSen, 0), settledSen: agentPayouts.reduce((sum: number, item: AgentMonthlyPayout) => sum + item.settledSen, 0), pendingSen: agentPayouts.reduce((sum: number, item: AgentMonthlyPayout) => sum + item.pendingSen, 0), agentCount: agentPayouts.length, settledAgentCount: agentPayouts.filter((item: AgentMonthlyPayout) => item.settlementStatus === "settled").length, transactionCount: agentPayouts.reduce((sum: number, item: AgentMonthlyPayout) => sum + item.transactionCount, 0), settledTransactionCount: agentPayouts.reduce((sum: number, item: AgentMonthlyPayout) => sum + item.settledTransactionCount, 0) };

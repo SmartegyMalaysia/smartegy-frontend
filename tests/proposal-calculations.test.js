@@ -34,7 +34,7 @@ test("proposal drafts accept a project value below the former commission floor",
   const result = await mockCasesRepository.saveProposalDraft(staff, "case-004", {
     salesRepName: "Test Staff",
     proposalDate: "2026-09-08",
-    saleAmountSen: 2450000,
+    saleAmountSen: 1500000,
     readings,
   });
   assert.equal(result.ok, true);

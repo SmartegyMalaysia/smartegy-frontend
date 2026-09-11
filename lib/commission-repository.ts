@@ -7,7 +7,7 @@ export interface CommissionDirectoryPage { items: AgentCommissionRecord[]; total
 
 function addMonths(date: string, months: number) { const next = new Date(`${date}T00:00:00Z`); next.setUTCMonth(next.getUTCMonth() + months); return next.toISOString().slice(0, 10); }
 function buildSchedule(id: string, deferredBalanceSen: number, startDate: string, paidSequences: number[] = []): AgentCommissionRecord["schedule"] {
-  const base = Math.floor(deferredBalanceSen / 17);
+  const base = Math.round(deferredBalanceSen / 17);
   const remainder = deferredBalanceSen - base * 16;
   return Array.from({ length: 17 }, (_, index) => { const sequence = index + 1; const paid = paidSequences.includes(sequence); return { id: `${id}-instalment-${sequence}`, sequence, dueDate: addMonths(startDate, index), amountSen: sequence === 17 ? remainder : base, status: paid ? "paid" : "scheduled", paidAt: paid ? `${addMonths(startDate, index)}T09:00:00Z` : null, paymentReference: paid ? `SMG-PAY-${String(sequence).padStart(3, "0")}` : null, note: null }; });
 }
