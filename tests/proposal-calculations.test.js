@@ -95,14 +95,12 @@ test("proposal preview rejects duplicate, future, empty, and out-of-range readin
   assert.equal(calculations.calculateProposalPreview({ saleAmountSen: 2450000, readings: Array.from({ length: 13 }, (_, index) => ({ ...readings[0], sequence: index + 1, month: `2024-${String(index + 1).padStart(2, "0")}` })) }), null);
 });
 
-test("proposal drafts reject a project value below the commission floor", async () => {
+test("proposal drafts accept a project value below the former commission floor", async () => {
   const result = await mockCasesRepository.saveProposalDraft(staff, "case-004", {
     salesRepName: "Test Staff",
     proposalDate: "2026-09-08",
     saleAmountSen: 1500000,
     readings,
   });
-  assert.equal(result.ok, false);
-  assert.equal(result.error.code, "VALIDATION_ERROR");
-  assert.equal(result.error.message, "Project amount must be at least RM 17018.19 to prevent negative commissions.");
+  assert.equal(result.ok, true);
 });

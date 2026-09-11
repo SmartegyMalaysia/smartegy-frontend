@@ -21,6 +21,7 @@ const case004Agent = { id: "user-004", role: "agent", displayName: "Nadia Yusuf"
 test("case action visibility gives staff and admin the same normal processing actions", () => {
   assert.deepEqual(workflow.caseActionLabels("under_review", "staff"), workflow.caseActionLabels("under_review", "admin"));
   assert.ok(workflow.caseActionLabels("quotation_issued", "agent").some((action) => action.label === "Accept Proposal"));
+  assert.ok(workflow.caseActionLabels("quotation_issued", "agent", true).some((action) => action.label === "Accept Proposal"));
   assert.ok(!workflow.caseActionLabels("quotation_issued", "staff").some((action) => action.label === "Accept Proposal"));
   assert.ok(!workflow.caseActionLabels("quotation_issued", "admin").some((action) => action.label === "Accept Proposal"));
   assert.ok(workflow.caseActionLabels("under_review", "staff").some((action) => action.label === "Request Changes" && action.requiresReason));
@@ -125,6 +126,7 @@ test("operational prerequisites lead to one commission calculation and block pre
   const completedPostInstallationPayment = await repository.mockCasesRepository.verifyPayment(admin, { paymentId: postInstallationPayments[1].id, allocations: [{ scheduleId: postInstallationSchedule.id, amountSen: 800 }] });
   assert.equal(completedPostInstallationPayment.ok, true);
   assert.equal(completedPostInstallationPayment.data.status, "installed_monitoring");
+  assert.equal(completedPostInstallationPayment.data.commissionIds.length, 1);
   result = completedPostInstallationPayment;
   result = await repository.mockCasesRepository.verifySavings(agent, "case-002", { readings: [
     { sequence: 1, month: "2026-06", tnbRate: 0.3, kwhUsed: 2500, billAmountSen: 75000, operationDays: 30, dailyKwh: 83.333 },

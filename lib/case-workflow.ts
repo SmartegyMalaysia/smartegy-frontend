@@ -43,7 +43,10 @@ const staffRoles = new Set(["staff", "admin"]);
 export function caseActionLabels(status: CaseStatus, role: CurrentUser["role"], hasPaymentSchedule = false, depositPaid = false, hasPendingPayment = false, postInstallationPaid = false, pendingPaymentAmountSen = 0, paymentBalanceSen = Number.MAX_SAFE_INTEGER): CaseAction[] {
   if (role === "agent") {
     const actions: CaseAction[] = status === "changes_requested" ? [{ kind: "resubmit", label: "Resubmit for Review", variant: "primary" }] : [];
-    if (status === "quotation_issued" && !hasPaymentSchedule) actions.push({ kind: "accept_proposal", label: "Accept Proposal", variant: "primary" });
+    // Proposal acceptance owns the hand-off from quotation to deposit. Keep
+    // this action available for every quotation-issued case; older records
+    // may already have a schedule while still carrying this status.
+    if (status === "quotation_issued") actions.push({ kind: "accept_proposal", label: "Accept Proposal", variant: "primary" });
     const canSubmitMore = paymentBalanceSen > pendingPaymentAmountSen;
     if (canSubmitMore && (status === "awaiting_deposit_submission" || (status === "deposit_pending_verification" && hasPaymentSchedule && !depositPaid))) actions.push({ kind: "submit_deposit", label: status === "deposit_pending_verification" ? "Record Another Downpayment" : "Record Downpayment", variant: "primary" });
     else if (canSubmitMore && (status === "awaiting_post_installation_payment" || (status === "post_installation_payment_pending_verification" && hasPaymentSchedule && !postInstallationPaid))) actions.push({ kind: "submit_post_installation_payment", label: status === "post_installation_payment_pending_verification" ? "Record Another Post-Installation Payment" : "Record Post-Installation Payment", variant: "primary" });

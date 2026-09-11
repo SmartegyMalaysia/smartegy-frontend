@@ -7,7 +7,6 @@ type ProposalCalculationInput = Pick<ProposalInput, "saleAmountSen" | "readings"
 
 export interface ProposalCalculationPreview {
   saleAmountSen: number;
-  minimumSaleAmountSen: number;
   calculatedDownpaymentSen: number;
   downpaymentSen: number;
   postInstallationSen: number;
@@ -58,22 +57,6 @@ export function isCompletedHistoricalMonth(month: string, today = new Date()): b
   return year < today.getFullYear() || (year === today.getFullYear() && monthNumber <= today.getMonth());
 }
 
-// This client-side rule is an explanatory preview only. The database uses the
-// active commission rule as the authoritative validation when saving or
-// issuing a proposal.
-const commissionFloorSlots = [
-  { saleRate: 0.055, initialShare: 0.6 },
-  { saleRate: 0.03, initialShare: 0.15 },
-  { saleRate: 0.015, initialShare: 0.05 },
-  { saleRate: 0.1, initialShare: 0.2 },
-] as const;
-
-export function minimumSaleAmountSenForNonNegativeCommissions(initialPaymentPoolSen: number) {
-  if (!Number.isFinite(initialPaymentPoolSen) || initialPaymentPoolSen < 0) return null;
-  const largestRequiredMultiplier = Math.max(...commissionFloorSlots.map((slot) => slot.initialShare / slot.saleRate));
-  return Math.ceil(initialPaymentPoolSen * largestRequiredMultiplier);
-}
-
 export function calculateProposalPreview(input: ProposalCalculationInput): ProposalCalculationPreview | null {
   if (!Number.isInteger(input.saleAmountSen) || input.saleAmountSen <= 0 || !Array.isArray(input.readings) || input.readings.length < 1 || input.readings.length > MAX_PROPOSAL_READINGS) return null;
 
@@ -104,9 +87,6 @@ export function calculateProposalPreview(input: ProposalCalculationInput): Propo
   if (!Number.isFinite(downpaymentSen) || downpaymentSen < 0) return null;
   const postInstallationSen = roundCents(downpaymentSen * 2);
   const downpaymentTotalSen = downpaymentSen + postInstallationSen;
-  const initialCommissionPoolSen = roundCents(downpaymentTotalSen / 2);
-  const minimumSaleAmountSen = minimumSaleAmountSenForNonNegativeCommissions(initialCommissionPoolSen);
-  if (minimumSaleAmountSen === null) return null;
   const balanceSen = input.saleAmountSen - downpaymentTotalSen;
   if (balanceSen < 0) return null;
   const financingInterestSen = roundCents(input.saleAmountSen * FINANCING_INTEREST_RATE);
@@ -115,7 +95,6 @@ export function calculateProposalPreview(input: ProposalCalculationInput): Propo
 
   return {
     saleAmountSen: input.saleAmountSen,
-    minimumSaleAmountSen,
     calculatedDownpaymentSen,
     downpaymentSen,
     postInstallationSen,
