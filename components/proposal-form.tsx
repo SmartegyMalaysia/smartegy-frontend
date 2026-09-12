@@ -122,7 +122,7 @@ function buildInput(salesRepName: string, proposalDate: string, installationAddr
 export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDetail: CaseDetail; user: CurrentUser; onChanged: (value: CaseDetail) => void; onClose: () => void }) {
   const [salesRepName, setSalesRepName] = useState(caseDetail.proposal?.salesRepName ?? user.displayName);
   const [proposalDate, setProposalDate] = useState(caseDetail.proposal?.proposalDate ?? new Date().toISOString().slice(0, 10));
-  const [installationAddress, setInstallationAddress] = useState(caseDetail.proposal?.installationAddress ?? caseDetail.service.siteAddress);
+  const installationAddress = caseDetail.service.siteAddress;
   const [installationCost, setInstallationCost] = useState(caseDetail.proposal ? formatMoneyInput(caseDetail.proposal.installationCostSen) : "0.00");
   const [outstationCost, setOutstationCost] = useState(caseDetail.proposal ? formatMoneyInput(caseDetail.proposal.outstationCostSen) : "0.00");
   const [saleAmount, setSaleAmount] = useState(caseDetail.proposal ? String(caseDetail.proposal.saleAmountSen / 100) : caseDetail.saleAmountSen ? String(caseDetail.saleAmountSen / 100) : "");
@@ -205,7 +205,7 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
     <div className="proposal-form">
       <div className="proposal-form-grid">
         <ReadOnlyField id="proposal-customer" title="Customer" value={caseDetail.customer.displayName} />
-        <TextArea id="proposal-installation-address" title="Installation Address" value={installationAddress} onChange={(event) => setInstallationAddress(event.target.value)} placeholder="Enter the customer factory address" required rows={2} controlHeight={76} fieldClassName={showWarnings && fieldWarnings.installationAddress ? "case-field-warning" : ""} />
+        <div className="case-field proposal-service-address-field"><label htmlFor="proposal-service-address">Service Address</label><div id="proposal-service-address" className="proposal-service-address-value">{caseDetail.service.siteAddress || "Not provided"}</div></div>
         <ReadOnlyField id="proposal-contact-person" title="Contact Person" value={caseDetail.customer.contactName ?? "Not provided"} />
         <ReadOnlyField id="proposal-customer-email" title="Contact Email" value={caseDetail.customer.email ?? "Not provided"} />
         <TextInput title="Sales Representative" value={salesRepName} onChange={(event) => setSalesRepName(event.target.value)} required fieldClassName={showWarnings && fieldWarnings.salesRepName ? "case-field-warning" : ""} />
