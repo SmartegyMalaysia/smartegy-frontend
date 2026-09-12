@@ -229,6 +229,7 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .registration-field input[readonly] { color: var(--muted); background: var(--surface-subtle); }
 .field-error { color: var(--danger); font-size: 12px; line-height: 1.4; margin: 6px 0 0; }
 .field-help { margin: -7px 0 20px; }
+.registration-field .referral-code-note { margin: 6px 0 0; }
 .field-help-inline { font-weight: 400; }
 .otp-panel { margin-top: 20px; padding: 14px; border: 1px solid #bbf7d0; border-radius: 8px; background: var(--brand-green-soft); }
 .otp-panel > strong, .otp-panel > span { display: block; }

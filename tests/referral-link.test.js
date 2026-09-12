@@ -32,4 +32,5 @@ test("locked referral links submit the confirmed code instead of their display t
   assert.equal(referralCodeForSubmission("  K7Q2M8  "), "K7Q2M8");
   assert.match(signupSource, /referralCodeForSubmission\(/);
   assert.doesNotMatch(signupSource, /value=\{referralLocked \? "Confirmed from invitation link"/);
+  assert.match(signupSource, /className="field-help referral-code-note"/);
 });

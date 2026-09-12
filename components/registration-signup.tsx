@@ -541,7 +541,9 @@ function RegistrationFields({
             aria-describedby={fieldErrors.referralCode ? "referralCode-error" : undefined}
           />
           {referralLocked && (
-            <p className="field-help">Confirmed from the invitation link.</p>
+            <p className="field-help referral-code-note">
+              Confirmed from the invitation link.
+            </p>
           )}
         </Field>
         <Field id="password" label="Password" error={fieldErrors.password}>
