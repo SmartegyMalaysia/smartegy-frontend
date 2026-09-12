@@ -14,7 +14,7 @@ import type { CaseDetail, CurrentUser, MoneySen, ProposalEnergyReading, Proposal
 type ReadingDraft = { month: string; monthNumber: string; year: string; bill: string; kwh: string };
 type ReadingWarnings = { month: boolean; bill: boolean; kwh: boolean };
 type ProposalInputWithDownpayment = ProposalInput & { downpaymentSen?: MoneySen | null };
-type ProposalWarnings = { salesRepName: boolean; proposalDate: boolean; saleAmount: boolean; downpayment: boolean; duplicateMonth: boolean; readings: ReadingWarnings[] };
+type ProposalWarnings = { salesRepName: boolean; proposalDate: boolean; installationAddress: boolean; installationCost: boolean; outstationCost: boolean; saleAmount: boolean; downpayment: boolean; duplicateMonth: boolean; readings: ReadingWarnings[] };
 
 function formatMoneyInput(sen: number) {
   return (sen / 100).toFixed(2);
@@ -54,7 +54,7 @@ function initialReadings(caseDetail: CaseDetail): ReadingDraft[] {
   }));
 }
 
-function getProposalWarnings(salesRepName: string, proposalDate: string, saleAmount: string, downpaymentAmount: string, readings: ReadingDraft[], calculatedDownpaymentSen: number | null): ProposalWarnings {
+function getProposalWarnings(salesRepName: string, proposalDate: string, installationAddress: string, installationCost: string, outstationCost: string, saleAmount: string, downpaymentAmount: string, readings: ReadingDraft[], calculatedDownpaymentSen: number | null): ProposalWarnings {
   const effectiveDownpayment = downpaymentAmount.trim() || (calculatedDownpaymentSen === null ? "" : formatMoneyInput(calculatedDownpaymentSen));
   const seenMonths = new Set<string>();
   let duplicateMonth = false;
@@ -70,6 +70,9 @@ function getProposalWarnings(salesRepName: string, proposalDate: string, saleAmo
   return {
     salesRepName: !salesRepName.trim(),
     proposalDate: !proposalDate,
+    installationAddress: !installationAddress.trim(),
+    installationCost: !installationCost.trim() || !Number.isFinite(Number(installationCost)) || Number(installationCost) < 0,
+    outstationCost: !outstationCost.trim() || !Number.isFinite(Number(outstationCost)) || Number(outstationCost) < 0,
     saleAmount: !saleAmount.trim() || !Number.isFinite(Number(saleAmount)) || Number(saleAmount) <= 0,
     downpayment: !effectiveDownpayment || !Number.isFinite(Number(effectiveDownpayment)) || Number(effectiveDownpayment) < 0,
     duplicateMonth,
@@ -80,6 +83,9 @@ function getProposalWarnings(salesRepName: string, proposalDate: string, saleAmo
 function firstProposalWarning(warnings: ProposalWarnings): string | null {
   if (warnings.salesRepName) return "Enter the sales representative name.";
   if (warnings.proposalDate) return "Choose a proposal date.";
+  if (warnings.installationAddress) return "Enter the installation address.";
+  if (warnings.installationCost) return "Enter a valid installation cost.";
+  if (warnings.outstationCost) return "Enter a valid outstation cost.";
   if (warnings.saleAmount) return "Enter a sale amount greater than RM 0.";
   const readingIndex = warnings.readings.findIndex((reading) => reading.month || reading.bill || reading.kwh);
   const firstReadingIndex = readingIndex < 0 ? 0 : readingIndex;
@@ -92,9 +98,11 @@ function firstProposalWarning(warnings: ProposalWarnings): string | null {
   return null;
 }
 
-function buildInput(salesRepName: string, proposalDate: string, saleAmount: string, downpaymentAmount: string, readings: ReadingDraft[]): ProposalInputWithDownpayment | null {
+function buildInput(salesRepName: string, proposalDate: string, installationAddress: string, installationCost: string, outstationCost: string, saleAmount: string, downpaymentAmount: string, readings: ReadingDraft[]): ProposalInputWithDownpayment | null {
   const amount = Number(saleAmount);
-  if (!salesRepName.trim() || !proposalDate || !Number.isFinite(amount) || amount <= 0) return null;
+  const installationCostValue = Number(installationCost);
+  const outstationCostValue = Number(outstationCost);
+  if (!salesRepName.trim() || !proposalDate || !installationAddress.trim() || !Number.isFinite(installationCostValue) || installationCostValue < 0 || !Number.isFinite(outstationCostValue) || outstationCostValue < 0 || !Number.isFinite(amount) || amount <= 0) return null;
   const parsed: ProposalEnergyReading[] = readings.map((reading, index) => {
     const billAmountSen = Math.round(Number(reading.bill) * 100);
     const kwhUsed = Number(reading.kwh);
@@ -103,7 +111,7 @@ function buildInput(salesRepName: string, proposalDate: string, saleAmount: stri
     return { sequence: index + 1, month: reading.month.trim(), tnbRate, kwhUsed, billAmountSen, operationDays, dailyKwh: operationDays > 0 ? kwhUsed / operationDays : undefined };
   });
   if (parsed.some((reading) => !reading.month || !Number.isFinite(reading.tnbRate) || !Number.isFinite(reading.kwhUsed) || !Number.isFinite(reading.billAmountSen) || !Number.isFinite(reading.operationDays) || reading.operationDays < 1)) return null;
-  const input: ProposalInputWithDownpayment = { salesRepName: salesRepName.trim(), proposalDate, saleAmountSen: Math.round(amount * 100), readings: parsed };
+  const input: ProposalInputWithDownpayment = { salesRepName: salesRepName.trim(), proposalDate, installationAddress: installationAddress.trim(), installationCostSen: Math.round(installationCostValue * 100), outstationCostSen: Math.round(outstationCostValue * 100), saleAmountSen: Math.round(amount * 100), readings: parsed };
   if (downpaymentAmount.trim()) {
     const downpayment = Number(downpaymentAmount);
     input.downpaymentSen = Number.isFinite(downpayment) ? Math.round(downpayment * 100) : Number.NaN;
@@ -114,6 +122,9 @@ function buildInput(salesRepName: string, proposalDate: string, saleAmount: stri
 export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDetail: CaseDetail; user: CurrentUser; onChanged: (value: CaseDetail) => void; onClose: () => void }) {
   const [salesRepName, setSalesRepName] = useState(caseDetail.proposal?.salesRepName ?? user.displayName);
   const [proposalDate, setProposalDate] = useState(caseDetail.proposal?.proposalDate ?? new Date().toISOString().slice(0, 10));
+  const [installationAddress, setInstallationAddress] = useState(caseDetail.proposal?.installationAddress ?? caseDetail.service.siteAddress);
+  const [installationCost, setInstallationCost] = useState(caseDetail.proposal ? formatMoneyInput(caseDetail.proposal.installationCostSen) : "0.00");
+  const [outstationCost, setOutstationCost] = useState(caseDetail.proposal ? formatMoneyInput(caseDetail.proposal.outstationCostSen) : "0.00");
   const [saleAmount, setSaleAmount] = useState(caseDetail.proposal ? String(caseDetail.proposal.saleAmountSen / 100) : caseDetail.saleAmountSen ? String(caseDetail.saleAmountSen / 100) : "");
   const [downpaymentAmount, setDownpaymentAmount] = useState(caseDetail.proposal ? formatMoneyInput(caseDetail.proposal.deposit1Sen) : "");
   const [projectRemarks, setProjectRemarks] = useState(caseDetail.service.notes ?? "");
@@ -122,13 +133,13 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
   const [warning, setWarning] = useState<string | null>(null);
   const [showWarnings, setShowWarnings] = useState(false);
   const monthOptions = useMemo(() => getHistoricalMonthOptions(), []);
-  const baseInput = useMemo(() => buildInput(salesRepName, proposalDate, saleAmount, "", readings), [salesRepName, proposalDate, saleAmount, readings]);
+  const baseInput = useMemo(() => buildInput(salesRepName, proposalDate, installationAddress, installationCost, outstationCost, saleAmount, "", readings), [salesRepName, proposalDate, installationAddress, installationCost, outstationCost, saleAmount, readings]);
   const basePreview = useMemo(() => baseInput ? calculateProposalPreview(baseInput) : null, [baseInput]);
-  const input = useMemo(() => buildInput(salesRepName, proposalDate, saleAmount, downpaymentAmount, readings), [salesRepName, proposalDate, saleAmount, downpaymentAmount, readings]);
+  const input = useMemo(() => buildInput(salesRepName, proposalDate, installationAddress, installationCost, outstationCost, saleAmount, downpaymentAmount, readings), [salesRepName, proposalDate, installationAddress, installationCost, outstationCost, saleAmount, downpaymentAmount, readings]);
   const preview = useMemo(() => input ? calculateProposalPreview(input) : null, [input]);
   const displayPreview = preview ?? basePreview;
   const downpaymentDisplay = downpaymentAmount.trim() || (basePreview ? formatMoneyInput(basePreview.calculatedDownpaymentSen) : "");
-  const fieldWarnings = useMemo(() => getProposalWarnings(salesRepName, proposalDate, saleAmount, downpaymentAmount, readings, basePreview?.calculatedDownpaymentSen ?? null), [salesRepName, proposalDate, saleAmount, downpaymentAmount, readings, basePreview]);
+  const fieldWarnings = useMemo(() => getProposalWarnings(salesRepName, proposalDate, installationAddress, installationCost, outstationCost, saleAmount, downpaymentAmount, readings, basePreview?.calculatedDownpaymentSen ?? null), [salesRepName, proposalDate, installationAddress, installationCost, outstationCost, saleAmount, downpaymentAmount, readings, basePreview]);
   const validationWarning = useMemo(() => firstProposalWarning(fieldWarnings), [fieldWarnings]);
 
   function updateReading(index: number, key: keyof ReadingDraft, value: string) {
@@ -170,7 +181,7 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
   async function save(issue: boolean) {
     setShowWarnings(true);
     if (validationWarning) { setWarning(validationWarning); return; }
-    if (!input) { setWarning("Complete the sales representative, sale amount, date, and every reading row."); return; }
+    if (!input) { setWarning("Complete the proposal details, additional costs, project amount, and every reading row."); return; }
     if (!preview) { setWarning("The initial payment obligation cannot exceed the sale amount, and the downpayment must be valid."); return; }
     setBusy(true); setWarning(null);
     const result = issue ? await casesRepository.issueProposal(user, caseDetail.id, input) : await casesRepository.saveProposalDraft(user, caseDetail.id, input);
@@ -194,11 +205,13 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
     <div className="proposal-form">
       <div className="proposal-form-grid">
         <ReadOnlyField id="proposal-customer" title="Customer" value={caseDetail.customer.displayName} />
-        <div className="case-field proposal-service-address-field"><label htmlFor="proposal-service-address">Service Address</label><div id="proposal-service-address" className="proposal-service-address-value">{caseDetail.service.siteAddress || "Not provided"}</div></div>
+        <TextArea id="proposal-installation-address" title="Installation Address" value={installationAddress} onChange={(event) => setInstallationAddress(event.target.value)} placeholder="Enter the customer factory address" required rows={2} controlHeight={76} fieldClassName={showWarnings && fieldWarnings.installationAddress ? "case-field-warning" : ""} />
         <ReadOnlyField id="proposal-contact-person" title="Contact Person" value={caseDetail.customer.contactName ?? "Not provided"} />
         <ReadOnlyField id="proposal-customer-email" title="Contact Email" value={caseDetail.customer.email ?? "Not provided"} />
         <TextInput title="Sales Representative" value={salesRepName} onChange={(event) => setSalesRepName(event.target.value)} required fieldClassName={showWarnings && fieldWarnings.salesRepName ? "case-field-warning" : ""} />
         <DatePicker id="proposal-date" title="Proposal Date" value={proposalDate} onChange={setProposalDate} required fieldClassName={showWarnings && fieldWarnings.proposalDate ? "case-field-warning" : ""} />
+        <MoneyInput id="proposal-installation-cost" title="Installation Cost" inputMode="decimal" value={installationCost} onChange={(event) => setInstallationCost(event.target.value)} required aria-invalid={showWarnings && fieldWarnings.installationCost} fieldClassName={showWarnings && fieldWarnings.installationCost ? "case-field-warning" : ""} />
+        <MoneyInput id="proposal-outstation-cost" title="Outstation Cost" inputMode="decimal" value={outstationCost} onChange={(event) => setOutstationCost(event.target.value)} required aria-invalid={showWarnings && fieldWarnings.outstationCost} fieldClassName={showWarnings && fieldWarnings.outstationCost ? "case-field-warning" : ""} />
         <div className="proposal-project-value-field">
           <MoneyInput id="proposal-sale-amount" title="Sale Amount" inputMode="decimal" value={saleAmount} onChange={(event) => setSaleAmount(event.target.value)} required aria-invalid={showWarnings && fieldWarnings.saleAmount} fieldClassName={showWarnings && (fieldWarnings.saleAmount || (Boolean(input) && !preview)) ? "case-field-warning" : ""} />
         </div>
