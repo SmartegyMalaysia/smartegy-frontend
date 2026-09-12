@@ -1267,6 +1267,7 @@ input::placeholder, textarea::placeholder { font-weight: 400; }
 .popup-modal-size-sm { width: min(100%, 440px); }
 .popup-modal-size-md { width: min(100%, 540px); }
 .popup-modal-size-lg { width: min(100%, 1040px); }
+.document-preview-modal { width: min(100%, 1280px); max-height: min(94dvh, 920px); }
 .proposal-dialog { width: min(100%, 1040px); max-height: min(94dvh, 900px); }
 .popup-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex: 0 0 auto; padding: 20px 24px 16px; }
 .popup-modal-heading { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }

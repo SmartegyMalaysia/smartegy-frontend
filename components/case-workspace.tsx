@@ -18,6 +18,8 @@ import { canEditCase, caseActionLabels, caseFlowStages, getCaseFlowStageIndex, t
 import type { CaseDetail, CaseDocument, CasePayment, CurrentUser, PaymentSchedule, ProposalEnergyReading } from "@/lib/types";
 import { ProposalForm } from "./proposal-form";
 import { ProposalAcceptance } from "./proposal-acceptance";
+import { createBrowserPreviewUrl, isHeicFile } from "@/lib/heic-preview";
+import { getDocumentMimeType } from "@/lib/document-config";
 
 type CaseToast = { title: string; subtitle: string; tone: ToastTone };
 
@@ -130,11 +132,28 @@ function FilePreviewActions({ access, showDownload = true, showOpenLink = true, 
 }
 
 function PaymentProofViewer({ access }: { access: PaymentProofAccess }) {
-  const isImage = access.mimeType.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(access.fileName);
+  const [previewUrl, setPreviewUrl] = useState(access.url);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const isHeic = isHeicFile(access.fileName, access.mimeType);
+  useEffect(() => {
+    let active = true;
+    let revoke = false;
+    setPreviewUrl(access.url);
+    setPreviewError(null);
+    if (isHeic) {
+      void createBrowserPreviewUrl(access.url, access.fileName, access.mimeType).then((result) => {
+        if (!active) { if (result.revoke) URL.revokeObjectURL(result.url); return; }
+        revoke = result.revoke;
+        setPreviewUrl(result.url);
+      }).catch((error) => { if (active) setPreviewError(error instanceof Error ? error.message : "The image could not be converted for browser preview."); });
+    }
+    return () => { active = false; if (revoke && previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl); };
+  }, [access.url, access.fileName, access.mimeType, isHeic]);
+  const isImage = access.mimeType.startsWith("image/") || /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(access.fileName);
   const isPdf = access.mimeType === "application/pdf" || /\.pdf$/i.test(access.fileName);
   const canPreview = /^(https?:\/\/|blob:)/i.test(access.url);
   if (!canPreview) return <div className="registration-proof-viewer"><div className="registration-proof-unavailable"><p>This file cannot be previewed in the browser.</p><p>Use the actions below to download or open the original file.</p></div></div>;
-  return <div className="registration-proof-viewer">{isImage ? <img className="registration-proof-image" src={access.url} alt={`Payment proof: ${access.fileName}`} /> : isPdf ? <object className="registration-proof-pdf" data={access.url} type="application/pdf" aria-label={`Payment proof: ${access.fileName}`}><div className="registration-proof-unavailable"><p>Your browser cannot embed this PDF.</p></div></object> : <div className="registration-proof-unavailable"><p>This file type cannot be previewed here.</p></div>}</div>;
+  return <div className="registration-proof-viewer">{previewError ? <div className="registration-proof-unavailable"><p>{previewError}</p></div> : isImage ? (isHeic && previewUrl === access.url ? <div className="registration-proof-unavailable"><p>Converting HEIC/HEIF for browser preview…</p></div> : <img className="registration-proof-image" src={previewUrl} alt={`Payment proof: ${access.fileName}`} />) : isPdf ? <iframe className="registration-proof-pdf" src={access.url} title={`Payment proof: ${access.fileName}`} /> : <div className="registration-proof-unavailable"><p>This file type cannot be previewed here.</p></div>}</div>;
 }
 
 export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { initialCase: CaseDetail; user: CurrentUser; onChanged: (value: CaseDetail) => void; onDeleted: () => void }) {
@@ -316,7 +335,7 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
       if (!paymentAmount.trim() || !Number.isFinite(amount) || amount <= 0 || !paymentDate || !depositProof) { setPaymentError("Payment amount, payment date, and proof are required."); setBusy(false); return; }
       const balance = Math.max(0, (action === "submit_deposit" ? depositBalanceSen : action === "submit_post_installation_payment" ? postInstallationBalanceSen : installmentSchedule ? installmentSchedule.amountDueSen - installmentSchedule.amountPaidSen : 0) - pendingPaymentAmountSen);
       if (Math.round(amount * 100) > balance) { setPaymentError(`Payment amount cannot exceed the remaining balance of ${formatMoney(balance)}.`); setBusy(false); return; }
-      const input = { amountSen: Math.round(amount * 100), paymentDate, reference: paymentReference, proof: { file: depositProof, fileName: depositProof.name, mimeType: depositProof.type, sizeBytes: depositProof.size } };
+      const input = { amountSen: Math.round(amount * 100), paymentDate, reference: paymentReference, proof: { file: depositProof, fileName: depositProof.name, mimeType: getDocumentMimeType(depositProof), sizeBytes: depositProof.size } };
       result = action === "submit_deposit" ? await casesRepository.submitDeposit(user, caseDetail.id, input) : action === "submit_post_installation_payment" ? await casesRepository.submitPostInstallationPayment(user, caseDetail.id, input) : await casesRepository.submitInstallmentPayment(user, caseDetail.id, input);
     } else if (action === "reject_payment") {
       if (!selectedPendingPayment || !reason.trim()) { setAllocationError("A payment and rejection reason are required."); setBusy(false); return; }
@@ -381,7 +400,7 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
     setBusy(true);
     setToast(null);
     if (!depositProof) { setDepositProofError("Payment proof is required."); setBusy(false); return; }
-    const input = { amountSen: Math.round(amount * 100), paymentDate, reference: paymentReference, proof: { file: depositProof, fileName: depositProof.name, mimeType: depositProof.type, sizeBytes: depositProof.size } };
+    const input = { amountSen: Math.round(amount * 100), paymentDate, reference: paymentReference, proof: { file: depositProof, fileName: depositProof.name, mimeType: getDocumentMimeType(depositProof), sizeBytes: depositProof.size } };
     const result = paymentScheduleKind === "deposit" ? await casesRepository.submitDeposit(user, caseDetail.id, input) : paymentScheduleKind === "post_installation" ? await casesRepository.submitPostInstallationPayment(user, caseDetail.id, input) : await casesRepository.submitInstallmentPayment(user, caseDetail.id, input);
     if (result.ok) { closeRecordPayment(); apply(result); }
     else setPaymentError(result.error.message);
@@ -486,10 +505,10 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
     <PopupModal open={savingsDetailsOpen} title="Savings Readings" description="Complete post-installation readings recorded for this case." size="lg" tone="neutral" onClose={() => setSavingsDetailsOpen(false)} footer={<Button type="button" variant="secondary" onClick={() => setSavingsDetailsOpen(false)}>Close</Button>}>
       {caseDetail.verifiedSavings?.readings.length ? <div className="case-savings-detail-table-wrap"><table className="case-savings-detail-table"><caption className="sr-only">Post-installation savings readings</caption><thead><tr><th scope="col">Month</th><th scope="col">Year</th><th scope="col">Bill (RM)</th><th scope="col">kWh Used</th><th scope="col">TNB Rate</th><th scope="col">Days</th><th scope="col">Daily kWh</th></tr></thead><tbody>{caseDetail.verifiedSavings.readings.map((reading) => <tr key={reading.sequence}><td>{savingsMonthNumberLabels[reading.month.slice(5, 7)] ?? reading.month}</td><td>{reading.month.slice(0, 4) || "—"}</td><td>{formatMoney(reading.billAmountSen)}</td><td>{reading.kwhUsed}</td><td>{reading.tnbRate.toFixed(6)}</td><td>{reading.operationDays}</td><td>{reading.dailyKwh == null ? "—" : reading.dailyKwh.toFixed(3)}</td></tr>)}</tbody></table></div> : <p className="detail-empty">No readings recorded.</p>}
     </PopupModal>
-    <PopupModal open={Boolean(documentPreviewAccess)} title={documentPreviewAccess?.fileName ?? "Document preview"} description="Preview the document or choose an action below." size="lg" tone="neutral" onClose={() => setDocumentPreviewAccess(null)} headerActions={documentPreviewAccess && <FilePreviewActions access={documentPreviewAccess} />}>
+    <PopupModal className="document-preview-modal" open={Boolean(documentPreviewAccess)} title={documentPreviewAccess?.fileName ?? "Document preview"} description="Preview the document or choose an action below." size="lg" tone="neutral" onClose={() => setDocumentPreviewAccess(null)} headerActions={documentPreviewAccess && <FilePreviewActions access={documentPreviewAccess} />}>
       {documentPreviewAccess && <PaymentProofViewer access={documentPreviewAccess} />}
     </PopupModal>
-    <PopupModal open={Boolean(paymentProofAccess)} title={paymentProofAccess?.fileName ?? "Payment proof"} description="Secure payment proof preview" size="lg" onClose={() => setPaymentProofAccess(null)} headerActions={paymentProofAccess && <FilePreviewActions access={paymentProofAccess} openLabel="Open original file" />}>
+    <PopupModal className="document-preview-modal" open={Boolean(paymentProofAccess)} title={paymentProofAccess?.fileName ?? "Payment proof"} description="Secure payment proof preview" size="lg" onClose={() => setPaymentProofAccess(null)} headerActions={paymentProofAccess && <FilePreviewActions access={paymentProofAccess} openLabel="Open original file" />}>
       {paymentProofAccess && <PaymentProofViewer access={paymentProofAccess} />}
     </PopupModal>
     {proposalOpen && <ProposalForm caseDetail={caseDetail} user={user} onChanged={setCaseData} onClose={() => setProposalOpen(false)} />}

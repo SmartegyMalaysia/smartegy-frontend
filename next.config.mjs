@@ -12,6 +12,7 @@ const nextConfig = {
       `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV !== "production" ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.supabase.co http://127.0.0.1:* http://localhost:*",
+      "frame-src 'self' blob: https://*.supabase.co http://127.0.0.1:* http://localhost:*",
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*",
       "worker-src 'self' blob:",
