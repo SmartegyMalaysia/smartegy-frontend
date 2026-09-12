@@ -71,8 +71,8 @@ function getProposalWarnings(salesRepName: string, proposalDate: string, install
     salesRepName: !salesRepName.trim(),
     proposalDate: !proposalDate,
     installationAddress: !installationAddress.trim(),
-    installationCost: !installationCost.trim() || !Number.isFinite(Number(installationCost)) || Number(installationCost) < 0,
-    outstationCost: !outstationCost.trim() || !Number.isFinite(Number(outstationCost)) || Number(outstationCost) < 0,
+    installationCost: installationCost.trim() !== "" && (!Number.isFinite(Number(installationCost)) || Number(installationCost) < 0),
+    outstationCost: outstationCost.trim() !== "" && (!Number.isFinite(Number(outstationCost)) || Number(outstationCost) < 0),
     saleAmount: !saleAmount.trim() || !Number.isFinite(Number(saleAmount)) || Number(saleAmount) <= 0,
     downpayment: !effectiveDownpayment || !Number.isFinite(Number(effectiveDownpayment)) || Number(effectiveDownpayment) < 0,
     duplicateMonth,
@@ -123,8 +123,8 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
   const [salesRepName, setSalesRepName] = useState(caseDetail.proposal?.salesRepName ?? user.displayName);
   const [proposalDate, setProposalDate] = useState(caseDetail.proposal?.proposalDate ?? new Date().toISOString().slice(0, 10));
   const installationAddress = caseDetail.service.siteAddress;
-  const [installationCost, setInstallationCost] = useState(caseDetail.proposal ? formatMoneyInput(caseDetail.proposal.installationCostSen) : "0.00");
-  const [outstationCost, setOutstationCost] = useState(caseDetail.proposal ? formatMoneyInput(caseDetail.proposal.outstationCostSen) : "0.00");
+  const [installationCost, setInstallationCost] = useState(caseDetail.proposal?.installationCostSen ? formatMoneyInput(caseDetail.proposal.installationCostSen) : "");
+  const [outstationCost, setOutstationCost] = useState(caseDetail.proposal?.outstationCostSen ? formatMoneyInput(caseDetail.proposal.outstationCostSen) : "");
   const [saleAmount, setSaleAmount] = useState(caseDetail.proposal ? String(caseDetail.proposal.saleAmountSen / 100) : caseDetail.saleAmountSen ? String(caseDetail.saleAmountSen / 100) : "");
   const [downpaymentAmount, setDownpaymentAmount] = useState(caseDetail.proposal ? formatMoneyInput(caseDetail.proposal.deposit1Sen) : "");
   const [projectRemarks, setProjectRemarks] = useState(caseDetail.service.notes ?? "");
@@ -211,8 +211,8 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
         <TextInput title="Sales Representative" value={salesRepName} onChange={(event) => setSalesRepName(event.target.value)} required fieldClassName={showWarnings && fieldWarnings.salesRepName ? "case-field-warning" : ""} />
         <DatePicker id="proposal-date" title="Proposal Date" value={proposalDate} onChange={setProposalDate} required fieldClassName={showWarnings && fieldWarnings.proposalDate ? "case-field-warning" : ""} />
         <TextInput prefix="RM" id="proposal-sale-amount" title="Sale Amount" inputMode="decimal" value={saleAmount} onChange={(event) => setSaleAmount(event.target.value)} required aria-invalid={showWarnings && fieldWarnings.saleAmount} fieldClassName={showWarnings && (fieldWarnings.saleAmount || (Boolean(input) && !preview)) ? "case-field-warning" : ""} />
-        <TextInput prefix="RM" id="proposal-installation-cost" title="Installation Cost" inputMode="decimal" value={installationCost} onChange={(event) => setInstallationCost(event.target.value)} required aria-invalid={showWarnings && fieldWarnings.installationCost} fieldClassName={showWarnings && fieldWarnings.installationCost ? "case-field-warning" : ""} />
-        <TextInput prefix="RM" id="proposal-outstation-cost" title="Outstation Cost" inputMode="decimal" value={outstationCost} onChange={(event) => setOutstationCost(event.target.value)} required aria-invalid={showWarnings && fieldWarnings.outstationCost} fieldClassName={showWarnings && fieldWarnings.outstationCost ? "case-field-warning" : ""} />
+        <TextInput prefix="RM" id="proposal-installation-cost" title="Installation Cost" inputMode="decimal" value={installationCost} onChange={(event) => setInstallationCost(event.target.value)} aria-invalid={showWarnings && fieldWarnings.installationCost} fieldClassName={showWarnings && fieldWarnings.installationCost ? "case-field-warning" : ""} />
+        <TextInput prefix="RM" id="proposal-outstation-cost" title="Outstation Cost" inputMode="decimal" value={outstationCost} onChange={(event) => setOutstationCost(event.target.value)} aria-invalid={showWarnings && fieldWarnings.outstationCost} fieldClassName={showWarnings && fieldWarnings.outstationCost ? "case-field-warning" : ""} />
         <TextArea title="Project Remarks" value={projectRemarks} onChange={(event) => setProjectRemarks(event.target.value)} placeholder="Add project-specific remarks" />
       </div>
       <section className="proposal-readings-section">
