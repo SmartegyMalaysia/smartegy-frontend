@@ -15,8 +15,9 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
   module._compile(output, filename);
 };
 
-const { resolveReferralCode } = require(path.resolve(__dirname, "../lib/referral-link.ts"));
+const { resolveReferralCode, referralCodeForSubmission } = require(path.resolve(__dirname, "../lib/referral-link.ts"));
 const assert = require("node:assert/strict");
+const signupSource = fs.readFileSync(path.resolve(__dirname, "../components/registration-signup.tsx"), "utf8");
 
 test("referral route resolves the generated code from async route params", () => {
   assert.equal(resolveReferralCode("K7Q2M8"), "K7Q2M8");
@@ -24,4 +25,11 @@ test("referral route resolves the generated code from async route params", () =>
 
 test("referral route decodes URL-encoded codes before autofill", () => {
   assert.equal(resolveReferralCode("K7Q2M8%2FTEST"), "K7Q2M8/TEST");
+});
+
+test("locked referral links submit the confirmed code instead of their display text", () => {
+  assert.equal(referralCodeForSubmission("Confirmed from invitation link", "K7Q2M8"), "K7Q2M8");
+  assert.equal(referralCodeForSubmission("  K7Q2M8  "), "K7Q2M8");
+  assert.match(signupSource, /referralCodeForSubmission\(/);
+  assert.doesNotMatch(signupSource, /value=\{referralLocked \? "Confirmed from invitation link"/);
 });

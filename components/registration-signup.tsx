@@ -20,6 +20,7 @@ import type {
   ReferralInvitation,
 } from "@/lib/types";
 import Link from "next/link";
+import { referralCodeForSubmission } from "@/lib/referral-link";
 
 type RegistrationStage =
   | "registration"
@@ -173,8 +174,11 @@ export function RegistrationSignup({
     setFieldErrors({});
 
     if (stage === "registration") {
-      const referralCodeValue = String(form.get("referralCode") ?? "").trim();
       let resolvedInvitation = invitation;
+      const referralCodeValue = referralCodeForSubmission(
+        String(form.get("referralCode") ?? ""),
+        resolvedInvitation?.code ?? (suppliedReferralCode || null),
+      );
       if (
         referralCodeValue &&
         (!resolvedInvitation ||
@@ -529,13 +533,16 @@ function RegistrationFields({
           <TextInput
             id="referralCode"
             name="referralCode"
-            value={referralLocked ? "Confirmed from invitation link" : referralCode}
+            value={referralCode}
             onChange={(event) => onReferralCodeChange(event.target.value)}
             readOnly={referralLocked}
             placeholder="Enter An Invitation Or Referral Code"
             aria-invalid={Boolean(fieldErrors.referralCode)}
             aria-describedby={fieldErrors.referralCode ? "referralCode-error" : undefined}
           />
+          {referralLocked && (
+            <p className="field-help">Confirmed from the invitation link.</p>
+          )}
         </Field>
         <Field id="password" label="Password" error={fieldErrors.password}>
           <div className="password-input">
