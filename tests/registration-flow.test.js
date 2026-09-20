@@ -12,6 +12,7 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 };
 
 const repository = require(path.resolve(__dirname, "../lib/registration-repository.ts"));
+const { sortRegistrationDirectory } = require(path.resolve(__dirname, "../lib/registration-directory.ts"));
 const staff = { id: "staff-test", role: "staff", displayName: "Test Staff", email: "staff@example.com", agentId: null };
 
 function applicant(id) {
@@ -116,6 +117,19 @@ test("staff registration queue supports search, priority sorting, and protected 
   const denied = await repository.registrationRepository.getPaymentProof(applicant("registration-001"), "registration-001");
   assert.equal(denied.ok, false);
   assert.equal(denied.error.code, "FORBIDDEN");
+});
+
+test("registration directory supports every queue sort option", () => {
+  const items = [
+    { applicationNumber: "SMG-REG-0002", feeStatus: "unpaid", registrationStatus: "draft", submittedAt: "2026-09-03T00:00:00Z", createdAt: "2026-09-03T00:00:00Z", updatedAt: "2026-09-03T00:00:00Z" },
+    { applicationNumber: "SMG-REG-0001", feeStatus: "pending_verification", registrationStatus: "pending_approval", submittedAt: "2026-09-01T00:00:00Z", createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-04T00:00:00Z" },
+  ];
+
+  assert.deepEqual(sortRegistrationDirectory(items, "newest").map((item) => item.applicationNumber), ["SMG-REG-0002", "SMG-REG-0001"]);
+  assert.deepEqual(sortRegistrationDirectory(items, "oldest").map((item) => item.applicationNumber), ["SMG-REG-0001", "SMG-REG-0002"]);
+  assert.deepEqual(sortRegistrationDirectory(items, "recently_updated").map((item) => item.applicationNumber), ["SMG-REG-0001", "SMG-REG-0002"]);
+  assert.deepEqual(sortRegistrationDirectory(items, "fee_status").map((item) => item.feeStatus), ["pending_verification", "unpaid"]);
+  assert.deepEqual(sortRegistrationDirectory(items, "priority").map((item) => item.applicationNumber), ["SMG-REG-0001", "SMG-REG-0002"]);
 });
 
 test("agent registration reads do not expose internal audit history", async () => {

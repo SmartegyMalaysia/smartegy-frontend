@@ -1,6 +1,6 @@
 "use client";
 
-import { TextInput, TextArea } from "./form-controls";
+import { PasswordField, TextInput, TextArea } from "./form-controls";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -14,7 +14,6 @@ export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"info" | "error">("info");
@@ -58,10 +57,7 @@ export function LoginPage() {
               <label htmlFor="email">Work email</label>
               <TextInput id="email" name="email" type="email" autoComplete="email" placeholder="you@company.com" value={email} onChange={(event) => setEmail(event.target.value)} required />
             </div>
-            <div className="form-field">
-              <div className="field-label-row"><label htmlFor="password">Password</label><Link className="text-button" href="/forgot-password">Forgot password?</Link></div>
-              <div className="password-input"><TextInput id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Enter your password" value={password} onChange={(event) => setPassword(event.target.value)} required /><button className="password-toggle" type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)}>{showPassword ? "Hide" : "Show"}</button></div>
-            </div>
+            <PasswordField id="password" name="password" label="Password" autoComplete="current-password" placeholder="Enter your password" value={password} onChange={(event) => setPassword(event.target.value)} required labelAside={<Link className="text-button" href="/forgot-password">Forgot password?</Link>} />
             <label className="remember-row"><TextInput type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /><span>Keep me signed in on this device</span></label>
             <button className="login-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? <><span className="button-spinner" aria-hidden="true" />Signing in…</> : <>Sign in <Icon name="arrow" size={16} /></>}</button>
           </form>

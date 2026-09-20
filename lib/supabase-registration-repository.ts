@@ -1,6 +1,7 @@
 import { getSupabaseBrowserClient, normalizeSupabaseError } from "./supabase-browser";
 import type { RegistrationRepository } from "./registration-repository";
 import { validateCaseDocument, validateFileSignature } from "./document-config";
+import { sortRegistrationDirectory } from "./registration-directory";
 import type {
   AgentRegistration, CompleteRegistrationProfileInput, CreateRegistrationInput, CurrentUser, ID,
   ReferralInvitation, RegistrationActionResult, RegistrationDecisionInput, RegistrationPaymentConfig, RegistrationPaymentProofAccess,
@@ -204,10 +205,10 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
     const { data, error } = await supabase.rpc("list_registration_directory", { p_search: query.search?.trim() || null, p_registration_status: query.registrationStatus && query.registrationStatus !== "all" ? query.registrationStatus : null, p_fee_status: query.feeStatus && query.feeStatus !== "all" ? query.feeStatus : null, p_profile_complete: query.profileComplete && query.profileComplete !== "all" ? query.profileComplete : null, p_email_verified: query.emailVerified && query.emailVerified !== "all" ? query.emailVerified : null, p_submitted_from: query.submittedFrom || null, p_submitted_to: query.submittedTo || null, p_page: 1, p_page_size: 10000, p_sort_by: query.sort === "oldest" ? "oldest" : query.sort === "recently_updated" ? "recently_updated" : query.sort === "newest" ? "newest" : "priority", p_sort_direction: "desc" });
     if (error) return errorResult(error);
     const payload = data as Record<string, any>;
-    return { ok: true, data: ((payload.items ?? []) as RegistrationRow[]).map((row) => mapRegistration(row)) };
+    return { ok: true, data: sortRegistrationDirectory(((payload.items ?? []) as RegistrationRow[]).map((row) => mapRegistration(row)), query.sort) };
   },
   async exportForStaff(_actor, query = {}) {
-    const params = new URLSearchParams(); if (query.search) params.set("search", query.search); if (query.registrationStatus && query.registrationStatus !== "all") params.set("registration_status", query.registrationStatus); if (query.feeStatus && query.feeStatus !== "all") params.set("fee_status", query.feeStatus); if (query.profileComplete && query.profileComplete !== "all") params.set("profile_complete", query.profileComplete); if (query.emailVerified && query.emailVerified !== "all") params.set("email_verified", query.emailVerified); if (query.submittedFrom) params.set("submitted_from", query.submittedFrom); if (query.submittedTo) params.set("submitted_to", query.submittedTo); if (query.sort) params.set("sort_by", query.sort);
+    const params = new URLSearchParams(); if (query.search) params.set("search", query.search); if (query.registrationStatus && query.registrationStatus !== "all") params.set("registration_status", query.registrationStatus); if (query.feeStatus && query.feeStatus !== "all") params.set("fee_status", query.feeStatus); if (query.profileComplete && query.profileComplete !== "all") params.set("profile_complete", query.profileComplete); if (query.emailVerified && query.emailVerified !== "all") params.set("email_verified", query.emailVerified); if (query.submittedFrom) params.set("submitted_from", query.submittedFrom); if (query.submittedTo) params.set("submitted_to", query.submittedTo); if (query.sort) params.set("sort_by", query.sort); params.set("sort_direction", query.sort === "oldest" || query.sort === "fee_status" ? "asc" : "desc");
     try { const response = await fetch(`/api/exports/registrations?${params.toString()}`, { credentials: "same-origin" }); if (!response.ok) return errorResult({ code: response.status === 403 ? "42501" : "PGRST000", message: "Unable to export registrations." }); const blob = await response.blob(); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "smartegy-registrations.csv"; link.click(); URL.revokeObjectURL(link.href); return { ok: true, data: true }; } catch (error) { return errorResult(error as any); }
   },
   async getByApplicationNumber(_actor, applicationNumber) {

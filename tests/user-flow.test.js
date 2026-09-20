@@ -77,3 +77,25 @@ test("only administrators can create invited staff accounts", async () => {
   assert.equal(duplicate.error.code, "CONFLICT");
   assert.ok(duplicate.error.fieldErrors.email);
 });
+
+test("user directory sorting respects both supported fields and directions", async () => {
+  repository.resetMockUsers();
+  const namesAscending = await repository.userRepository.listPage(admin, { page: 1, pageSize: 100, sortBy: "display_name", sortDirection: "asc" });
+  const namesDescending = await repository.userRepository.listPage(admin, { page: 1, pageSize: 100, sortBy: "display_name", sortDirection: "desc" });
+  const newestFirst = await repository.userRepository.listPage(admin, { page: 1, pageSize: 100, sortBy: "created_at", sortDirection: "desc" });
+
+  assert.equal(namesAscending.ok, true);
+  assert.equal(namesDescending.ok, true);
+  assert.equal(newestFirst.ok, true);
+  assert.deepEqual(namesDescending.data.items.map((item) => item.displayName), [...namesAscending.data.items.map((item) => item.displayName)].reverse());
+  assert.deepEqual(newestFirst.data.items.map((item) => item.createdAt), [...newestFirst.data.items.map((item) => item.createdAt)].sort().reverse());
+});
+
+test("frontend normalizes RPC user order after the backend selects a page", () => {
+  const items = [
+    { id: "2", displayName: "Aisha", createdAt: "2026-01-01T00:00:00Z" },
+    { id: "1", displayName: "Zara", createdAt: "2026-02-01T00:00:00Z" },
+  ];
+  assert.deepEqual(repository.sortUserDirectoryItems(items, "display_name", "desc").map((item) => item.displayName), ["Zara", "Aisha"]);
+  assert.deepEqual(repository.sortUserDirectoryItems(items, "created_at", "asc").map((item) => item.id), ["2", "1"]);
+});

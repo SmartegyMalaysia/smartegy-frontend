@@ -10,6 +10,7 @@ import { TextInput } from "@/components/form-controls";
 import { formatMoney } from "@/lib/format";
 import { agentRepository, type AgentDirectoryPage, type AgentQualificationFilter } from "@/lib/agent-repository";
 import { usePreviewUser } from "@/lib/preview-user";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { AgentLevel, AgentSummary } from "@/lib/types";
 
 const pageSize = 5;
@@ -21,6 +22,7 @@ export default function AgentsPage() {
   const [state, setState] = useState<"loading" | "error" | "permission" | "ready">("loading");
   //const [hasLoaded, setHasLoaded] = useState(false);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [level, setLevel] = useState<AgentLevel | typeof allValue>(allValue);
   const [upline, setUpline] = useState(allValue);
   const [status, setStatus] = useState<"active" | "inactive" | typeof allValue>(allValue);
@@ -35,7 +37,7 @@ export default function AgentsPage() {
     const currentRequest = ++requestId.current;
     setRefreshing(true);
     const result = await agentRepository.listPage(user, {
-      search,
+      search: debouncedSearch,
       level: level === allValue ? undefined : level,
       uplineAgentId: upline === allValue ? undefined : upline,
       status: status === allValue ? undefined : status,
@@ -54,11 +56,11 @@ export default function AgentsPage() {
       // setState(result.error.code === "FORBIDDEN" ? "permission" : "error"); setHasLoaded(true);
     }
     setRefreshing(false);
-  }, [level, page, qualification, ready, search, status, upline, user]);
+  }, [debouncedSearch, level, page, qualification, ready, status, upline, user]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (search === debouncedSearch) void load();
+  }, [debouncedSearch, load, search]);
 
   const filterOptions = data?.filterOptions;
   const totalItems = data?.totalItems ?? 0;

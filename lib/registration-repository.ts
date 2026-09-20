@@ -17,6 +17,7 @@ import type {
   SubmitRegistrationFeeInput,
   VerifyRegistrationFeeInput,
 } from "./types";
+import { sortRegistrationDirectory } from "./registration-directory";
 
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -235,19 +236,12 @@ export const mockRegistrationRepository: RegistrationRepository = {
     const allowed = staffOnly<AgentRegistration[]>(actor);
     if (!allowed.ok) return allowed;
     const term = query.search?.trim().toLowerCase() ?? "";
-    const priority = (item: AgentRegistration) => item.feeStatus === "pending_verification" || item.registrationStatus === "pending_approval" ? 0 : 1;
     const filtered = registrations.filter((item) => {
       const haystack = [item.applicationNumber, item.profile.fullName, item.profile.email, item.profile.mobileNumber, item.referringAgentName].join(" ").toLowerCase();
       const submitted = item.submittedAt?.slice(0, 10) ?? "";
       return (!term || haystack.includes(term)) && (!query.registrationStatus || query.registrationStatus === "all" || item.registrationStatus === query.registrationStatus) && (!query.feeStatus || query.feeStatus === "all" || item.feeStatus === query.feeStatus) && (!query.profileComplete || query.profileComplete === "all" || (query.profileComplete === "complete" ? item.profileComplete : !item.profileComplete)) && (!query.emailVerified || query.emailVerified === "all" || (query.emailVerified === "verified" ? item.emailVerified : !item.emailVerified)) && (!query.submittedFrom || (submitted && submitted >= query.submittedFrom)) && (!query.submittedTo || (submitted && submitted <= query.submittedTo));
     });
-    const sorted = [...filtered].sort((a, b) => {
-      if (!query.sort || query.sort === "priority") return priority(a) - priority(b) || b.updatedAt.localeCompare(a.updatedAt);
-      if (query.sort === "oldest") return (a.submittedAt ?? a.createdAt).localeCompare(b.submittedAt ?? b.createdAt);
-      if (query.sort === "fee_status") return a.feeStatus.localeCompare(b.feeStatus) || b.updatedAt.localeCompare(a.updatedAt);
-      if (query.sort === "recently_updated") return b.updatedAt.localeCompare(a.updatedAt);
-      return (b.submittedAt ?? b.createdAt).localeCompare(a.submittedAt ?? a.createdAt);
-    });
+    const sorted = sortRegistrationDirectory(filtered, query.sort);
     return { ok: true, data: sorted };
   },
   async exportForStaff(actor, query = {}) { const result = await this.listForStaff(actor, query); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-registrations.csv", [["Application", "Name", "Mobile", "Email", "Upline agent", "Registration", "Fee", "Profile", "Submitted"], ...result.data.map((item) => [item.applicationNumber, item.profile.fullName, item.profile.mobileNumber, item.profile.email, item.referringAgentName, item.registrationStatus, item.feeStatus, item.profileComplete ? "Complete" : "Incomplete", item.submittedAt ?? ""])]); return { ok: true, data: true }; },

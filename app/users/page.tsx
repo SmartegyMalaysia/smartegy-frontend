@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/app-shell";
 import { Badge, Button, ConfirmationDialog, EmptyState, ErrorState, LoadingState, PermissionDenied, StatCard } from "@/components/ui";
-import { DataTable } from "@/components/data-table";
+import { DataTable, type DataTableHeader } from "@/components/data-table";
 import { FilterSelect } from "@/components/filter-select";
 import { TextInput } from "@/components/form-controls";
 import { TableFooter } from "@/components/table-footer";
@@ -15,6 +15,7 @@ import { formatDate } from "@/lib/format";
 import { roleLabels } from "@/lib/navigation";
 import { usePreviewUser } from "@/lib/preview-user";
 import { isSupabaseConfigured } from "@/lib/supabase-browser";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { userRepository } from "@/lib/user-repository";
 import type { AccountStatus, CreateStaffInput, ManageUser, UpdateManageUserInput, UserRole } from "@/lib/types";
 import type { UserDirectoryPage } from "@/lib/user-repository";
@@ -23,6 +24,8 @@ const roleOptions: Array<"all" | UserRole> = ["all", "admin", "staff", "agent"];
 const editorRoleOptions: UserRole[] = ["agent", "staff", "admin"];
 const statusOptions: Array<"all" | AccountStatus> = ["all", "active", "invited", "inactive"];
 const pageSize = 5;
+type UserSortKey = "display_name" | "created_at";
+const userSortLabels: Record<UserSortKey, string> = { display_name: "display name", created_at: "created date" };
 
 export default function UsersPage() {
   const { user, setRole } = usePreviewUser("admin");
@@ -30,10 +33,11 @@ export default function UsersPage() {
   const [data, setData] = useState<UserDirectoryPage | null>(null);
   const [state, setState] = useState<"loading" | "error" | "permission" | "ready">("loading");
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [role, setRoleFilter] = useState<"all" | UserRole>("all");
   const [status, setStatus] = useState<"all" | AccountStatus>("all");
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<"display_name" | "created_at">("display_name");
+  const [sortBy, setSortBy] = useState<UserSortKey>("display_name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [editing, setEditing] = useState<ManageUser | null>(null);
   const [creating, setCreating] = useState(false);
@@ -55,12 +59,12 @@ export default function UsersPage() {
     if (!isSupabaseConfigured() && user.role !== "admin") return;
     const currentRequest = ++requestId.current;
     setRefreshing(true);
-    const result = await userRepository.listPage(user, { search, role: role === "all" ? undefined : role, accountStatus: status === "all" ? undefined : status, page, pageSize, sortBy, sortDirection });
+    const result = await userRepository.listPage(user, { search: debouncedSearch, role: role === "all" ? undefined : role, accountStatus: status === "all" ? undefined : status, page, pageSize, sortBy, sortDirection });
     if (currentRequest !== requestId.current) return;
     if (result.ok) { hasLoaded.current = true; setData(result.data); setState("ready"); }
     else if (!hasLoaded.current) setState(result.error.code === "FORBIDDEN" ? "permission" : "error");
     setRefreshing(false);
-  }, [page, role, search, sortBy, sortDirection, status, user]);
+  }, [debouncedSearch, page, role, sortBy, sortDirection, status, user]);
 
   useEffect(() => { if (!previewMode || user.role === "admin") void load(); }, [load, previewMode, user.role]);
   useEffect(() => { if (previewMode && user.role !== "admin") setRole("admin"); }, [previewMode, setRole, user.role]);
@@ -75,6 +79,15 @@ export default function UsersPage() {
   const adminCount = data?.summary.adminUsers ?? 0;
 
   function clearFilters() { setSearch(""); setRoleFilter("all"); setStatus("all"); setPage(1); }
+  function updateSort(nextSort: UserSortKey) {
+    if (sortBy === nextSort) setSortDirection((current) => current === "asc" ? "desc" : "asc");
+    else { setSortBy(nextSort); setSortDirection(nextSort === "created_at" ? "desc" : "asc"); }
+    setPage(1);
+  }
+  function sortableHeader(key: UserSortKey, heading: string): DataTableHeader {
+    const direction = sortBy === key ? sortDirection : undefined;
+    return { ariaSort: direction === "asc" ? "ascending" : direction === "desc" ? "descending" : undefined, content: <button className="table-sort-button" type="button" onClick={() => updateSort(key)} aria-label={`Sort by ${userSortLabels[key]}${direction ? `, currently ${direction === "asc" ? "ascending" : "descending"}` : ""}`}><span>{heading}</span><span className="table-sort-indicator" aria-hidden="true">{direction === "asc" ? "↑" : direction === "desc" ? "↓" : "↕"}</span></button> };
+  }
   function openEditor(item: ManageUser) {
     setEditing(item);
     setForm({ displayName: item.displayName, phone: item.phone ?? "", role: item.role, accountStatus: item.accountStatus });
@@ -110,7 +123,7 @@ export default function UsersPage() {
   }
   async function exportUsers() {
     setExporting(true);
-    const result = await userRepository.export(user, { search, role: role === "all" ? undefined : role, accountStatus: status === "all" ? undefined : status, sortBy, sortDirection });
+    const result = await userRepository.export(user, { search: debouncedSearch, role: role === "all" ? undefined : role, accountStatus: status === "all" ? undefined : status, sortBy, sortDirection });
     setExporting(false);
     setFeedback(result.ok ? "The user export was downloaded." : result.error.message);
   }
@@ -121,19 +134,15 @@ export default function UsersPage() {
     {state === "loading" && !data ? <LoadingState /> : state === "permission" && !data ? <PermissionDenied action={previewMode ? <Button variant="secondary" onClick={() => setRole("admin")}>Switch Preview To Admin</Button> : undefined} /> : state === "error" && !data ? <ErrorState onRetry={load} /> : <>
       <div className="stat-grid users-stat-grid"><StatCard label="Total users" value={String(data?.summary.totalUsers ?? 0)} detail="Across all account roles" accent /><StatCard label="Active accounts" value={String(activeCount)} detail="Can access their workspace" /><StatCard label="Invitations" value={String(invitedCount)} detail="Awaiting account activation" /><StatCard label="Administrators" value={String(adminCount)} detail="Can manage user access" /></div>
       <section className="panel user-directory-panel"><div className="panel-header"><div><h2>User directory</h2><p>Search by identity or filter by access state before opening an edit panel.</p></div><span className="case-count">{totalItems} users {refreshing && <span className="table-secondary" role="status" aria-live="polite">Updating…</span>}</span></div>
-        <div className="case-filters user-filters" aria-label="User directory filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Name, email, phone number, or agent code" /></label><label><span>Role</span><FilterSelect allLabel="All roles" value={role} options={["all", ...(data?.filterOptions.roles ?? roleOptions.filter((item) => item !== "all") as UserRole[])]} labels={{ all: "All roles", admin: "Administrator", staff: "Staff", agent: "Agent" }} onChange={(value) => { setRoleFilter(value); setPage(1); }}/></label><label><span>Account status</span><FilterSelect allLabel="All account statuses" value={status} options={["all", ...(data?.filterOptions.statuses ?? statusOptions.filter((item) => item !== "all") as AccountStatus[])]} labels={{ all: "All statuses", active: "Active", invited: "Invited", inactive: "Inactive" }} onChange={(value) => { setStatus(value); setPage(1); }}/></label><label><span>Sort by</span><FilterSelect allLabel="Display name" value={sortBy} options={["display_name", "created_at"]} labels={{ display_name: "Display name", created_at: "Created date" }} onChange={(value) => { setSortBy(value as typeof sortBy); setPage(1); }}/></label><button className="text-button case-filter-reset" type="button" disabled={!hasFilters} onClick={clearFilters}>Clear filters</button></div>
-        {users.length ? <><div className="desktop-user-table"><DataTable caption="Smartegy user directory" headers={["User", "Role", "Account Status", "Phone", "Last Active", "Actions"]}>{users.map((item) => <UserRow key={item.id} user={item} onEdit={openEditor}/>)}</DataTable></div><div className="mobile-user-list" aria-label="Users">{users.map((item) => <UserCard key={item.id} user={item} onEdit={openEditor}/>)}</div><TableFooter currentPage={currentPage} totalPages={totalPages} visibleCount={users.length} totalCount={totalItems} onPageChange={setPage} onExport={exportUsers} pageSize={pageSize}/>{exporting && <p className="muted-cell">Preparing export…</p>}</> : <EmptyState title={hasFilters ? "No matching users" : "No users yet"} description={hasFilters ? "Try changing or clearing the filters." : "When accounts are available, they will appear here."} />}
+        <div className="case-filters user-filters" aria-label="User directory filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Name, email, phone number, or agent code" /></label><label><span>Role</span><FilterSelect allLabel="All roles" value={role} options={["all", ...(data?.filterOptions.roles ?? roleOptions.filter((item) => item !== "all") as UserRole[])]} labels={{ all: "All roles", admin: "Administrator", staff: "Staff", agent: "Agent" }} onChange={(value) => { setRoleFilter(value); setPage(1); }}/></label><label><span>Account status</span><FilterSelect allLabel="All account statuses" value={status} options={["all", ...(data?.filterOptions.statuses ?? statusOptions.filter((item) => item !== "all") as AccountStatus[])]} labels={{ all: "All statuses", active: "Active", invited: "Invited", inactive: "Inactive" }} onChange={(value) => { setStatus(value); setPage(1); }}/></label><label><span>Sort by</span><FilterSelect allLabel="Display name" value={sortBy} options={["display_name", "created_at"]} labels={{ display_name: "Display name", created_at: "Created date" }} onChange={(value) => { const nextSort = value as UserSortKey; setSortBy(nextSort); setSortDirection(nextSort === "created_at" ? "desc" : "asc"); setPage(1); }}/></label><label><span>Sort order</span><FilterSelect allLabel="Ascending" value={sortDirection} options={["asc", "desc"]} labels={{ asc: "Ascending", desc: "Descending" }} onChange={(value) => { setSortDirection(value as "asc" | "desc"); setPage(1); }}/></label><button className="text-button case-filter-reset" type="button" disabled={!hasFilters} onClick={clearFilters}>Clear filters</button></div>
+        {users.length ? <><div className="desktop-user-table"><DataTable caption="Smartegy user directory" headers={[sortableHeader("display_name", "User"), "Role", "Account Status", "Phone", "Last Active", sortableHeader("created_at", "Created"), "Actions"]}>{users.map((item) => <UserRow key={item.id} user={item} onEdit={openEditor}/>)}</DataTable></div><TableFooter currentPage={currentPage} totalPages={totalPages} visibleCount={users.length} totalCount={totalItems} onPageChange={setPage} onExport={exportUsers} pageSize={pageSize}/>{exporting && <p className="muted-cell">Preparing export…</p>}</> : <EmptyState title={hasFilters ? "No matching users" : "No users yet"} description={hasFilters ? "Try changing or clearing the filters." : "When accounts are available, they will appear here."} />}
       </section>
     </>}
   </main>{editing && typeof document !== "undefined" ? createPortal(<UserEditor user={editing} actor={user} form={form} setForm={setForm} fieldErrors={fieldErrors} feedback={editFeedback} saving={saving} onClose={closeEditor} onSave={saveUser}/>, document.body) : null}{creating && typeof document !== "undefined" ? createPortal(<CreateStaffEditor form={createForm} setForm={setCreateForm} fieldErrors={createErrors} feedback={createFeedback} saving={creatingStaff} onClose={closeCreateStaff} onSave={createStaff}/>, document.body) : null}</AppShell>;
 }
 
 function UserRow({ user, onEdit }: { user: ManageUser; onEdit: (user: ManageUser) => void }) {
-  return <tr className="user-table-row"><td><UserIdentity user={user}/></td><td><RoleBadge role={user.role}/></td><td><Badge status={user.accountStatus}/></td><td>{user.phone ?? <span className="muted-cell">Not provided</span>}</td><td className="muted-cell">{user.lastActiveAt ? formatDate(user.lastActiveAt) : "Never"}</td><td><button className="button button-secondary button-sm user-edit-button" type="button" onClick={() => onEdit(user)}><Icon name="edit" size={14}/> Edit</button></td></tr>;
-}
-
-function UserCard({ user, onEdit }: { user: ManageUser; onEdit: (user: ManageUser) => void }) {
-  return <article className="user-card"><div className="user-card-top"><UserIdentity user={user}/><button className="icon-button" type="button" aria-label={`Edit ${user.displayName}`} onClick={() => onEdit(user)}><Icon name="edit" size={17}/></button></div><div className="user-card-status"><RoleBadge role={user.role}/><Badge status={user.accountStatus}/></div><dl><div><dt>Phone</dt><dd>{user.phone ?? "Not provided"}</dd></div><div><dt>Last active</dt><dd>{user.lastActiveAt ? formatDate(user.lastActiveAt) : "Never"}</dd></div></dl><button className="button button-secondary button-sm" type="button" onClick={() => onEdit(user)}>Edit user details <Icon name="arrow" size={14}/></button></article>;
+  return <tr className="user-table-row"><td><UserIdentity user={user}/></td><td><RoleBadge role={user.role}/></td><td><Badge status={user.accountStatus}/></td><td>{user.phone ?? <span className="muted-cell">Not provided</span>}</td><td className="muted-cell">{user.lastActiveAt ? formatDate(user.lastActiveAt) : "Never"}</td><td className="muted-cell">{formatDate(user.createdAt)}</td><td><button className="button button-secondary button-sm user-edit-button" type="button" onClick={() => onEdit(user)}><Icon name="edit" size={14}/> Edit</button></td></tr>;
 }
 
 function UserIdentity({ user }: { user: ManageUser }) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { TextInput, TextArea } from "./form-controls";
+import { PasswordField, TextInput, TextArea } from "./form-controls";
 import { DatePicker } from "./date-picker";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Badge, ErrorState, LoadingState } from "./ui";
@@ -29,6 +29,17 @@ type RegistrationStage =
   | "payment_submitted";
 const flowStorageKey = "smartegy-registration-flow";
 const duplicateEmailMessage = "An account already exists for this email address.";
+const resendCooldownSeconds = 15;
+
+function getRateLimitCooldownSeconds(error: {
+  message: string;
+  response?: { httpStatus: number | null };
+}) {
+  const isRateLimited = error.response?.httpStatus === 429 || /only request this after \d+ seconds|rate.?limit|too many requests/i.test(error.message);
+  if (!isRateLimited) return 0;
+  const match = error.message.match(/after\s+(\d+)\s+seconds?/i);
+  return Math.max(resendCooldownSeconds, Number(match?.[1] ?? resendCooldownSeconds));
+}
 type AccountDetails = {
   fullName: string;
   email: string;
@@ -154,16 +165,23 @@ export function RegistrationSignup({
     setSubmitting(true);
     setError(null);
     setFieldErrors({});
-    const result = await registrationRepository.sendEmailOtp(email);
-    if (result.ok) {
-      setApplicantEmail(email.trim().toLowerCase());
-      setStage("otp_verification");
-      setResendCooldown(30);
-    } else {
-      setError(result.error.message);
-      setFieldErrors(result.error.fieldErrors ?? {});
+    try {
+      const result = await registrationRepository.sendEmailOtp(email);
+      if (result.ok) {
+        setApplicantEmail(email.trim().toLowerCase());
+        setStage("otp_verification");
+        setResendCooldown(resendCooldownSeconds);
+      } else {
+        const rateLimitSeconds = getRateLimitCooldownSeconds(result.error);
+        if (rateLimitSeconds) setResendCooldown(rateLimitSeconds);
+        setError(result.error.message);
+        setFieldErrors(result.error.fieldErrors ?? {});
+      }
+    } catch {
+      setError("We could not send your verification code. Try again shortly.");
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -231,27 +249,31 @@ export function RegistrationSignup({
         return;
       }
       setSubmitting(true);
-      const verified = await registrationRepository.verifyEmailOtp(
-        applicantEmail,
-        otp,
-      );
-      if (!verified.ok) {
-        setError(verified.error.message);
-        setFieldErrors(verified.error.fieldErrors ?? {});
+      try {
+        const verified = await registrationRepository.verifyEmailOtp(
+          applicantEmail,
+          otp,
+        );
+        if (!verified.ok) {
+          setError(verified.error.message);
+          setFieldErrors(verified.error.fieldErrors ?? {});
+          return;
+        }
+        const created = await registrationRepository.createApplication({
+          ...accountDetails,
+          referralCode: accountDetails.referralCode,
+          acceptedTerms: true,
+        });
+        if (created.ok) saveFlow("payment", created.data);
+        else {
+          setError(created.error.message);
+          setFieldErrors(created.error.fieldErrors ?? {});
+        }
+      } catch {
+        setError("We could not verify your code. Try again shortly.");
+      } finally {
         setSubmitting(false);
-        return;
       }
-      const created = await registrationRepository.createApplication({
-        ...accountDetails,
-        referralCode: accountDetails.referralCode,
-        acceptedTerms: true,
-      });
-      if (created.ok) saveFlow("payment", created.data);
-      else {
-        setError(created.error.message);
-        setFieldErrors(created.error.fieldErrors ?? {});
-      }
-      setSubmitting(false);
       return;
     }
 
@@ -268,24 +290,29 @@ export function RegistrationSignup({
       }
       setUploadError(null);
       setSubmitting(true);
-      const submitted = await registrationRepository.submitFee(
-        actorFor(registration.id),
-        {
-          registrationId: registration.id,
-          paymentDate,
-          paymentReference: null,
-          paymentRemarks: String(form.get("paymentRemarks") ?? ""),
-          proof: {
-            file,
-            fileName: file.name,
-            mimeType: file.type,
-            sizeBytes: file.size,
+      try {
+        const submitted = await registrationRepository.submitFee(
+          actorFor(registration.id),
+          {
+            registrationId: registration.id,
+            paymentDate,
+            paymentReference: null,
+            paymentRemarks: String(form.get("paymentRemarks") ?? ""),
+            proof: {
+              file,
+              fileName: file.name,
+              mimeType: file.type,
+              sizeBytes: file.size,
+            },
           },
-        },
-      );
-      if (submitted.ok) saveFlow("payment_submitted", submitted.data);
-      else setError(submitted.error.message);
-      setSubmitting(false);
+        );
+        if (submitted.ok) saveFlow("payment_submitted", submitted.data);
+        else setError(submitted.error.message);
+      } catch {
+        setError("We could not submit your payment proof. Try again shortly.");
+      } finally {
+        setSubmitting(false);
+      }
     }
   }
 
@@ -412,6 +439,7 @@ export function RegistrationSignup({
                   email={maskedEmail}
                   fieldErrors={fieldErrors}
                   resendCooldown={resendCooldown}
+                  submitting={submitting}
                   onResend={resendOtp}
                 />
               )}
@@ -434,9 +462,13 @@ export function RegistrationSignup({
                   className="button button-primary registration-submit"
                   type="submit"
                   disabled={submitting}
+                  aria-busy={submitting}
                 >
                   {submitting ? (
-                    "Please wait…"
+                    <>
+                      <span className="button-spinner" aria-hidden="true" />
+                      Please wait…
+                    </>
                   ) : stage === "registration" ? (
                     "Send OTP"
                   ) : stage === "otp_verification" ? (
@@ -480,8 +512,6 @@ function RegistrationFields({
   referralLocked: boolean;
   onReferralCodeChange: (value: string) => void;
 }) {
-  const [showPassword, setShowPassword] = useState(false);
-  const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
 
   return (
     <>
@@ -546,54 +576,8 @@ function RegistrationFields({
             </p>
           )}
         </Field>
-        <Field id="password" label="Password" error={fieldErrors.password}>
-          <div className="password-input">
-            <TextInput
-              id="password"
-              name="password"
-              type={showPassword ? "text" : "password"}
-              autoComplete="new-password"
-              placeholder="At Least 8 Characters"
-              minLength={8}
-              required
-            />
-            <button
-              className="registration-password-toggle"
-              type="button"
-              aria-label={showPassword ? "Hide password" : "Show password"}
-              aria-pressed={showPassword}
-              onClick={() => setShowPassword((visible) => !visible)}
-            >
-              <Icon name={showPassword ? "eye-off" : "eye"} size={18} />
-            </button>
-          </div>
-        </Field>
-        <Field
-          id="passwordConfirmation"
-          label="Confirm Password"
-          error={fieldErrors.passwordConfirmation}
-        >
-          <div className="password-input">
-            <TextInput
-              id="passwordConfirmation"
-              name="passwordConfirmation"
-              type={showPasswordConfirmation ? "text" : "password"}
-              autoComplete="new-password"
-              placeholder="Re-enter Your Password"
-              minLength={8}
-              required
-            />
-            <button
-              className="registration-password-toggle"
-              type="button"
-              aria-label={showPasswordConfirmation ? "Hide confirmed password" : "Show confirmed password"}
-              aria-pressed={showPasswordConfirmation}
-              onClick={() => setShowPasswordConfirmation((visible) => !visible)}
-            >
-              <Icon name={showPasswordConfirmation ? "eye-off" : "eye"} size={18} />
-            </button>
-          </div>
-        </Field>
+        <PasswordField id="password" name="password" label="Password" autoComplete="new-password" placeholder="At Least 8 Characters" minLength={8} required showRequiredIndicator variant="registration" error={fieldErrors.password}/>
+        <PasswordField id="passwordConfirmation" name="passwordConfirmation" label="Confirm Password" autoComplete="new-password" placeholder="Re-enter Your Password" minLength={8} required showRequiredIndicator variant="registration" error={fieldErrors.passwordConfirmation}/>
       </div>
       <label
         className={`terms-row ${fieldErrors.acceptedTerms ? "terms-row-error" : ""}`}
@@ -625,11 +609,13 @@ function OtpStep({
   email,
   fieldErrors,
   resendCooldown,
+  submitting,
   onResend,
 }: {
   email: string;
   fieldErrors: Record<string, string[]>;
   resendCooldown: number;
+  submitting: boolean;
   onResend: () => void;
 }) {
   return (
@@ -657,10 +643,20 @@ function OtpStep({
         <button
           className="text-button"
           type="button"
-          disabled={resendCooldown > 0}
+          disabled={resendCooldown > 0 || submitting}
+          aria-busy={submitting}
           onClick={onResend}
         >
-          {resendCooldown ? `Resend in ${resendCooldown}s` : "Resend OTP"}
+          {submitting ? (
+            <>
+              <span className="button-spinner" aria-hidden="true" style={{ borderColor: "currentColor", borderTopColor: "transparent" }} />
+              Sending code…
+            </>
+          ) : resendCooldown ? (
+            `Resend in ${resendCooldown}s`
+          ) : (
+            "Resend OTP"
+          )}
         </button>
       </div>
     </div>

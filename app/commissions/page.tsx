@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TextInput } from "@/components/form-controls";
 import { AppShell } from "@/components/app-shell";
 import { Badge, EmptyState, ErrorState, LoadingState } from "@/components/ui";
-import { Icon } from "@/components/icons";
 import { FilterSelect } from "@/components/filter-select";
 import { DatePicker } from "@/components/date-picker";
 import { DataTable } from "@/components/data-table";
@@ -15,6 +13,7 @@ import type { DataTableHeader } from "@/components/data-table";
 import { formatDate, formatMoney } from "@/lib/format";
 import { commissionStatuses, agentCommissionsRepository, type CommissionDirectoryPage } from "@/lib/commission-repository";
 import { usePreviewUser } from "@/lib/preview-user";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { AgentCommissionRecord, CommissionOverview, CommissionPaymentKind, CommissionStatus, CurrentUser } from "@/lib/types";
 
 const pageSize = 5;
@@ -65,6 +64,7 @@ function nextPayoutAmount(record: AgentCommissionRecord) {
 function CommissionRecords({ actor }: { actor: CurrentUser }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [status, setStatus] = useState<CommissionStatus | "all">("all");
   const [paymentKind, setPaymentKind] = useState<CommissionPaymentKind | "all">("all");
   const [month, setMonth] = useState("");
@@ -80,14 +80,14 @@ function CommissionRecords({ actor }: { actor: CurrentUser }) {
   const load = useCallback(async () => {
     const currentRequest = ++requestId.current;
     setRefreshing(true);
-    const result = await agentCommissionsRepository.listPage(actor, { search, status: status === "all" ? undefined : status, month: month || undefined, page: 1, pageSize: 10000, sortBy: sort, sortDirection });
+    const result = await agentCommissionsRepository.listPage(actor, { search: debouncedSearch, status: status === "all" ? undefined : status, month: month || undefined, page: 1, pageSize: 10000, sortBy: sort, sortDirection });
     if (currentRequest !== requestId.current) return;
     if (result.ok) setData(result.data);
     setLoading(false);
     setRefreshing(false);
-  }, [actor, month, search, sort, sortDirection, status]);
+  }, [actor, debouncedSearch, month, sort, sortDirection, status]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (search === debouncedSearch) void load(); }, [debouncedSearch, load, search]);
 
   const filteredItems = (data?.items ?? []).filter((record) => paymentKind === "all" || record.paymentKinds?.includes(paymentKind) || paymentKindFor(record) === paymentKind).sort((left, right) => compareRecords(left, right, sort, sortDirection));
   const totalItems = filteredItems.length;
@@ -98,18 +98,18 @@ function CommissionRecords({ actor }: { actor: CurrentUser }) {
 
   async function exportRecords() {
     setExporting(true);
-    await agentCommissionsRepository.export(actor, { search, status: status === "all" ? undefined : status, month: month || undefined, sortBy: sort, sortDirection });
+    await agentCommissionsRepository.export(actor, { search: debouncedSearch, status: status === "all" ? undefined : status, month: month || undefined, sortBy: sort, sortDirection });
     setExporting(false);
   }
 
   function resetPage() { setPage(1); }
   function updateSort(nextSort: SortKey) { if (sort === nextSort) setSortDirection((current) => current === "asc" ? "desc" : "asc"); else { setSort(nextSort); setSortDirection("desc"); } setPage(1); }
-  function sortableHeader(key: SortKey, heading: string): DataTableHeader { const direction = sort === key ? sortDirection : undefined; return { ariaSort: direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none", content: <button className="table-sort-button" type="button" onClick={() => updateSort(key)} aria-label={`Sort by ${sortLabels[key]}${direction ? `, currently ${direction === "asc" ? "ascending" : "descending"}` : ""}`}><span>{heading}</span><span className="table-sort-indicator" aria-hidden="true">{direction === "asc" ? "↑" : direction === "desc" ? "↓" : "↕"}</span></button> }; }
+  function sortableHeader(key: SortKey, heading: string): DataTableHeader { const direction = sort === key ? sortDirection : undefined; return { ariaSort: direction === "asc" ? "ascending" : direction === "desc" ? "descending" : undefined, content: <button className="table-sort-button" type="button" onClick={() => updateSort(key)} aria-label={`Sort by ${sortLabels[key]}${direction ? `, currently ${direction === "asc" ? "ascending" : "descending"}` : ""}`}><span>{heading}</span><span className="table-sort-indicator" aria-hidden="true">{direction === "asc" ? "↑" : direction === "desc" ? "↓" : "↕"}</span></button> }; }
 
   return <section className="panel commission-records-panel">
     <div className="panel-header commission-records-header"><div><h2>Commission records</h2><p>{totalItems ? "Eligible case commissions returned from the trusted commission service." : "Your commissions will appear after an eligible case payment is verified."}</p></div><span className="case-count">{totalItems} records {refreshing && <span className="table-secondary" role="status" aria-live="polite">Updating…</span>}</span></div>
     <div className="commission-filters" aria-label="Commission filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => { setSearch(event.target.value); resetPage(); }} placeholder="Case number or customer name" /></label><label><span>Status</span><FilterSelect allLabel="All statuses" value={status} options={commissionStatuses} onChange={(value) => { setStatus(value as CommissionStatus | "all"); resetPage(); }} /></label><label><span>Payment type</span><FilterSelect allLabel="All payment types" value={paymentKind} options={["all", "initial", "deferred", "adjustment"]} labels={{ all: "All payment types", initial: "First Payment", deferred: "Recurring Balance", adjustment: "Adjustment" }} onChange={(value) => { setPaymentKind(value as CommissionPaymentKind | "all"); resetPage(); }} /></label><div className="commission-filter-field"><span className="commission-filter-label-emphasis">Payment month</span><DatePicker id="payment-month" mode="month" value={month} placeholder="MM/YYYY" onChange={(value) => { setMonth(value); resetPage(); }} /></div><button className="text-button commission-filter-reset" type="button" disabled={clearDisabled} onClick={() => { setSearch(""); setStatus("all"); setPaymentKind("all"); setMonth(""); setSort("updated"); setSortDirection("desc"); resetPage(); }}>Clear filters</button></div>
-    {loading && !data ? <LoadingState/> : items.length ? <><div className="desktop-commission-table"><DataTable caption="My commission records" headers={["Case", sortableHeader("customer", "Customer"), "My entitlement", "Paid", sortableHeader("balance", "Remaining"), "Status", "Payment type", "Next payout", sortableHeader("updated", "Updated")]}>{items.map((record) => { const paymentKind = paymentKindFor(record); return <tr className="commission-table-row" key={record.id} tabIndex={0} role="link" aria-label={`Open commission for ${record.caseNumber}`} onClick={() => router.push(`/commissions/${record.id}`)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); router.push(`/commissions/${record.id}`); } }}><td><span className="table-primary">{record.caseNumber}</span></td><td>{record.customerDisplayName}</td><td className="commission-money">{formatMoney(record.entitlementSen)}</td><td className="commission-money">{formatMoney(record.paidToDateSen)}</td><td className="commission-money">{formatMoney(record.deferredBalanceSen)}</td><td><Badge status={record.status}/></td><td><PaymentKindBadge kind={paymentKind}/></td><td>{record.nextPaymentDate ? <><span className="table-primary">{formatMoney(nextPayoutAmount(record))}</span><span className="table-secondary">{formatDate(record.nextPaymentDate)}</span></> : <span className="muted-cell">Not scheduled</span>}</td><td className="muted-cell">{formatDate(record.lastUpdatedAt)}</td></tr>; })}</DataTable></div><div className="mobile-commission-list">{items.map((record) => <Link className="commission-card" href={`/commissions/${record.id}`} key={record.id}><div className="commission-card-top"><div><span className="table-primary">{record.caseNumber}</span><strong>{record.customerDisplayName}</strong></div><Badge status={record.status}/></div><div className="commission-card-grid"><span><small>My entitlement</small><b>{formatMoney(record.entitlementSen)}</b></span><span><small>Paid</small><b>{formatMoney(record.paidToDateSen)}</b></span><span><small>Remaining</small><b>{formatMoney(record.deferredBalanceSen)}</b></span><span><small>Payment type</small><b><PaymentKindBadge kind={paymentKindFor(record)} /></b></span><span><small>Next payout</small><b>{record.status === "withheld" ? "RM0.00" : record.nextPaymentDate ? formatDate(record.nextPaymentDate) : "Not scheduled"}</b></span></div><span className="commission-card-action">View schedule <Icon name="arrow" size={14}/></span></Link>)}</div></> : <EmptyState title="No eligible commissions yet" description="Commissions will appear after an eligible case payment is verified."/>}
+    {loading && !data ? <LoadingState/> : items.length ? <div className="desktop-commission-table"><DataTable caption="My commission records" headers={["Case", sortableHeader("customer", "Customer"), "My entitlement", "Paid", sortableHeader("balance", "Remaining"), "Status", "Payment type", "Next payout", sortableHeader("updated", "Updated")]}>{items.map((record) => { const paymentKind = paymentKindFor(record); return <tr className="commission-table-row" key={record.id} tabIndex={0} role="link" aria-label={`Open commission for ${record.caseNumber}`} onClick={() => router.push(`/commissions/${record.id}`)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); router.push(`/commissions/${record.id}`); } }}><td><span className="table-primary">{record.caseNumber}</span></td><td>{record.customerDisplayName}</td><td className="commission-money">{formatMoney(record.entitlementSen)}</td><td className="commission-money">{formatMoney(record.paidToDateSen)}</td><td className="commission-money">{formatMoney(record.deferredBalanceSen)}</td><td><Badge status={record.status}/></td><td><PaymentKindBadge kind={paymentKind}/></td><td>{record.nextPaymentDate ? <><span className="table-primary">{formatMoney(nextPayoutAmount(record))}</span><span className="table-secondary">{formatDate(record.nextPaymentDate)}</span></> : <span className="muted-cell">Not scheduled</span>}</td><td className="muted-cell">{formatDate(record.lastUpdatedAt)}</td></tr>; })}</DataTable></div> : <EmptyState title="No eligible commissions yet" description="Commissions will appear after an eligible case payment is verified."/>}
     <div className="case-table-footer"><span className="case-page-summary">Showing {items.length ? (currentPage - 1) * pageSize + 1 : 0}&ndash;{Math.min(currentPage * pageSize, totalItems)} of {totalItems}</span><div className="case-table-actions"><button className="button button-secondary button-sm" type="button" onClick={() => void exportRecords()} disabled={exporting || !totalItems}><ExportIcon size={15}/>{exporting ? "Exporting…" : "Export"}</button><div className="pagination" aria-label="Commission pagination"><button className="pagination-button" type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setPage((value) => value - 1)}>&lsaquo;</button><span>Page {currentPage} of {totalPages}</span><button className="pagination-button" type="button" aria-label="Next page" disabled={currentPage === totalPages} onClick={() => setPage((value) => value + 1)}>&rsaquo;</button></div></div></div>
   </section>;
 }

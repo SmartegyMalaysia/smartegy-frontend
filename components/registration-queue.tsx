@@ -11,16 +11,21 @@ import { FilterSelect } from "./filter-select";
 import { DateRangePicker } from "./date-range-picker";
 import { registrationRepository } from "@/lib/registration-repository";
 import { usePreviewUser } from "@/lib/preview-user";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import type { AgentRegistration, RegistrationFeeStatus, RegistrationQueueQuery, RegistrationStatus } from "@/lib/types";
 
 const pageSize = 5;
 const registrationStatuses: Array<RegistrationStatus | "all"> = ["all", "draft", "pending_approval", "active", "rejected", "suspended"];
 const feeStatuses: Array<RegistrationFeeStatus | "all"> = ["all", "unpaid", "pending_verification", "verified", "rejected", "waived", "refunded"];
 const profileStatuses: Array<"all" | "complete" | "incomplete"> = ["all", "complete", "incomplete"];
+const registrationSorts: NonNullable<RegistrationQueueQuery["sort"]>[] = ["priority", "newest", "oldest", "recently_updated", "fee_status"];
+const registrationSortLabels: Record<NonNullable<RegistrationQueueQuery["sort"]>, string> = { priority: "Review priority", newest: "Newest submitted", oldest: "Oldest submitted", recently_updated: "Recently updated", fee_status: "Fee status" };
 
 export function RegistrationQueuePage() {
   const { role, user, setRole, ready } = usePreviewUser("staff");
   const [registrations, setRegistrations] = useState<AgentRegistration[]>([]);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [query, setQuery] = useState<RegistrationQueueQuery>({ sort: "priority" });
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -47,14 +52,15 @@ export function RegistrationQueuePage() {
   }, [query, user]);
 
   useEffect(() => { if (ready) void load(); }, [load, ready]);
+  useEffect(() => { setQuery((current) => { const nextSearch = debouncedSearch || undefined; return current.search === nextSearch ? current : { ...current, search: nextSearch }; }); }, [debouncedSearch]);
   useEffect(() => { setPage(1); }, [query]);
 
   const totalPages = Math.max(1, Math.ceil(registrations.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const visible = registrations.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const update = (key: keyof RegistrationQueueQuery, value: string) => setQuery((current) => ({ ...current, [key]: value || undefined }));
-  const reset = () => setQuery({ sort: "priority" });
-  const hasFilters = Object.keys(query).some((key) => key !== "sort" && Boolean(query[key as keyof RegistrationQueueQuery]));
+  const reset = () => { setSearch(""); setQuery({ sort: "priority" }); setPage(1); };
+  const hasFilters = Boolean(search) || query.sort !== "priority" || Object.keys(query).some((key) => key !== "sort" && key !== "search" && Boolean(query[key as keyof RegistrationQueueQuery]));
 
   async function exportRegistrations() {
     setExporting(true);
@@ -69,8 +75,8 @@ export function RegistrationQueuePage() {
         <div className="preview-banner"><span className="preview-dot"/><div><strong>Manual verification</strong><span> Payment Proof Is Reviewed by authorised staff. No payment is verified automatically.</span></div></div>
         {role === "agent" ? <PermissionDenied/> : loading && !hasLoaded.current ? <LoadingState/> : failed && !hasLoaded.current ? <ErrorState onRetry={load}/> : <section className="panel recent-panel case-table-panel">
           <div className="panel-header case-table-header"><div><h2>Agent Registrations</h2><p>Select an application to review its payment proof and audit history.</p></div><span className="case-count">{registrations.length} applications {refreshing && <span className="table-secondary" role="status" aria-live="polite">Updating…</span>}</span></div>
-          <QueueFilters query={query} update={update} reset={reset} hasFilters={hasFilters}/>
-          {registrations.length === 0 ? <EmptyState title={query.search || hasFilters ? "No matching applications" : "No registrations yet"} description={query.search || hasFilters ? "Try changing or clearing the filters." : "New applications will appear after applicants submit their registration."}/> : <>
+          <QueueFilters query={query} search={search} onSearchChange={(value) => { setSearch(value); setPage(1); }} update={update} reset={reset} hasFilters={hasFilters}/>
+          {registrations.length === 0 ? <EmptyState title={search || hasFilters ? "No matching applications" : "No registrations yet"} description={search || hasFilters ? "Try changing or clearing the filters." : "New applications will appear after applicants submit their registration."}/> : <>
             <div className="desktop-case-table"><DataTable caption="Agent registration queue" headers={["User ID", "Name", "Phone number", "Email", "Upline agent", "Payment verified", "Profile"]}>{visible.map((registration) => <RegistrationRow key={registration.id} registration={registration}/>)}</DataTable></div>
             <div className="case-table-footer"><span className="case-page-summary">Showing {visible.length ? (currentPage - 1) * pageSize + 1 : 0}&ndash;{Math.min(currentPage * pageSize, registrations.length)} of {registrations.length}</span><div className="case-table-actions"><button className="button button-secondary button-sm" type="button" onClick={() => void exportRegistrations()} disabled={exporting || !registrations.length}><ExportIcon size={15}/>{exporting ? "Exporting…" : "Export"}</button><div className="pagination" aria-label="Registration queue pagination"><button className="pagination-button" type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setPage((value) => value - 1)}>&lsaquo;</button><span>Page {currentPage} of {totalPages}</span><button className="pagination-button" type="button" aria-label="Next page" disabled={currentPage === totalPages} onClick={() => setPage((value) => value + 1)}>&rsaquo;</button></div></div></div>
           </>}
@@ -80,8 +86,8 @@ export function RegistrationQueuePage() {
   </AppShell>;
 }
 
-function QueueFilters({ query, update, reset, hasFilters }: { query: RegistrationQueueQuery; update: (key: keyof RegistrationQueueQuery, value: string) => void; reset: () => void; hasFilters: boolean }) {
-  return <div className="case-filters registration-case-filters" aria-label="Registration queue filters"><label><span>Search</span><TextInput type="search" value={query.search ?? ""} onChange={(event) => update("search", event.target.value)} placeholder="Application number, applicant name/email/mobile, or referring agent" /></label><label><span>Registration</span><FilterSelect allLabel="All registration statuses" value={query.registrationStatus ?? "all"} options={registrationStatuses} onChange={(value) => update("registrationStatus", value)} /></label><label><span>Fee</span><FilterSelect allLabel="All fee statuses" value={query.feeStatus ?? "all"} options={feeStatuses} onChange={(value) => update("feeStatus", value)} /></label><label><span>Profile</span><FilterSelect allLabel="All profile states" value={query.profileComplete ?? "all"} options={profileStatuses} labels={{ all: "All profiles", complete: "Complete", incomplete: "Incomplete" }} onChange={(value) => update("profileComplete", value)} /></label><DateRangePicker id="registration-submitted-range" title="Submitted date" from={query.submittedFrom ?? ""} to={query.submittedTo ?? ""} onFromChange={(value) => update("submittedFrom", value)} onToChange={(value) => update("submittedTo", value)} /><button className="text-button case-filter-reset" type="button" onClick={reset} disabled={!hasFilters}>Clear filters</button></div>;
+function QueueFilters({ query, search, onSearchChange, update, reset, hasFilters }: { query: RegistrationQueueQuery; search: string; onSearchChange: (value: string) => void; update: (key: keyof RegistrationQueueQuery, value: string) => void; reset: () => void; hasFilters: boolean }) {
+  return <div className="case-filters registration-case-filters" aria-label="Registration queue filters"><label><span>Search</span><TextInput type="search" value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Application number, applicant name/email/mobile, or referring agent" /></label><label><span>Registration</span><FilterSelect allLabel="All registration statuses" value={query.registrationStatus ?? "all"} options={registrationStatuses} onChange={(value) => update("registrationStatus", value)} /></label><label><span>Fee</span><FilterSelect allLabel="All fee statuses" value={query.feeStatus ?? "all"} options={feeStatuses} onChange={(value) => update("feeStatus", value)} /></label><label><span>Profile</span><FilterSelect allLabel="All profile states" value={query.profileComplete ?? "all"} options={profileStatuses} labels={{ all: "All profiles", complete: "Complete", incomplete: "Incomplete" }} onChange={(value) => update("profileComplete", value)} /></label><DateRangePicker id="registration-submitted-range" title="Submitted date" from={query.submittedFrom ?? ""} to={query.submittedTo ?? ""} onFromChange={(value) => update("submittedFrom", value)} onToChange={(value) => update("submittedTo", value)} /><label><span>Sort by</span><FilterSelect allLabel={registrationSortLabels.priority} value={query.sort ?? "priority"} options={registrationSorts} labels={registrationSortLabels} onChange={(value) => update("sort", value)} /></label><button className="text-button case-filter-reset" type="button" onClick={reset} disabled={!hasFilters}>Clear filters</button></div>;
 }
 
 function ReadinessBadge({ complete, completeLabel, incompleteLabel }: { complete: boolean; completeLabel: string; incompleteLabel: string }) { return <span className={`badge ${complete ? "badge-success" : "badge-warning"}`}><span className="badge-dot" aria-hidden="true" />{complete ? completeLabel : incompleteLabel}</span>; }
