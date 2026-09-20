@@ -15,7 +15,7 @@ import { formatDate, formatDateTime, formatMoney, titleCase } from "@/lib/format
 import { malaysiaStates } from "@/lib/malaysia";
 import { casesRepository } from "@/lib/case-repository";
 import { canEditCase, caseActionLabels, caseFlowStages, getCaseFlowStageIndex, type CaseActionKind } from "@/lib/case-workflow";
-import type { CaseDetail, CaseDocument, CasePayment, CurrentUser, PaymentSchedule, ProposalEnergyReading } from "@/lib/types";
+import type { CaseDetail, CaseDocument, CasePayment, CurrentUser, PaymentSchedule, ProposalEnergyReading, ProposalInput } from "@/lib/types";
 import { ProposalForm } from "./proposal-form";
 import { ProposalAcceptance } from "./proposal-acceptance";
 import { createBrowserPreviewUrl, isHeicFile } from "@/lib/heic-preview";
@@ -96,6 +96,21 @@ function buildSavingsReadings(drafts: SavingsReadingDraft[]): ProposalEnergyRead
   return parsed;
 }
 function paymentScheduleLabel(kind: PaymentSchedule["kind"]) { return kind === "deposit" ? "Downpayment" : kind === "post_installation" ? "Post-Installation Payment" : titleCase(kind); }
+
+function buildRegeneratedProposalInput(caseDetail: CaseDetail): ProposalInput | null {
+  const proposal = caseDetail.proposal;
+  if (!proposal || proposal.status !== "issued" || !caseDetail.proposalReadings?.length) return null;
+  return {
+    salesRepName: proposal.salesRepName,
+    proposalDate: proposal.proposalDate,
+    installationAddress: caseDetail.service.siteAddress,
+    installationCostSen: proposal.installationCostSen,
+    outstationCostSen: proposal.outstationCostSen,
+    saleAmountSen: proposal.saleAmountSen,
+    downpaymentSen: proposal.deposit1Sen !== proposal.calculatedDownpaymentSen ? proposal.deposit1Sen : undefined,
+    readings: caseDetail.proposalReadings,
+  };
+}
 
 type PaymentProofAccess = { fileName: string; mimeType: string; url: string };
 
@@ -387,10 +402,29 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
     setDetailsError(null);
     setBusy(true);
     setToast(null);
-    const result = await casesRepository.update(user, caseDetail.id, { customer: { displayName: customerName, contactName, email, phone }, service: { siteAddress, addressLine1, addressLine2, postcode, city, state, notes: remarks } });
-    apply(result);
+    const updatedSiteAddress = [addressLine1, addressLine2, [postcode, city].filter(Boolean).join(" "), state].filter(Boolean).join(", ");
+    const detailsChanged = customerName.trim() !== caseDetail.customer.displayName
+      || contactName.trim() !== (caseDetail.customer.contactName ?? "")
+      || email.trim() !== (caseDetail.customer.email ?? "")
+      || phone.trim() !== (caseDetail.customer.phone ?? "")
+      || updatedSiteAddress !== caseDetail.service.siteAddress
+      || remarks.trim() !== (caseDetail.service.notes ?? "");
+    const result = await casesRepository.update(user, caseDetail.id, { customer: { displayName: customerName, contactName, email, phone }, service: { siteAddress: updatedSiteAddress, addressLine1, addressLine2, postcode, city, state, notes: remarks } });
+    if (!result.ok) { apply(result); setBusy(false); return; }
+    const proposalInput = detailsChanged ? buildRegeneratedProposalInput(result.data) : null;
+    if (proposalInput) {
+      const regenerated = await casesRepository.regenerateProposal(user, caseDetail.id, proposalInput);
+      if (!regenerated.ok) {
+        const refreshed = await casesRepository.getById(user, caseDetail.id);
+        if (refreshed.ok) setCaseData(refreshed.data);
+        setDetailsError(`Details were saved, but the proposal could not be regenerated: ${regenerated.error.message}`);
+        setBusy(false);
+        return;
+      }
+      apply(regenerated);
+    } else apply(result);
     setBusy(false);
-    if (result.ok) setEditing(false);
+    setEditing(false);
   }
   async function recordPayment() {
     const amount = Number(paymentAmount);

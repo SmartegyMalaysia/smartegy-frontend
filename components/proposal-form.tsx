@@ -184,10 +184,18 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
     if (!input) { setWarning("Complete the proposal details, additional costs, project amount, and every reading row."); return; }
     if (!preview) { setWarning("The initial payment obligation cannot exceed the sale amount, and the downpayment must be valid."); return; }
     setBusy(true); setWarning(null);
+    const remarksChanged = (caseDetail.service.notes ?? "") !== (projectRemarks.trim() || "");
+    if (issue && remarksChanged) {
+      const remarksResult = await casesRepository.update(user, caseDetail.id, { service: { notes: projectRemarks.trim() || null } });
+      if (!remarksResult.ok) {
+        setWarning(`Proposal could not be issued because Project Remarks could not be saved: ${remarksResult.error.message}`);
+        setBusy(false);
+        return;
+      }
+    }
     const result = issue ? await casesRepository.issueProposal(user, caseDetail.id, input) : await casesRepository.saveProposalDraft(user, caseDetail.id, input);
     if (result.ok) {
-      const remarksChanged = (caseDetail.service.notes ?? "") !== (projectRemarks.trim() || "");
-      const remarksResult = remarksChanged
+      const remarksResult = !issue && remarksChanged
         ? await casesRepository.update(user, caseDetail.id, { service: { notes: projectRemarks.trim() || null } })
         : result;
       if (!remarksResult.ok) {

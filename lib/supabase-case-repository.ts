@@ -203,6 +203,17 @@ export const supabaseCasesRepository: CasesRepository = {
     const { data, error } = await supabase.functions.invoke("generate-document", { body: { case_id: caseId, type: "quotation", proposal, readings } });
     if (error) return functionFailure<CaseDetail>(error); if (data?.error) return failure<CaseDetail>({ message: data.error }); return { ok: true, data: await loadCase(caseId) };
   },
+  async regenerateProposal(_actor, caseId, input: ProposalInput) {
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
+    const current = await loadCase(caseId);
+    if (!current.proposal || current.proposal.status !== "issued" || current.status !== "quotation_issued") return failure<CaseDetail>({ code: "VALIDATION_ERROR", message: "Only an unaccepted issued proposal can be regenerated." });
+    const { error: voidError } = await supabase.rpc("void_proposal", { p_proposal_id: current.proposal.id, p_reason: "Case details changed; proposal regenerated." });
+    if (voidError) return failure<CaseDetail>(voidError);
+    const proposal = { sales_rep_name: input.salesRepName, proposal_date: input.proposalDate, installation_address: input.installationAddress, installation_cost: moneyToRm(input.installationCostSen), outstation_cost: moneyToRm(input.outstationCostSen), sale_amount: input.saleAmountSen / 100, downpayment_override: moneyToRm(input.downpaymentSen) };
+    const readings = input.readings.map((reading) => ({ month: reading.month, kwh_used: reading.kwhUsed, bill_amount: reading.billAmountSen / 100 }));
+    const { data, error } = await supabase.functions.invoke("generate-document", { body: { case_id: caseId, type: "quotation", proposal, readings } });
+    if (error) return functionFailure<CaseDetail>(error); if (data?.error) return failure<CaseDetail>({ message: data.error }); return { ok: true, data: await loadCase(caseId) };
+  },
   async acceptProposal(_actor, caseId, input: AcceptanceInput) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
     try {
