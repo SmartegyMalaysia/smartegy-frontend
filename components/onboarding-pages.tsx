@@ -155,7 +155,7 @@ export function RegistrationStatusPage() {
                     placeholder="Add context for staff, if needed"
                   />
                 </div>
-                <Button type="submit" disabled={submittingPayment}>
+                <Button type="submit" loading={submittingPayment}>
                   {submittingPayment ? "Submitting…" : "Submit new proof"}
                 </Button>
               </form>

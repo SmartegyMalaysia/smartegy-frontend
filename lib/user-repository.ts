@@ -23,6 +23,13 @@ const roles: UserRole[] = ["agent", "staff", "admin"];
 const statuses: AccountStatus[] = ["invited", "active", "inactive"];
 function admin(actor: CurrentUser) { return actor.role === "admin"; }
 function fail<T>(code: UserErrorCode, message: string, fieldErrors?: Record<string, string[]>): UserResult<T> { return { ok: false, error: { code, message, fieldErrors } }; }
+export function sortUserDirectoryItems(items: ManageUser[], sortBy: UserDirectoryQuery["sortBy"] = "display_name", sortDirection: UserDirectoryQuery["sortDirection"] = "asc") {
+  const direction = sortDirection === "desc" ? -1 : 1;
+  return [...items].sort((left, right) => {
+    const comparison = sortBy === "created_at" ? left.createdAt.localeCompare(right.createdAt) : left.displayName.localeCompare(right.displayName);
+    return comparison ? comparison * direction : left.id.localeCompare(right.id);
+  });
+}
 function validate(input: UpdateManageUserInput) {
   const fieldErrors: Record<string, string[]> = {};
   if (!input.displayName.trim()) fieldErrors.displayName = ["Enter the user’s display name."];
@@ -44,8 +51,7 @@ export const mockUserRepository: UserRepository = {
     if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can manage user accounts.");
     const term = query.search?.trim().toLowerCase() ?? "";
     const filtered = users.filter((item) => (!term || [item.displayName, item.email, item.phone, item.agentCode].some((value) => value?.toLowerCase().includes(term))) && (!query.role || item.role === query.role) && (!query.accountStatus || item.accountStatus === query.accountStatus));
-    const direction = query.sortDirection === "desc" ? -1 : 1;
-    const sorted = [...filtered].sort((a, b) => (query.sortBy === "created_at" ? a.createdAt.localeCompare(b.createdAt) : a.displayName.localeCompare(b.displayName)) * direction);
+    const sorted = sortUserDirectoryItems(filtered, query.sortBy, query.sortDirection);
     const pageSize = Math.min(10000, Math.max(1, query.pageSize ?? 5)); const page = Math.max(1, query.page ?? 1); const totalItems = sorted.length;
     return { ok: true, data: { items: structuredClone(sorted.slice((page - 1) * pageSize, page * pageSize)), totalItems, totalPages: Math.max(1, Math.ceil(totalItems / pageSize)), summary: { totalUsers: users.length, activeUsers: users.filter((item) => item.accountStatus === "active").length, invitedUsers: users.filter((item) => item.accountStatus === "invited").length, adminUsers: users.filter((item) => item.role === "admin").length }, filterOptions: { roles: roles, statuses } } };
   },
@@ -106,7 +112,8 @@ export const supabaseUserRepository: UserRepository = {
     const { data, error } = await supabase.rpc("admin_list_users", { p_search: query.search?.trim() || null, p_role: query.role ?? null, p_account_status: query.accountStatus ?? null, p_page: query.page ?? 1, p_page_size: query.pageSize ?? 5, p_sort_by: query.sortBy ?? "display_name", p_sort_direction: query.sortDirection ?? "asc" });
     if (error) return supabaseError(error);
     const payload = data as Record<string, any>;
-    return { ok: true, data: { items: ((payload?.items ?? []) as Array<Record<string, unknown>>).map(mapSupabaseUser), totalItems: Number(payload?.total_items ?? 0), totalPages: Number(payload?.total_pages ?? 1), summary: { totalUsers: Number(payload?.summary?.total_users ?? 0), activeUsers: Number(payload?.summary?.active_users ?? 0), invitedUsers: Number(payload?.summary?.invited_users ?? 0), adminUsers: Number(payload?.summary?.admin_users ?? 0) }, filterOptions: { roles: (payload?.filter_options?.roles ?? roles) as UserRole[], statuses: (payload?.filter_options?.statuses ?? statuses) as AccountStatus[] } } };
+    const items = sortUserDirectoryItems(((payload?.items ?? []) as Array<Record<string, unknown>>).map(mapSupabaseUser), query.sortBy, query.sortDirection);
+    return { ok: true, data: { items, totalItems: Number(payload?.total_items ?? 0), totalPages: Number(payload?.total_pages ?? 1), summary: { totalUsers: Number(payload?.summary?.total_users ?? 0), activeUsers: Number(payload?.summary?.active_users ?? 0), invitedUsers: Number(payload?.summary?.invited_users ?? 0), adminUsers: Number(payload?.summary?.admin_users ?? 0) }, filterOptions: { roles: (payload?.filter_options?.roles ?? roles) as UserRole[], statuses: (payload?.filter_options?.statuses ?? statuses) as AccountStatus[] } } };
   },
   async export(actor, query) {
     if (!admin(actor)) return fail("FORBIDDEN", "Only administrators can export user accounts.");

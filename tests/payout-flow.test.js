@@ -29,6 +29,16 @@ test("staff and admin can view monthly payout totals while agents cannot", async
   assert.equal(forbidden.error.code, "FORBIDDEN");
 });
 
+test("payout directory sorting respects agent name in both directions", () => {
+  const items = [
+    { id: "2", agentId: "2", agentName: "Zara", agentCode: "AG-002", caseNumber: "CASE-2", customerDisplayName: "Customer 2", payoutMonth: "2026-09", bankAccount: { bankName: "Bank", accountHolderName: "Zara", accountNumberMasked: "2" } },
+    { id: "1", agentId: "1", agentName: "Aisha", agentCode: "AG-001", caseNumber: "CASE-1", customerDisplayName: "Customer 1", payoutMonth: "2026-09", bankAccount: { bankName: "Bank", accountHolderName: "Aisha", accountNumberMasked: "1" } },
+  ];
+
+  assert.deepEqual(repository.filterAndSortPayoutTransactions(items, { sortBy: "agent", sortDirection: "asc" }).map((item) => item.agentName), ["Aisha", "Zara"]);
+  assert.deepEqual(repository.filterAndSortPayoutTransactions(items, { sortBy: "agent", sortDirection: "desc" }).map((item) => item.agentName), ["Zara", "Aisha"]);
+});
+
 test("staff can manually settle an individual payout with a bank reference", async () => {
   repository.resetMockPayouts();
   const settled = await repository.payoutRepository.settleTransaction(staff, { transactionId: "payout-001", bankReference: "MBB-SEP-001" });
