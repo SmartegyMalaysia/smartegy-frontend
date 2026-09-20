@@ -168,3 +168,30 @@ test("quotation requires sale amount and quoted monthly savings", async () => {
   assert.equal(result.ok, false);
   assert.equal(result.error.message, "Sale amount and quoted monthly savings are required before quotation.");
 });
+
+test("editing an unaccepted issued case regenerates the proposal as a new version", async () => {
+  const input = {
+    salesRepName: staff.displayName,
+    proposalDate: "2026-09-20",
+    installationAddress: "Old address, Kuala Lumpur",
+    installationCostSen: 0,
+    outstationCostSen: 0,
+    saleAmountSen: 100000,
+    readings: [{ sequence: 1, month: "2026-08", tnbRate: 0.5, kwhUsed: 2000, billAmountSen: 100000, operationDays: 31, dailyKwh: 64.516 }],
+  };
+  const issued = await repository.mockCasesRepository.issueProposal(staff, "case-004", input);
+  assert.equal(issued.ok, true);
+  assert.equal(issued.data.proposal.version, 1);
+
+  const updated = await repository.mockCasesRepository.update(staff, "case-004", { service: { siteAddress: "New address, Petaling Jaya" } });
+  assert.equal(updated.ok, true);
+  const regenerated = await repository.mockCasesRepository.regenerateProposal(staff, "case-004", { ...input, installationAddress: updated.data.service.siteAddress });
+
+  assert.equal(regenerated.ok, true);
+  assert.equal(regenerated.data.status, "quotation_issued");
+  assert.equal(regenerated.data.proposal.status, "issued");
+  assert.equal(regenerated.data.proposal.version, 2);
+  assert.equal(regenerated.data.proposal.installationAddress, "New address, Petaling Jaya");
+  assert.equal(regenerated.data.financialDocuments.filter((document) => document.type === "quotation" && document.status === "issued").length, 1);
+  assert.equal(regenerated.data.financialDocuments.filter((document) => document.type === "quotation" && document.status === "cancelled").length, 1);
+});
