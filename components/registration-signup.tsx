@@ -318,7 +318,23 @@ export function RegistrationSignup({
 
   async function resendOtp() {
     if (resendCooldown || !applicantEmail || submitting) return;
-    await sendOtp(applicantEmail);
+    setSubmitting(true);
+    setError(null);
+    setFieldErrors({});
+    try {
+      const result = await registrationRepository.resendEmailOtp(applicantEmail);
+      if (result.ok) setResendCooldown(resendCooldownSeconds);
+      else {
+        const rateLimitSeconds = getRateLimitCooldownSeconds(result.error);
+        if (rateLimitSeconds) setResendCooldown(rateLimitSeconds);
+        setError(result.error.message);
+        setFieldErrors(result.error.fieldErrors ?? {});
+      }
+    } catch {
+      setError("We could not resend your verification code. Try again shortly.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const paymentState = stage === "payment" || stage === "payment_submitted";

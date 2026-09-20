@@ -102,6 +102,7 @@ export interface RegistrationRepository {
   getPaymentConfig(): Promise<RegistrationActionResult<RegistrationPaymentConfig>>;
   getInvitation(code: string): Promise<RegistrationActionResult<ReferralInvitation>>;
   sendEmailOtp(email: string): Promise<RegistrationActionResult<{ expiresInSeconds: number }>>;
+  resendEmailOtp(email: string): Promise<RegistrationActionResult<{ expiresInSeconds: number }>>;
   verifyEmailOtp(email: string, otp: string): Promise<RegistrationActionResult<true>>;
   createApplication(input: CreateRegistrationInput): Promise<RegistrationActionResult<AgentRegistration>>;
   getRegistration(actor: CurrentUser, registrationId: ID): Promise<RegistrationActionResult<AgentRegistration>>;
@@ -130,6 +131,13 @@ export const mockRegistrationRepository: RegistrationRepository = {
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return failure("VALIDATION_ERROR", "Enter a valid email address.", { email: ["Enter a valid email address."] });
     if (registrations.some((item) => item.profile.email.toLowerCase() === normalizedEmail)) return failure("CONFLICT", duplicateEmailMessage, { email: [duplicateEmailMessage] });
+    mockOtpByEmail.set(normalizedEmail, "123456");
+    return { ok: true, data: { expiresInSeconds: 600 } };
+  },
+
+  async resendEmailOtp(email) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return failure("VALIDATION_ERROR", "Enter a valid email address.", { email: ["Enter a valid email address."] });
     mockOtpByEmail.set(normalizedEmail, "123456");
     return { ok: true, data: { expiresInSeconds: 600 } };
   },

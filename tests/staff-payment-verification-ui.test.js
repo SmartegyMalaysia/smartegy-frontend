@@ -5,6 +5,7 @@ const test = require("node:test");
 
 const reviewSource = fs.readFileSync(path.resolve(__dirname, "../components/registration-review.tsx"), "utf8");
 const uiSource = fs.readFileSync(path.resolve(__dirname, "../components/ui.tsx"), "utf8");
+const repositorySource = fs.readFileSync(path.resolve(__dirname, "../lib/supabase-registration-repository.ts"), "utf8");
 
 test("shared Button exposes explicit loading behavior", () => {
   assert.match(uiSource, /loading = false/);
@@ -14,9 +15,16 @@ test("shared Button exposes explicit loading behavior", () => {
 
 test("staff payment verification fields are required and validated before opening confirmation", () => {
   assert.match(reviewSource, /Verified amount \(RM\).*required-mark/);
+  assert.match(reviewSource, /<label><span>Verified amount \(RM\) <span className="required-mark">\*<\/span><\/span><TextInput/);
   assert.match(reviewSource, /Verified payment date.*required-mark/);
   assert.match(reviewSource, /Verified amount is required/);
   assert.match(reviewSource, /Verified payment date is required/);
   assert.match(reviewSource, /onClick=\{verify\}/);
   assert.match(reviewSource, /loading=\{actionLoading\}/);
+});
+
+test("registration actions preserve uploaded payment proof after mutations", () => {
+  assert.match(repositorySource, /async function hydrateRegistration[\s\S]*fetchRegistration\(row\.id\)/);
+  assert.match(repositorySource, /verify_registration_fee[\s\S]*hydrateRegistration\(data\)/);
+  assert.match(repositorySource, /approve_registration[\s\S]*hydrateRegistration\(data\)/);
 });

@@ -115,7 +115,7 @@ function PaymentReview({ actor, registration, showVerificationFields, onProof, o
       {registration.feeStatus === "pending_verification" && <div className="verification-form">
         {showVerificationFields && <>
           <p className="verification-form-heading">Staff Verification Fields</p>
-          <label>Verified amount (RM) <span className="required-mark">*</span><TextInput inputMode="decimal" value={amount} onChange={(event) => { setFieldErrors((current) => ({ ...current, amount: undefined })); setAmount(event.target.value); }} aria-invalid={Boolean(fieldErrors.amount)} aria-describedby={fieldErrors.amount ? "verified-amount-error" : undefined} required /></label>
+          <label><span>Verified amount (RM) <span className="required-mark">*</span></span><TextInput inputMode="decimal" value={amount} onChange={(event) => { setFieldErrors((current) => ({ ...current, amount: undefined })); setAmount(event.target.value); }} aria-invalid={Boolean(fieldErrors.amount)} aria-describedby={fieldErrors.amount ? "verified-amount-error" : undefined} required /></label>
           {fieldErrors.amount && <p id="verified-amount-error" className="field-error" role="alert">{fieldErrors.amount}</p>}
           <div className="verification-date-field"><span>Verified payment date <span className="required-mark">*</span></span><DatePicker id="verified-payment-date" value={date} placeholder="DD/MM/YYYY" onChange={(value) => { setFieldErrors((current) => ({ ...current, date: undefined })); setDate(value); }} required ariaLabel="Verified payment date" /></div>
           {fieldErrors.date && <p id="verified-payment-date-error" className="field-error" role="alert">{fieldErrors.date}</p>}

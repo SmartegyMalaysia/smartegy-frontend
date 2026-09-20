@@ -7,6 +7,10 @@ const source = fs.readFileSync(
   path.resolve(__dirname, "../components/registration-signup.tsx"),
   "utf8",
 );
+const repositorySource = fs.readFileSync(
+  path.resolve(__dirname, "../lib/supabase-registration-repository.ts"),
+  "utf8",
+);
 
 test("signup actions expose loading feedback and disable duplicate submissions", () => {
   assert.match(source, /registration-submit[\s\S]*aria-busy=\{submitting\}/);
@@ -20,6 +24,13 @@ test("signup resend uses the backend cooldown and handles rate-limit responses",
   assert.match(source, /httpStatus === 429/);
   assert.match(source, /after\\s\+\(\\d\+\)\\s\+seconds/);
   assert.match(source, /setResendCooldown\(resendCooldownSeconds\)/);
+  assert.match(source, /registrationRepository\.resendEmailOtp\(applicantEmail\)/);
+  assert.doesNotMatch(source, /async function resendOtp\(\) \{[\s\S]*?sendOtp\(applicantEmail\)/);
+});
+
+test("signup can restart OTP after refresh for an unverified auth user", () => {
+  assert.match(repositorySource, /existingUser\?: boolean/);
+  assert.match(repositorySource, /shouldCreateUser: !availability\.data\.existingUser/);
 });
 
 test("signup OTP UI uses code wording", () => {
