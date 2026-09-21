@@ -888,6 +888,7 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .document-tag-invoice { color: #9a3412; background: #ffedd5; }
 .document-tag-receipt { color: #3730a3; background: #e0e7ff; }
 .case-document-state { flex: 0 0 auto; color: var(--success) !important; font-weight: 700; }
+.case-document-unavailable { flex: 0 0 auto; color: var(--danger) !important; font-size: 11px; font-weight: 700; }
 .case-detail-activity { display: grid; gap: 0; padding: 4px 20px 20px; }
 .case-detail-activity > div { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 12px; min-width: 0; padding-bottom: 16px; }
 .case-detail-activity > div:not(:last-child)::before { content: ""; position: absolute; top: 14px; bottom: 0; left: 5px; width: 1px; background: var(--border); }
