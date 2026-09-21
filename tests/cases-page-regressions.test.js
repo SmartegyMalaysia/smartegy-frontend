@@ -49,8 +49,10 @@ function unionValues(source, declaration) {
   return quotedValues(match[1]);
 }
 
-test("cases search explicitly documents and supports case number, customer, and agent", async () => {
-  assert.ok(queueSource.includes('placeholder="Case number, customer, or agent"'), "The cases search placeholder must name case number, customer, and agent.");
+test("cases search documents case number and customer while agent matching stays in the dropdown", async () => {
+  assert.ok(queueSource.includes('placeholder="Case number or customer"'), "The cases search placeholder must only name case number and customer.");
+  assert.ok(!queueSource.includes("or agent"), "The free-text cases search must not advertise agent matching.");
+  assert.ok(queueSource.includes('<label><span>Agent</span><FilterSelect'), "The agent dropdown must remain available.");
 
   const result = await mockCasesRepository.listPage(staff, { page: 1, pageSize: 100 });
   assert.equal(result.ok, true);
@@ -60,12 +62,18 @@ test("cases search explicitly documents and supports case number, customer, and 
   for (const [field, term] of [
     ["case number", sample.caseNumber],
     ["customer", sample.customerDisplayName],
-    ["agent", sample.agentName],
   ]) {
     const filtered = await mockCasesRepository.listPage(staff, { search: term, page: 1, pageSize: 100 });
     assert.equal(filtered.ok, true, `${field} search should succeed.`);
     assert.ok(filtered.data.items.some((item) => item.id === sample.id), `${field} search should return the matching case.`);
   }
+
+  const agentTextSearch = await mockCasesRepository.listPage(staff, { search: sample.agentName, page: 1, pageSize: 100 });
+  assert.equal(agentTextSearch.ok, true);
+  assert.ok(!agentTextSearch.data.items.some((item) => item.id === sample.id), "Agent names must not match the free-text search.");
+  const agentDropdown = await mockCasesRepository.listPage(staff, { agentId: sample.agentId, page: 1, pageSize: 100 });
+  assert.equal(agentDropdown.ok, true);
+  assert.ok(agentDropdown.data.items.some((item) => item.id === sample.id), "The agent dropdown filter must still match the case.");
 });
 
 test("stage filter options use every recorded case status instead of grouped stage buckets", () => {

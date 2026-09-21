@@ -101,6 +101,20 @@ test("rejected proof can be resubmitted, but pending proof cannot be duplicated"
   assert.equal(missingRegistrationReason.ok, false);
 });
 
+test("registration fee rejection reason accepts 500 trimmed characters and rejects 501", async () => {
+  const created = await repository.registrationRepository.createApplication({ fullName: "Reason Boundary", email: "reason-boundary@example.com", mobileNumber: "+60123456780", password: "password123", passwordConfirmation: "password123", referralCode: "K7Q2M8", acceptedTerms: true });
+  const actor = applicant(created.data.id);
+  await repository.registrationRepository.submitFee(actor, { registrationId: created.data.id, paymentDate: "2026-08-09", paymentReference: "BOUNDARY", proof: { fileName: "boundary.png", mimeType: "image/png", sizeBytes: 1000 } });
+
+  const tooLong = await repository.registrationRepository.rejectFee(staff, { registrationId: created.data.id, reason: "x".repeat(501) });
+  assert.equal(tooLong.ok, false);
+  assert.match(tooLong.error.message, /500 characters or fewer/);
+
+  const accepted = await repository.registrationRepository.rejectFee(staff, { registrationId: created.data.id, reason: ` ${"x".repeat(500)} ` });
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.data.rejectionReason.length, 500);
+});
+
 test("agents cannot access the staff queue", async () => {
   const denied = await repository.registrationRepository.listForStaff(applicant("registration-001"));
   assert.equal(denied.ok, false);

@@ -118,7 +118,7 @@ export const mockCasesRepository: CasesRepository = {
     const all = Array.from(caseStore.values()).filter((item) => actor.role !== "agent" || item.agentId === actor.agentId);
     const term = query.search?.trim().toLowerCase() ?? "";
     const stageMatch = (item: CaseSummary) => !query.stage || item.status === query.stage;
-    const filtered = all.filter((item) => (!term || `${item.caseNumber} ${item.customerDisplayName} ${item.agentName}`.toLowerCase().includes(term)) && stageMatch(item) && (!query.paymentStatus || item.paymentStatus === query.paymentStatus) && (!query.agentId || item.agentId === query.agentId));
+    const filtered = all.filter((item) => (!term || `${item.caseNumber} ${item.customerDisplayName}`.toLowerCase().includes(term)) && stageMatch(item) && (!query.paymentStatus || item.paymentStatus === query.paymentStatus) && (!query.agentId || item.agentId === query.agentId));
     const direction = query.sortDirection === "asc" ? 1 : -1;
     const sorted = [...filtered].sort((a, b) => {
       const comparison = query.sortBy === "amount" ? (a.saleAmountSen ?? 0) - (b.saleAmountSen ?? 0)

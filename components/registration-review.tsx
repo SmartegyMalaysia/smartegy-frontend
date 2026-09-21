@@ -13,7 +13,7 @@ import { PopupModal } from "./popup-modal";
 import { TextInput, TextArea } from "./form-controls";
 import { Toast, type ToastTone } from "./toast";
 import { formatDate, formatMoney } from "@/lib/format";
-import { registrationRepository } from "@/lib/registration-repository";
+import { REGISTRATION_PAYMENT_REJECTION_REASON_MAX_LENGTH, registrationRepository } from "@/lib/registration-repository";
 import { usePreviewUser } from "@/lib/preview-user";
 import type { AgentRegistration, RegistrationActionResult, RegistrationPaymentProofAccess, VerifyRegistrationFeeInput } from "@/lib/types";
 
@@ -43,10 +43,10 @@ export function RegistrationReviewPage({ applicationNumber }: { applicationNumbe
     <div className="registration-detail-grid">
       <section className="panel detail-panel applicant-panel"><div className="panel-header"><div><h2>Applicant Information</h2><p>Confirmed registration details and upline.</p></div></div><dl className="detail-list detail-list-wide"><Detail label="Application number" value={registration.applicationNumber}/><Detail label="Full name" value={registration.profile.fullName}/><Detail label="Email address" value={registration.profile.email}/><Detail label="Mobile number" value={registration.profile.mobileNumber}/><Detail label="Referral code" value={registration.referralCode}/><Detail label="Confirmed upline" value={registration.referringAgentName}/><Detail label="Submitted" value={registration.submittedAt ? formatDate(registration.submittedAt) : "Not submitted"}/><Detail label="Email verification" value={<Badge status={registration.emailVerified ? "verified" : "unpaid"}/>}/></dl></section>
       <section className="panel detail-panel audit-section"><div className="panel-header"><div><h2>Audit History</h2><p>Internal activity for this application and payment review.</p></div></div>{registration.audit.length ? <DataTable caption="Registration audit history" headers={["Action", "Acting staff user", "Status change", "Reason or note"]}>{registration.audit.map((event) => <tr key={event.id}><td><span className="table-primary">{event.action.replaceAll("_", " ")}</span><span className="table-secondary">{formatDate(event.occurredAt)}</span></td><td>{event.actorDisplayName}</td><td>{event.previousStatus ?? "—"} → {event.newStatus ?? "—"}</td><td className="muted-cell">{event.reason ?? "—"}</td></tr>)}</DataTable> : <p className="detail-empty">No review activity recorded yet.</p>}</section>
-      <PaymentReview actor={user} registration={registration} showVerificationFields={action !== "reject-fee"} onProof={setProofAccess} onVerify={(details) => { setVerification(details); setAction("verify"); }} onReject={() => { setPaymentRejectionError(false); setAction("reject-fee"); }}/>
+      <PaymentReview actor={user} registration={registration} onProof={setProofAccess} onVerify={(details) => { setVerification(details); setAction("verify"); }} onReject={() => { setPaymentRejectionError(false); setAction("reject-fee"); }}/>
     </div>
     <ConfirmationDialog open={action === "verify"} title="Verify Payment?" description={`This verifies the RM50.00 fee for ${registration.applicationNumber}. If email and profile requirements are complete, the application will automatically be approved and activated.`} confirmLabel="Verify Payment" confirmVariant="primary" loading={actionLoading} onCancel={() => setAction(null)} onConfirm={() => verification && void run(registrationRepository.verifyFee(user, verification), "Payment Verified. Complete applications are automatically approved and activated.")}/>
-    <ConfirmationDialog open={action === "reject-fee"} title="Reject Payment Proof?" description={`This marks the fee for ${registration.applicationNumber} as rejected and lets the applicant resubmit proof.`} confirmLabel="Reject Payment" loading={actionLoading} onCancel={() => { setAction(null); setPaymentRejectionError(false); }} onConfirm={() => { if (!paymentReason.trim()) { setPaymentRejectionError(true); return; } void run(registrationRepository.rejectFee(user, { registrationId: registration.id, reason: paymentReason }), "Payment Rejected. The applicant can resubmit proof."); }}><label className="case-field"><span>Payment rejection reason *</span><TextArea value={paymentReason} onChange={(event) => { setPaymentRejectionError(false); setPaymentReason(event.target.value); }} placeholder="Enter a clear reason" aria-invalid={paymentRejectionError} required /></label>{paymentRejectionError && <p className="field-error" role="alert">Enter a rejection reason before confirming.</p>}</ConfirmationDialog>
+    <ConfirmationDialog open={action === "reject-fee"} title="Reject Payment Proof?" description={`This marks the fee for ${registration.applicationNumber} as rejected and lets the applicant resubmit proof.`} confirmLabel="Reject Payment" loading={actionLoading} onCancel={() => { setAction(null); setPaymentRejectionError(false); }} onConfirm={() => { const trimmedReason = paymentReason.trim(); if (!trimmedReason) { setPaymentRejectionError(true); return; } if (trimmedReason.length > REGISTRATION_PAYMENT_REJECTION_REASON_MAX_LENGTH) { setPaymentRejectionError(true); return; } void run(registrationRepository.rejectFee(user, { registrationId: registration.id, reason: trimmedReason }), "Payment Rejected. The applicant can resubmit proof."); }}><label className="case-field" htmlFor="payment-rejection-reason"><span>Payment rejection reason *</span><TextArea id="payment-rejection-reason" value={paymentReason} onChange={(event) => { setPaymentRejectionError(false); setPaymentReason(event.target.value); }} placeholder="Enter a clear reason" aria-invalid={paymentRejectionError} aria-describedby={paymentRejectionError ? "payment-rejection-reason-error payment-rejection-reason-count" : "payment-rejection-reason-count"} maxLength={REGISTRATION_PAYMENT_REJECTION_REASON_MAX_LENGTH} required /></label><p id="payment-rejection-reason-count" className="field-character-count" aria-live="polite">{paymentReason.length}/{REGISTRATION_PAYMENT_REJECTION_REASON_MAX_LENGTH} characters</p>{paymentRejectionError && <p id="payment-rejection-reason-error" className="field-error" role="alert">{paymentReason.trim() ? `Payment rejection reason must be ${REGISTRATION_PAYMENT_REJECTION_REASON_MAX_LENGTH} characters or fewer.` : "Enter a rejection reason before confirming."}</p>}</ConfirmationDialog>
     <PopupModal open={Boolean(proofAccess)} className="document-preview-modal" title={proofAccess ? `Proof of payment — ${proofAccess.fileName}` : "Proof of payment"} description={proofAccess ? `Secure access expires ${formatDate(proofAccess.expiresAt)}.` : undefined} onClose={() => setProofAccess(null)} size="lg" tone="neutral" bodyClassName="registration-proof-viewer" footer={proofAccess && <>{/^https?:\/\//i.test(proofAccess.accessToken) && <a className="button button-secondary" href={proofAccess.accessToken} target="_blank" rel="noreferrer">Open in new tab</a>}<Button variant="secondary" onClick={() => setProofAccess(null)}>Close</Button></>}>
       {proofAccess && <ProofViewer proof={proofAccess} />}
     </PopupModal>
@@ -65,26 +65,30 @@ function ProofViewer({ proof }: { proof: RegistrationPaymentProofAccess }) {
   return <iframe className="registration-proof-pdf" src={proof.accessToken} title={`Proof of payment: ${proof.fileName}`} />;
 }
 
-function PaymentReview({ actor, registration, showVerificationFields, onProof, onVerify, onReject }: { actor: Parameters<typeof registrationRepository.getPaymentProof>[0]; registration: AgentRegistration; showVerificationFields: boolean; onProof: (proof: RegistrationPaymentProofAccess) => void; onVerify: (details: VerifyRegistrationFeeInput) => void; onReject: () => void }) {
+function PaymentReview({ actor, registration, onProof, onVerify, onReject }: { actor: Parameters<typeof registrationRepository.getPaymentProof>[0]; registration: AgentRegistration; onProof: (proof: RegistrationPaymentProofAccess) => void; onVerify: (details: VerifyRegistrationFeeInput) => void; onReject: () => void }) {
   const [message, setMessage] = useState<string | null>(null);
   const [loadingProof, setLoadingProof] = useState(false);
   const [amount, setAmount] = useState("50.00");
   const [date, setDate] = useState(() => registration.verifiedPaymentDate ?? registration.paymentDate ?? new Date().toISOString().slice(0, 10));
-  const [fieldErrors, setFieldErrors] = useState<{ amount?: string; date?: string }>({});
-  const reference = registration.paymentReference ?? "Manual verification";
+  const [fieldErrors, setFieldErrors] = useState<{ amount?: string; date?: string; bankReference?: string }>({});
+  const [bankReference, setBankReference] = useState("");
   const [note, setNote] = useState("");
   const previousRejectionReason = registration.previousRejectionReason ?? registration.rejectionReason ?? registration.audit.find((event) => event.reason)?.reason ?? "None";
-  useEffect(() => { setAmount(((registration.verifiedAmountSen ?? registration.feeAmountSen) / 100).toFixed(2)); setDate(registration.verifiedPaymentDate ?? registration.paymentDate ?? new Date().toISOString().slice(0, 10)); setFieldErrors({}); }, [registration.id, registration.verifiedAmountSen, registration.feeAmountSen, registration.verifiedPaymentDate, registration.paymentDate]);
+  useEffect(() => { setAmount(((registration.verifiedAmountSen ?? registration.feeAmountSen) / 100).toFixed(2)); setDate(registration.verifiedPaymentDate ?? registration.paymentDate ?? new Date().toISOString().slice(0, 10)); setBankReference(registration.bankReference ?? registration.paymentReference ?? ""); setFieldErrors({}); }, [registration.id, registration.verifiedAmountSen, registration.feeAmountSen, registration.verifiedPaymentDate, registration.paymentDate, registration.bankReference, registration.paymentReference]);
   function verify() {
     const errors: typeof fieldErrors = {};
-    const parsedAmount = Number(amount);
+    const normalizedAmount = amount.trim();
+    const amountMatch = /^(\d+)(?:\.(\d{1,2}))?$/.exec(normalizedAmount);
+    const parsedAmount = amountMatch ? Number(normalizedAmount) : Number.NaN;
+    const parsedAmountSen = amountMatch ? Number(amountMatch[1]) * 100 + Number((amountMatch[2] ?? "").padEnd(2, "0")) : Number.NaN;
     if (!amount.trim()) errors.amount = "Verified amount is required.";
-    else if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) errors.amount = "Enter a valid verified amount.";
-    else if (Math.round(parsedAmount * 100) !== registration.feeAmountSen) errors.amount = `Verified amount must be exactly ${formatMoney(registration.feeAmountSen)}.`;
+    else if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || !Number.isSafeInteger(parsedAmountSen)) errors.amount = "Enter a valid amount with up to two decimal places.";
+    else if (parsedAmountSen !== registration.feeAmountSen) errors.amount = `Verified amount must be exactly ${formatMoney(registration.feeAmountSen)}.`;
     if (!date) errors.date = "Verified payment date is required.";
+    if (!bankReference.trim()) errors.bankReference = "Bank reference is required.";
     setFieldErrors(errors);
     if (Object.keys(errors).length) return;
-    onVerify({ registrationId: registration.id, verifiedAmountSen: Math.round(parsedAmount * 100), paymentDate: date, bankReference: reference, note: note.trim() || undefined });
+    onVerify({ registrationId: registration.id, verifiedAmountSen: parsedAmountSen, paymentDate: date, bankReference: bankReference.trim(), note: note.trim() || undefined });
   }
 
   return (
@@ -113,14 +117,16 @@ function PaymentReview({ actor, registration, showVerificationFields, onProof, o
       </dl>
       {message && <p className="field-error" role="alert">{message}</p>}
       {registration.feeStatus === "pending_verification" && <div className="verification-form">
-        {showVerificationFields && <>
+        <>
           <p className="verification-form-heading">Staff Verification Fields</p>
           <label><span>Verified amount (RM) <span className="required-mark">*</span></span><TextInput inputMode="decimal" value={amount} onChange={(event) => { setFieldErrors((current) => ({ ...current, amount: undefined })); setAmount(event.target.value); }} aria-invalid={Boolean(fieldErrors.amount)} aria-describedby={fieldErrors.amount ? "verified-amount-error" : undefined} required /></label>
           {fieldErrors.amount && <p id="verified-amount-error" className="field-error" role="alert">{fieldErrors.amount}</p>}
-          <div className="verification-date-field"><span>Verified payment date <span className="required-mark">*</span></span><DatePicker id="verified-payment-date" value={date} placeholder="DD/MM/YYYY" onChange={(value) => { setFieldErrors((current) => ({ ...current, date: undefined })); setDate(value); }} required ariaLabel="Verified payment date" /></div>
+          <div className="verification-date-field"><span>Verified payment date <span className="required-mark">*</span></span><DatePicker id="verified-payment-date" value={date} placeholder="DD/MM/YYYY" onChange={(value) => { setFieldErrors((current) => ({ ...current, date: undefined })); setDate(value); }} required ariaLabel="Verified payment date" ariaInvalid={Boolean(fieldErrors.date)} ariaDescribedBy={fieldErrors.date ? "verified-payment-date-error" : undefined} /></div>
           {fieldErrors.date && <p id="verified-payment-date-error" className="field-error" role="alert">{fieldErrors.date}</p>}
+          <label><span>Bank reference <span className="required-mark">*</span></span><TextInput value={bankReference} onChange={(event) => { setFieldErrors((current) => ({ ...current, bankReference: undefined })); setBankReference(event.target.value); }} aria-invalid={Boolean(fieldErrors.bankReference)} aria-describedby={fieldErrors.bankReference ? "verified-bank-reference-error" : undefined} required /></label>
+          {fieldErrors.bankReference && <p id="verified-bank-reference-error" className="field-error" role="alert">{fieldErrors.bankReference}</p>}
           <label>Internal Staff Note<TextArea rows={2} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Only authorised staff can see this note" /></label>
-        </>}
+        </>
         <div className="review-actions">
           <Button onClick={verify}>Verify Payment</Button>
           <Button variant="danger" onClick={onReject}>Reject Payment</Button>

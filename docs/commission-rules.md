@@ -70,14 +70,7 @@ deferred balance = total entitlement − first payment
 
 ### Minimum Project Value
 
-The proposal sale amount must be high enough that every recipient's allocation from the initial-payment pool is no greater than that recipient's sale-based entitlement. The system rejects draft and issued proposals below the calculated minimum.
-
-```text
-recipient minimum sale amount = initial-payment pool × recipient pool share ÷ recipient sale rate
-minimum project value = highest recipient minimum sale amount
-```
-
-The frontend may show this minimum as an explanatory preview, but the trusted server calculates it from the active commission rule and performs the authoritative validation. For RM3,120.00 in initial customer obligations, the commission pool is RM1,560.00 and the minimum project value is RM17,018.19.
+The former commission-floor rule is superseded by the effective rules v2 migration. Proposal drafts and issued proposals do not have a minimum project-sale floor; frontend validation must not reject a valid RM15,000 draft on that basis.
 
 ## 5. Deferred Schedule
 

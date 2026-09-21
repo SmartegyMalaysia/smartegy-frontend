@@ -63,7 +63,7 @@ Proposed route structure; adjust to the actual Next.js architecture without chan
 | `/accept-invitation` | Complete an invited staff profile and create a password | Public/invitation session |
 | `/onboarding/status` | Registration and fee status | Pending agent |
 | `/dashboard` | Role-aware dashboard | All |
-| `/cases` | Case list | All, permission-filtered |
+| `/cases` | Staff case list | Staff; administrators are redirected to `/dashboard`, agents remain denied |
 | `/cases/new` | New case form | Agent, Staff, Admin |
 | `/cases/[caseId]` | Case detail | All, permission-filtered |
 | `/agents` | Agent list | Staff, Admin |
@@ -169,7 +169,8 @@ Filters:
 - Payment status.
 - Agent.
 - Submission/update date range.
-- Search by permitted identifier or name.
+- Search by permitted case identifier or customer name.
+- Agent remains a separate filter; agent names are not matched by free-text search.
 
 ### New/Edit Case Form
 
@@ -240,6 +241,10 @@ A simple table/list is sufficient for the initial referral view. A full interact
 The simplified mock invitation signup page keeps account registration, OTP verification, and payment proof in one registration page. The card transitions from the six initial fields to OTP entry, then to the manual RM50.00 non-refundable name-card-fee invoice and payment form without changing the URL. The payment state shows the application number as the transfer reference, configured bank instructions, the DuitNow QR unavailable state, proof upload, and optional applicant remarks. Applicant payment date and payment reference inputs are omitted. Separate registration/fee statuses remain in force. Pending agents may access onboarding and registration status only until authorised staff approve the registration and verify or waive the fee.
 
 The staff queue must show the application number, applicant name, email/mobile, referrer, profile-completion status, proof of payment, submitted date, registration status, and fee status. Staff can record verified amount, payment date, bank reference, and internal note; verify or reject payment; and approve or reject registration. Verification, rejection, waiver, refund, and activation are confirmation-protected actions with feedback and audit entries. The system must not provide a payment gateway, automatic verification, or a registration-fee receipt.
+
+The Staff Verification Fields are editable while payment is pending. Verified amount must use a nonnegative money format with no more than two decimal places and match the configured fee exactly. Reject Payment opens a confirmation popup; its required trimmed reason is limited to 500 characters and is not shown as an inline editable field before the action.
+
+The Prepare Proposal popup validates every editable value before saving or issuing. It preserves entered values and associates errors with the relevant field, including required identity/address/date fields, nonnegative additional costs, positive sale amount, valid downpayment/payment totals, and one to twelve unique completed historical energy-reading months with positive bill/kWh values at the supported money and numeric precision.
 
 ## 8. Commissions
 

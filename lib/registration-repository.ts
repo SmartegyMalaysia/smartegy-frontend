@@ -120,6 +120,8 @@ export interface RegistrationRepository {
   assertActiveAgent(actor: CurrentUser, registrationId: ID): Promise<RegistrationActionResult<AgentRegistration>>;
 }
 
+export const REGISTRATION_PAYMENT_REJECTION_REASON_MAX_LENGTH = 500;
+
 export const mockRegistrationRepository: RegistrationRepository = {
   async getPaymentConfig() { return { ok: true, data: mockRegistrationConfig }; },
   async getInvitation(code) {
@@ -298,11 +300,13 @@ export const mockRegistrationRepository: RegistrationRepository = {
     if (!allowed.ok) return allowed;
     const found = getOwnedRegistration({ ...actor, role: "staff" }, input.registrationId);
     if (!found.ok) return found;
-    if (!input.reason.trim()) return failure("VALIDATION_ERROR", "A rejection reason is required.");
+    const reason = input.reason.trim();
+    if (!reason) return failure("VALIDATION_ERROR", "A rejection reason is required.");
+    if (reason.length > REGISTRATION_PAYMENT_REJECTION_REASON_MAX_LENGTH) return failure("VALIDATION_ERROR", `A rejection reason must be ${REGISTRATION_PAYMENT_REJECTION_REASON_MAX_LENGTH} characters or fewer.`);
     const previous = found.data.feeStatus;
     found.data.feeStatus = "rejected";
-    found.data.rejectionReason = input.reason.trim();
-    addAudit(found.data, actor, "registration_fee", "payment_rejected", previous, "rejected", input.reason.trim());
+    found.data.rejectionReason = reason;
+    addAudit(found.data, actor, "registration_fee", "payment_rejected", previous, "rejected", reason);
     return { ok: true, data: found.data };
   },
 

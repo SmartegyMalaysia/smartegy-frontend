@@ -18,7 +18,14 @@ test("staff payment verification fields are required and validated before openin
   assert.match(reviewSource, /<label><span>Verified amount \(RM\) <span className="required-mark">\*<\/span><\/span><TextInput/);
   assert.match(reviewSource, /Verified payment date.*required-mark/);
   assert.match(reviewSource, /Verified amount is required/);
+  assert.ok(reviewSource.includes('const amountMatch = /^(\\d+)(?:\\.(\\d{1,2}))?$/.exec(normalizedAmount);'));
+  assert.match(reviewSource, /parsedAmountSen !== registration\.feeAmountSen/);
+  assert.match(reviewSource, /verifiedAmountSen: parsedAmountSen/);
+  assert.doesNotMatch(reviewSource, /Math\.round\(parsedAmount \* 100\) !== registration\.feeAmountSen/);
   assert.match(reviewSource, /Verified payment date is required/);
+  assert.match(reviewSource, /maxLength=\{REGISTRATION_PAYMENT_REJECTION_REASON_MAX_LENGTH\}/);
+  assert.match(reviewSource, /paymentReason\.trim\(\)/);
+  assert.match(reviewSource, /payment-rejection-reason-count/);
   assert.match(reviewSource, /onClick=\{verify\}/);
   assert.match(reviewSource, /loading=\{actionLoading\}/);
 });

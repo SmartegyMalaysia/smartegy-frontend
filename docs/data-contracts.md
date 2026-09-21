@@ -286,6 +286,9 @@ export interface EnergyReading {
 export interface ProposalInput {
   salesRepName: string;
   proposalDate: ISODate;
+  installationAddress: string;
+  installationCostSen: MoneySen;
+  outstationCostSen: MoneySen;
   saleAmountSen: MoneySen; // original project amount
   downpaymentSen?: MoneySen | null; // null uses highest bill × 8%
   readings: EnergyReading[]; // 1–12 unique months
@@ -297,6 +300,8 @@ export interface SavingsVerificationInput {
 ```
 
 The server recalculates every derived amount and stores the issued proposal snapshot. The final editable downpayment, its calculated suggestion, post-installation amount, original project amount, 10% 20-month financing interest, and 10/20-month schedule totals must remain reproducible. Existing accepted proposals and schedules are not recalculated by this rule change.
+
+Proposal money values use integer sen at two decimal places; energy readings use positive bill values at two decimal places and positive kWh values at three decimal places. Reading months must be completed historical months, unique, and limited to one through twelve rows. There is no minimum project-sale floor in the effective proposal rules.
 
 Only the case-owner agent records the three post-installation savings rows. Submission requires no staff/admin confirmation and records the readings, averages, derived savings, actor, and timestamp for display in the case Savings card.
 

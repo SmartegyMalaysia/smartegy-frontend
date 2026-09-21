@@ -232,6 +232,7 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .registration-field-error input:focus, .registration-field-error textarea:focus { border-color: var(--danger); box-shadow: 0 0 0 3px #dc262633; }
 .registration-field input[readonly] { color: var(--muted); background: var(--surface-subtle); }
 .field-error { color: var(--danger); font-size: 12px; line-height: 1.4; margin: 6px 0 0; }
+.field-character-count { color: var(--muted); font-size: 11px; line-height: 1.4; margin: 4px 0 0; text-align: right; }
 .field-help { margin: -7px 0 20px; }
 .registration-field .referral-code-note { margin: 6px 0 0; }
 .field-help-inline { font-weight: 400; }
@@ -793,7 +794,9 @@ select { border-color: var(--border); background: var(--surface-subtle); color: 
 .case-field input[type="time"] { padding-top: 0; padding-bottom: 0; line-height: 38px; }
 .case-field textarea { height: 38px; min-height: 38px; resize: vertical; }
 .case-field input:focus, .case-field textarea:focus { outline: none; border-color: #06b6d4; background: white; box-shadow: 0 0 0 3px #22d3ee33; }
-.case-field-error input, .case-field-error textarea { border-color: var(--danger); background: var(--danger-bg); }
+.case-field-error input, .case-field-error textarea, .case-field-error .date-picker summary, .case-field-error .filter-select summary { border-color: var(--danger); background: var(--danger-bg); }
+.proposal-editable-field, .proposal-reading-field { min-width: 0; }
+.proposal-reading-field { display: grid; align-content: start; gap: 4px; }
 .case-field-error-message, .case-submit-error { margin: 7px 0 0; color: var(--danger); font-size: 12px; line-height: 1.45; }
 .case-field-warning input, .case-field-warning textarea, .case-field-warning .date-picker summary, .proposal-warning-field { border-color: #f59e0b !important; background: var(--warning-bg) !important; }
 .case-field-warning input:focus, .case-field-warning textarea:focus, .case-field-warning .date-picker summary:focus-visible, .proposal-warning-field:focus { outline: none; border-color: #d97706 !important; box-shadow: 0 0 0 3px #fbbf2433; }
