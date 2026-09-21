@@ -14,6 +14,7 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 const repository = require(path.resolve(__dirname, "../lib/case-repository.ts"));
 const newCaseSource = fs.readFileSync(path.resolve(__dirname, "../app/cases/new/page.tsx"), "utf8");
 const { malaysiaIndustries } = require(path.resolve(__dirname, "../lib/malaysia-industries.ts"));
+const { malaysiaStates } = require(path.resolve(__dirname, "../lib/malaysia.ts"));
 const agent = { id: "user-001", role: "agent", displayName: "Aisha Rahman", email: "aisha@smartegy.example", agentId: "agent-001" };
 const otherAgent = { id: "user-002", role: "agent", displayName: "Daniel Lim", email: "daniel@smartegy.example", agentId: "agent-002" };
 
@@ -35,6 +36,11 @@ test("Malaysian industry options are broad, unique, and end with Other", () => {
   assert.ok(malaysiaIndustries.length >= 15, "The industry list should cover broad Malaysian sectors.");
   assert.equal(new Set(malaysiaIndustries).size, malaysiaIndustries.length, "Industry options should not be duplicated.");
   assert.equal(malaysiaIndustries.at(-1), "Other", "Other should be the final fallback option.");
+});
+
+test("new case state options are in ascending order", () => {
+  assert.deepEqual(malaysiaStates, [...malaysiaStates].sort((left, right) => left.localeCompare(right)));
+  assert.ok(newCaseSource.includes('label="State" value={state} onChange={setState} required options={malaysiaStates}'));
 });
 
 test("case submission requires the latest electricity bill", async () => {

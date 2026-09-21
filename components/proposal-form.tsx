@@ -184,10 +184,18 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
     if (!input) { setWarning("Complete the proposal details, additional costs, project amount, and every reading row."); return; }
     if (!preview) { setWarning("The initial payment obligation cannot exceed the sale amount, and the downpayment must be valid."); return; }
     setBusy(true); setWarning(null);
+    const remarksChanged = (caseDetail.service.notes ?? "") !== (projectRemarks.trim() || "");
+    if (issue && remarksChanged) {
+      const remarksResult = await casesRepository.update(user, caseDetail.id, { service: { notes: projectRemarks.trim() || null } });
+      if (!remarksResult.ok) {
+        setWarning(`Proposal could not be issued because Project Remarks could not be saved: ${remarksResult.error.message}`);
+        setBusy(false);
+        return;
+      }
+    }
     const result = issue ? await casesRepository.issueProposal(user, caseDetail.id, input) : await casesRepository.saveProposalDraft(user, caseDetail.id, input);
     if (result.ok) {
-      const remarksChanged = (caseDetail.service.notes ?? "") !== (projectRemarks.trim() || "");
-      const remarksResult = remarksChanged
+      const remarksResult = !issue && remarksChanged
         ? await casesRepository.update(user, caseDetail.id, { service: { notes: projectRemarks.trim() || null } })
         : result;
       if (!remarksResult.ok) {
@@ -242,7 +250,7 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
         {displayPreview ? <dl className="proposal-preview-grid"><div><dt>Average Bill</dt><dd>{formatMoney(displayPreview.avgBillSen)}</dd></div><div><dt>Calculated Savings/ Suggested Downpayment</dt><dd>{formatMoney(displayPreview.calculatedDownpaymentSen)}</dd></div><div className="proposal-preview-downpayment"><dt>Downpayment</dt><dd><MoneyInput id="proposal-downpayment" inputMode="decimal" value={downpaymentDisplay} onChange={(event) => setDownpaymentAmount(event.target.value)} required aria-invalid={showWarnings && fieldWarnings.downpayment} fieldClassName={showWarnings && fieldWarnings.downpayment ? "case-field-warning" : ""} /></dd></div><div><dt>Post-Installation</dt><dd>{formatMoney(displayPreview.postInstallationSen)}</dd></div><div><dt>Balance</dt><dd>{formatMoney(displayPreview.balanceSen)}</dd></div><div><dt>10-Month Option</dt><dd>{formatMoney(displayPreview.option1MonthlySen)} / month</dd></div><div><dt>20-Month Option</dt><dd>{formatMoney(displayPreview.option2MonthlySen)} / month</dd></div><div><dt>Annual Saving</dt><dd>{formatMoney(displayPreview.savingRmYearSen)}</dd></div></dl> : <p className="detail-empty">Complete the required values to see the calculation preview.</p>}
       </section>
       {warning && <p className="proposal-warning" role="alert">⚠ {warning}</p>}
-      <div className="proposal-form-actions"><Button type="button" variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button type="button" variant="secondary" onClick={() => save(false)} disabled={busy}>{busy ? "Saving…" : "Save Draft"}</Button><Button type="button" variant="primary" onClick={() => save(true)} disabled={busy}>{busy ? "Issuing…" : "Issue Proposal"}</Button></div>
+      <div className="proposal-form-actions"><Button type="button" variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button type="button" variant="secondary" onClick={() => save(false)} loading={busy}>{busy ? "Saving…" : "Save Draft"}</Button><Button type="button" variant="primary" onClick={() => save(true)} loading={busy}>{busy ? "Issuing…" : "Issue Proposal"}</Button></div>
     </div>
   </PopupModal>;
 }

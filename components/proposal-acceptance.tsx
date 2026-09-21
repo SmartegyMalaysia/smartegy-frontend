@@ -40,7 +40,7 @@ export function ProposalAcceptance({ caseDetail, user, onChanged, onClose }: { c
       </div>
       <div className="case-field proposal-signed-upload"><span>Signed Proposal <span className="required-mark">*</span></span><PaymentProofUpload name="signed-proposal" documentType="signed_proposal" emptyLabel="Drop signed proposal here" browseLabel="or click to browse · PDF, JPG, or PNG" required onFileChange={setFile} /></div>
       {error && <p className="case-field-error-message" role="alert">{error}</p>}
-      <div className="proposal-form-actions"><Button type="button" variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button type="button" variant="primary" onClick={submit} disabled={busy}>{busy ? "Processing…" : "Accept Proposal & Issue Deposit Invoice"}</Button></div>
+      <div className="proposal-form-actions"><Button type="button" variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button type="button" variant="primary" onClick={submit} loading={busy}>{busy ? "Processing…" : "Accept Proposal & Issue Deposit Invoice"}</Button></div>
     </div>
   </PopupModal>;
 }

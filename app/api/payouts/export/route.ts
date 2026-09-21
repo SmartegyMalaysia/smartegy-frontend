@@ -21,15 +21,23 @@ export async function GET(request: NextRequest) {
     ? await supabase.rpc("get_monthly_payout_transaction_export", query)
     : await supabase.rpc("get_monthly_payout_export", { p_payment_period: `${month}-01` });
   if (error) return NextResponse.json({ message: error.code === "42501" ? "You do not have permission to export payouts." : "Unable to export payout data." }, { status: error.code === "42501" ? 403 : 500 });
+  const sortBy = params.get("sortBy") === "date" ? "date" : "agent";
+  const sortDirection = params.get("sortDirection") === "desc" ? -1 : 1;
+  const sortedData = [...(data ?? [])].sort((a: any, b: any) => {
+    const comparison = sortBy === "date"
+      ? String(a.due_date ?? a.paid_at ?? a.payout_month ?? "").localeCompare(String(b.due_date ?? b.paid_at ?? b.payout_month ?? ""))
+      : String(a.agent_name ?? "").localeCompare(String(b.agent_name ?? ""));
+    return (comparison || String(a.commission_entry_id ?? a.agent_id ?? "").localeCompare(String(b.commission_entry_id ?? b.agent_id ?? ""))) * sortDirection;
+  });
 
   const rows = view === "transactions"
     ? [
       ["Agent", "Agent ID", "Agent Code", "Bank", "Account Holder", "Account Number", "Payout Month", "Case", "Customer", "Amount", "Settlement", "Paid At", "Bank Reference"],
-      ...(data ?? []).map((row: any) => [row.agent_name, row.agent_id, row.agent_code, row.bank_name, row.account_holder_name, row.account_number_masked, row.payout_month, row.case_number, row.customer_name, money(row.amount), row.status === "paid" ? "settled" : "pending", row.paid_at, row.bank_reference]),
+      ...sortedData.map((row: any) => [row.agent_name, row.agent_id, row.agent_code, row.bank_name, row.account_holder_name, row.account_number_masked, row.payout_month, row.case_number, row.customer_name, money(row.amount), row.status === "paid" ? "settled" : "pending", row.paid_at, row.bank_reference]),
     ]
     : [
       ["Agent", "Agent ID", "Agent Code", "Bank", "Account Holder", "Account Number", "Payout Month", "Total Payout", "Pending Amount", "Settled Amount", "Transaction Count", "Settlement Status"],
-      ...(data ?? []).map((row: any) => [row.agent_name, row.agent_id, row.agent_code, row.bank_name, row.account_holder_name, row.account_number, row.payout_month, money(row.total_amount), money(row.pending_amount), money(row.settled_amount), row.transaction_count, row.settlement_status]),
+      ...sortedData.map((row: any) => [row.agent_name, row.agent_id, row.agent_code, row.bank_name, row.account_holder_name, row.account_number, row.payout_month, money(row.total_amount), money(row.pending_amount), money(row.settled_amount), row.transaction_count, row.settlement_status]),
     ];
   const csv = serializeCsv(rows);
   const response = new NextResponse(csv);

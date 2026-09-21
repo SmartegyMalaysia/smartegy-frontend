@@ -1,6 +1,7 @@
 import { getSupabaseBrowserClient, normalizeSupabaseError } from "./supabase-browser";
 import type { RegistrationRepository } from "./registration-repository";
 import { validateCaseDocument, validateFileSignature } from "./document-config";
+import { sortRegistrationDirectory } from "./registration-directory";
 import type {
   AgentRegistration, CompleteRegistrationProfileInput, CreateRegistrationInput, CurrentUser, ID,
   ReferralInvitation, RegistrationActionResult, RegistrationDecisionInput, RegistrationPaymentConfig, RegistrationPaymentProofAccess,
@@ -36,7 +37,7 @@ async function fetchRegistrationProof(supabase: any, registrationId: string, pro
   return data;
 }
 
-async function checkSignupEmail(email: string): Promise<RegistrationActionResult<true>> {
+async function checkSignupEmail(email: string): Promise<RegistrationActionResult<{ existingUser: boolean }>> {
   const supabase = getSupabaseBrowserClient();
   if (!supabase) return errorResult({ message: "Supabase is not configured" });
   try {
@@ -48,6 +49,7 @@ async function checkSignupEmail(email: string): Promise<RegistrationActionResult
       code?: string;
       message?: string;
       fieldErrors?: Record<string, string[]>;
+      existingUser?: boolean;
     } | null;
     if (error) {
       try {
@@ -67,7 +69,7 @@ async function checkSignupEmail(email: string): Promise<RegistrationActionResult
         },
       };
     }
-    return { ok: true, data: true };
+    return { ok: true, data: { existingUser: Boolean(payload?.existingUser) } };
   } catch {
     return {
       ok: false,
@@ -132,6 +134,15 @@ async function fetchOwnRegistration(authUserId: string, includeAudit = true) {
   return mapRegistration(row, proof, audit ?? []);
 }
 
+async function hydrateRegistration(data: unknown): Promise<RegistrationActionResult<AgentRegistration>> {
+  try {
+    const row = firstRow(data);
+    return { ok: true, data: await fetchRegistration(row.id) };
+  } catch (error) {
+    return errorResult(error as any);
+  }
+}
+
 export const supabaseRegistrationRepository: RegistrationRepository = {
   async getPaymentConfig() {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
@@ -151,7 +162,12 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
     const availability = await checkSignupEmail(email);
     if (!availability.ok) return availability;
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
+    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: !availability.data.existingUser } });
+    return error ? errorResult(error) : { ok: true, data: { expiresInSeconds: 600 } };
+  },
+  async resendEmailOtp(email) {
+    const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
+    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } });
     return error ? errorResult(error) : { ok: true, data: { expiresInSeconds: 600 } };
   },
   async verifyEmailOtp(email, otp) {
@@ -174,12 +190,12 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
   async verifyEmail(_actor, registrationId) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
     const { data, error } = await supabase.rpc("mark_registration_email_verified", { p_registration_id: registrationId });
-    return error ? errorResult(error) : { ok: true, data: mapRegistration(firstRow(data)) };
+    return error ? errorResult(error) : hydrateRegistration(data);
   },
   async completeProfile(_actor, registrationId, input: CompleteRegistrationProfileInput) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
     const { data, error } = await supabase.rpc("complete_registration_profile", { p_registration_id: registrationId, p_full_name: input.fullName, p_mobile_number: input.mobileNumber });
-    return error ? errorResult(error) : { ok: true, data: mapRegistration(firstRow(data)) };
+    return error ? errorResult(error) : hydrateRegistration(data);
   },
   async submitFee(_actor, input: SubmitRegistrationFeeInput) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
@@ -197,17 +213,17 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
     const { error: finalizeError } = await supabase.rpc("finalize_registration_document", { p_document_id: document.document_id, p_size_bytes: input.proof.sizeBytes });
     if (finalizeError) return errorResult(finalizeError);
     const { data, error } = await supabase.rpc("submit_registration_fee", { p_registration_id: input.registrationId, p_payment_date: input.paymentDate, p_payment_reference: input.paymentReference, p_payment_remarks: input.paymentRemarks ?? null, p_proof_document_id: document.document_id });
-    return error ? errorResult(error) : { ok: true, data: mapRegistration(firstRow(data)) };
+    return error ? errorResult(error) : hydrateRegistration(data);
   },
   async listForStaff(_actor, query = {}) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
     const { data, error } = await supabase.rpc("list_registration_directory", { p_search: query.search?.trim() || null, p_registration_status: query.registrationStatus && query.registrationStatus !== "all" ? query.registrationStatus : null, p_fee_status: query.feeStatus && query.feeStatus !== "all" ? query.feeStatus : null, p_profile_complete: query.profileComplete && query.profileComplete !== "all" ? query.profileComplete : null, p_email_verified: query.emailVerified && query.emailVerified !== "all" ? query.emailVerified : null, p_submitted_from: query.submittedFrom || null, p_submitted_to: query.submittedTo || null, p_page: 1, p_page_size: 10000, p_sort_by: query.sort === "oldest" ? "oldest" : query.sort === "recently_updated" ? "recently_updated" : query.sort === "newest" ? "newest" : "priority", p_sort_direction: "desc" });
     if (error) return errorResult(error);
     const payload = data as Record<string, any>;
-    return { ok: true, data: ((payload.items ?? []) as RegistrationRow[]).map((row) => mapRegistration(row)) };
+    return { ok: true, data: sortRegistrationDirectory(((payload.items ?? []) as RegistrationRow[]).map((row) => mapRegistration(row)), query.sort) };
   },
   async exportForStaff(_actor, query = {}) {
-    const params = new URLSearchParams(); if (query.search) params.set("search", query.search); if (query.registrationStatus && query.registrationStatus !== "all") params.set("registration_status", query.registrationStatus); if (query.feeStatus && query.feeStatus !== "all") params.set("fee_status", query.feeStatus); if (query.profileComplete && query.profileComplete !== "all") params.set("profile_complete", query.profileComplete); if (query.emailVerified && query.emailVerified !== "all") params.set("email_verified", query.emailVerified); if (query.submittedFrom) params.set("submitted_from", query.submittedFrom); if (query.submittedTo) params.set("submitted_to", query.submittedTo); if (query.sort) params.set("sort_by", query.sort);
+    const params = new URLSearchParams(); if (query.search) params.set("search", query.search); if (query.registrationStatus && query.registrationStatus !== "all") params.set("registration_status", query.registrationStatus); if (query.feeStatus && query.feeStatus !== "all") params.set("fee_status", query.feeStatus); if (query.profileComplete && query.profileComplete !== "all") params.set("profile_complete", query.profileComplete); if (query.emailVerified && query.emailVerified !== "all") params.set("email_verified", query.emailVerified); if (query.submittedFrom) params.set("submitted_from", query.submittedFrom); if (query.submittedTo) params.set("submitted_to", query.submittedTo); if (query.sort) params.set("sort_by", query.sort); params.set("sort_direction", query.sort === "oldest" || query.sort === "fee_status" ? "asc" : "desc");
     try { const response = await fetch(`/api/exports/registrations?${params.toString()}`, { credentials: "same-origin" }); if (!response.ok) return errorResult({ code: response.status === 403 ? "42501" : "PGRST000", message: "Unable to export registrations." }); const blob = await response.blob(); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "smartegy-registrations.csv"; link.click(); URL.revokeObjectURL(link.href); return { ok: true, data: true }; } catch (error) { return errorResult(error as any); }
   },
   async getByApplicationNumber(_actor, applicationNumber) {
@@ -233,9 +249,9 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
     if (signedError || !signed.signedUrl) return errorResult(signedError ?? { message: "The payment proof could not be opened." });
     return { ok: true, data: { fileName: document.original_filename, mimeType: document.mime_type, accessToken: signed.signedUrl, expiresAt: new Date(Date.now() + 300000).toISOString() } };
   },
-  async verifyFee(_actor, input: VerifyRegistrationFeeInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("verify_registration_fee", { p_registration_id: input.registrationId, p_verified_amount: input.verifiedAmountSen / 100, p_verified_payment_date: input.paymentDate, p_bank_reference: input.bankReference, p_note: input.note ?? null }); return error ? errorResult(error) : { ok: true, data: mapRegistration(firstRow(data)) }; },
-  async rejectFee(_actor, input: RejectRegistrationFeeInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("reject_registration_fee", { p_registration_id: input.registrationId, p_reason: input.reason }); return error ? errorResult(error) : { ok: true, data: mapRegistration(firstRow(data)) }; },
-  async approveRegistration(_actor, input: RegistrationDecisionInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("approve_registration", { p_registration_id: input.registrationId, p_reason: input.reason ?? null }); return error ? errorResult(error) : { ok: true, data: mapRegistration(firstRow(data)) }; },
-  async rejectRegistration(_actor, input: RegistrationDecisionInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("reject_registration", { p_registration_id: input.registrationId, p_reason: input.reason ?? "Registration rejected" }); return error ? errorResult(error) : { ok: true, data: mapRegistration(firstRow(data)) }; },
+  async verifyFee(_actor, input: VerifyRegistrationFeeInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("verify_registration_fee", { p_registration_id: input.registrationId, p_verified_amount: input.verifiedAmountSen / 100, p_verified_payment_date: input.paymentDate, p_bank_reference: input.bankReference, p_note: input.note ?? null }); return error ? errorResult(error) : hydrateRegistration(data); },
+  async rejectFee(_actor, input: RejectRegistrationFeeInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("reject_registration_fee", { p_registration_id: input.registrationId, p_reason: input.reason }); return error ? errorResult(error) : hydrateRegistration(data); },
+  async approveRegistration(_actor, input: RegistrationDecisionInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("approve_registration", { p_registration_id: input.registrationId, p_reason: input.reason ?? null }); return error ? errorResult(error) : hydrateRegistration(data); },
+  async rejectRegistration(_actor, input: RegistrationDecisionInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("reject_registration", { p_registration_id: input.registrationId, p_reason: input.reason ?? "Registration rejected" }); return error ? errorResult(error) : hydrateRegistration(data); },
   async assertActiveAgent(actor, registrationId) { const result = await supabaseRegistrationRepository.getRegistration(actor, registrationId); if (!result.ok) return result; return result.data.registrationStatus === "active" ? result : { ok: false, error: { code: "FORBIDDEN", message: "Your account is awaiting registration approval. Only onboarding and registration status are available." } }; },
 };

@@ -16,6 +16,18 @@ const initialTransactions: PayoutTransaction[] = [
 let transactions: PayoutTransaction[] = structuredClone(initialTransactions);
 function allowed(actor: CurrentUser) { return actor.role === "staff" || actor.role === "admin"; }
 function fail<T>(code: PayoutErrorCode, message: string): PayoutResult<T> { return { ok: false, error: { code, message } }; }
+function payoutDate(item: PayoutTransaction) { return item.dueDate ?? item.settledAt ?? `${item.payoutMonth}-01`; }
+export function filterAndSortPayoutTransactions(items: PayoutTransaction[], query: PayoutDirectoryQuery = {}) {
+  const search = query.search?.trim().toLowerCase() ?? "";
+  const direction = query.sortDirection === "desc" ? -1 : 1;
+  return items.filter((item) => (!query.agentId || item.agentId === query.agentId)
+    && (!query.settlementStatus || query.settlementStatus === "all" || (query.settlementStatus === "settled" ? item.settlementStatus === "settled" : query.settlementStatus === "partially_settled" ? false : item.settlementStatus !== "settled"))
+    && (!search || [item.agentName, item.agentCode, item.caseNumber, item.customerDisplayName, item.bankAccount.bankName].some((value) => value.toLowerCase().includes(search))))
+    .toSorted((a, b) => {
+      const comparison = query.sortBy === "date" ? payoutDate(a).localeCompare(payoutDate(b)) : a.agentName.localeCompare(b.agentName);
+      return (comparison || a.id.localeCompare(b.id)) * direction;
+    });
+}
 function aggregate(payoutMonth: string, items: PayoutTransaction[]) {
   const groups = new Map<string, PayoutTransaction[]>(); items.forEach((item) => groups.set(item.agentId, [...(groups.get(item.agentId) ?? []), item]));
   const agentPayouts: AgentMonthlyPayout[] = Array.from(groups.values()).map((entries) => { const first = entries[0]; const totalSen = entries.reduce((sum, item) => sum + item.amountSen, 0); const settledSen = entries.filter((item) => item.settlementStatus === "settled").reduce((sum, item) => sum + item.amountSen, 0); const settledTransactionCount = entries.filter((item) => item.settlementStatus === "settled").length; const settlementStatus: AgentMonthlyPayout["settlementStatus"] = settledTransactionCount === entries.length ? "settled" : settledTransactionCount ? "partially_settled" : "pending"; return { agentId: first.agentId, agentName: first.agentName, agentCode: first.agentCode, bankAccount: first.bankAccount, payoutMonth, totalSen, settledSen, pendingSen: totalSen - settledSen, transactionCount: entries.length, settledTransactionCount, settlementStatus }; }).toSorted((a, b) => a.agentName.localeCompare(b.agentName));
@@ -23,9 +35,25 @@ function aggregate(payoutMonth: string, items: PayoutTransaction[]) {
   return { summary: { payoutMonth, totalSen, settledSen, pendingSen: totalSen - settledSen, agentCount: agentPayouts.length, settledAgentCount: agentPayouts.filter((item) => item.settlementStatus === "settled").length, transactionCount: items.length, settledTransactionCount }, agentPayouts };
 }
 export const mockPayoutRepository: PayoutRepository = {
-  async getMonth(actor, payoutMonth) { if (!allowed(actor)) return fail("FORBIDDEN", "Only staff and administrators can view payout data."); const items = transactions.filter((item) => item.payoutMonth === payoutMonth); return { ok: true, data: { ...aggregate(payoutMonth, items), transactions: structuredClone(items) } }; },
+  async getMonth(actor, payoutMonth, query = {}) {
+    if (!allowed(actor)) return fail("FORBIDDEN", "Only staff and administrators can view payout data.");
+    const monthItems = transactions.filter((item) => item.payoutMonth === payoutMonth);
+    const pageSize = Math.min(10000, Math.max(1, query.pageSize ?? 5));
+    const page = Math.max(1, query.page ?? 1);
+    if (query.view === "agents") {
+      const matchingTransactions = filterAndSortPayoutTransactions(monthItems, { ...query, settlementStatus: undefined });
+      const aggregated = aggregate(payoutMonth, matchingTransactions);
+      const matchingAgents = aggregated.agentPayouts
+        .filter((item) => !query.settlementStatus || query.settlementStatus === "all" || item.settlementStatus === query.settlementStatus)
+        .toSorted((a, b) => a.agentName.localeCompare(b.agentName) * (query.sortDirection === "desc" ? -1 : 1));
+      return { ok: true, data: { summary: aggregated.summary, agentPayouts: structuredClone(matchingAgents), transactions: [], totalItems: matchingAgents.length, totalPages: Math.max(1, Math.ceil(matchingAgents.length / pageSize)) } };
+    }
+    const filtered = filterAndSortPayoutTransactions(monthItems, query);
+    const aggregated = aggregate(payoutMonth, filtered);
+    return { ok: true, data: { ...aggregated, transactions: structuredClone(filtered.slice((page - 1) * pageSize, page * pageSize)), totalItems: filtered.length, totalPages: Math.max(1, Math.ceil(filtered.length / pageSize)) } };
+  },
   async exportMonth(actor, payoutMonth) { if (!allowed(actor)) return fail("FORBIDDEN", "Only staff and administrators can export payout data."); const items = transactions.filter((item) => item.payoutMonth === payoutMonth); const rows = [["Agent", "Agent ID", "Agent Code", "Bank", "Account Holder", "Account Number", "Payout Month", "Total Payout", "Pending Amount", "Settled Amount", "Transaction Count", "Settlement Status"], ...aggregate(payoutMonth, items).agentPayouts.map((item) => [item.agentName, item.agentId, item.agentCode, item.bankAccount.bankName, item.bankAccount.accountHolderName, item.bankAccount.accountNumberMasked, item.payoutMonth, (item.totalSen / 100).toFixed(2), (item.pendingSen / 100).toFixed(2), (item.settledSen / 100).toFixed(2), item.transactionCount, item.settlementStatus])]; downloadCsv(`smartegy-payouts-${payoutMonth}.csv`, rows); return { ok: true, data: true }; },
-  async exportTransactions(actor, payoutMonth, query = {}) { if (!allowed(actor)) return fail("FORBIDDEN", "Only staff and administrators can export payout data."); const search = query.search?.trim().toLowerCase() ?? ""; const items = transactions.filter((item) => item.payoutMonth === payoutMonth && (!query.agentId || item.agentId === query.agentId) && (!query.settlementStatus || query.settlementStatus === "all" || (query.settlementStatus === "settled" ? item.settlementStatus === "settled" : item.settlementStatus !== "settled")) && (!search || [item.agentName, item.agentCode, item.caseNumber, item.customerDisplayName, item.bankAccount.bankName].some((value) => value.toLowerCase().includes(search)))); const rows = [["Agent", "Agent ID", "Agent Code", "Bank", "Account Holder", "Account Number", "Payout Month", "Case", "Customer", "Amount", "Settlement", "Paid At", "Bank Reference"], ...items.map((item) => [item.agentName, item.agentId, item.agentCode, item.bankAccount.bankName, item.bankAccount.accountHolderName, item.bankAccount.accountNumberMasked, item.payoutMonth, item.caseNumber, item.customerDisplayName, (item.amountSen / 100).toFixed(2), item.settlementStatus, item.settledAt ?? "", item.bankReference ?? ""])]; downloadCsv(`smartegy-payout-transactions-${payoutMonth}.csv`, rows); return { ok: true, data: true }; },
+  async exportTransactions(actor, payoutMonth, query = {}) { if (!allowed(actor)) return fail("FORBIDDEN", "Only staff and administrators can export payout data."); const items = filterAndSortPayoutTransactions(transactions.filter((item) => item.payoutMonth === payoutMonth), query); const rows = [["Agent", "Agent ID", "Agent Code", "Bank", "Account Holder", "Account Number", "Payout Month", "Case", "Customer", "Amount", "Settlement", "Paid At", "Bank Reference"], ...items.map((item) => [item.agentName, item.agentId, item.agentCode, item.bankAccount.bankName, item.bankAccount.accountHolderName, item.bankAccount.accountNumberMasked, item.payoutMonth, item.caseNumber, item.customerDisplayName, (item.amountSen / 100).toFixed(2), item.settlementStatus, item.settledAt ?? "", item.bankReference ?? ""])]; downloadCsv(`smartegy-payout-transactions-${payoutMonth}.csv`, rows); return { ok: true, data: true }; },
   async settleTransaction(actor, input) { if (!allowed(actor)) return fail("FORBIDDEN", "Only staff and administrators can settle a payout transaction."); const transaction = transactions.find((item) => item.id === input.transactionId); if (!transaction) return fail("NOT_FOUND", "Payout transaction not found."); if (transaction.settlementStatus === "settled") return fail("CONFLICT", "This payout transaction is already settled."); if (!input.bankReference.trim()) return fail("CONFLICT", "Enter the bank settlement reference."); transaction.settlementStatus = "settled"; transaction.settledAt = new Date().toISOString(); transaction.settledById = actor.id; transaction.settledByDisplayName = actor.displayName; transaction.bankReference = input.bankReference.trim(); return { ok: true, data: structuredClone(transaction) }; },
 };
 export function resetMockPayouts() { transactions = structuredClone(initialTransactions); }

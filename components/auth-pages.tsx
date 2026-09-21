@@ -1,6 +1,6 @@
 "use client";
 
-import { TextInput, TextArea } from "./form-controls";
+import { PasswordField, TextInput, TextArea } from "./form-controls";
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -41,7 +41,7 @@ export function ForgotPasswordPage() {
       <div className="form-field"><label htmlFor="reset-email">Email address</label><TextInput id="reset-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? "reset-email-error" : undefined} required/>{error && <p id="reset-email-error" className="field-error" role="alert">{error}</p>}</div>
       {success && <div className="login-message login-message-info" role="status"><span aria-hidden="true">i</span>{success}</div>}
       {isMockReset && resetPath && <div className="mock-reset-link"><p>Mock preview is enabled for this local build.</p><Link className="button button-secondary" href={resetPath}>Open reset password preview <Icon name="arrow" size={14}/></Link></div>}
-      <button className="login-submit" type="submit" disabled={submitting || cooldown > 0}>{submitting ? "Sending reset link…" : cooldown > 0 ? `Resend available in ${cooldown}s` : "Send reset link"}</button>
+      <button className="login-submit" type="submit" disabled={submitting || cooldown > 0} aria-busy={submitting}>{submitting ? <><span className="button-spinner" aria-hidden="true" />Sending reset link…</> : cooldown > 0 ? `Resend available in ${cooldown}s` : "Send reset link"}</button>
     </form>
     <div className="auth-footer-links"><Link href="/">Return to sign in</Link></div>
   </AuthShell>;
@@ -53,8 +53,6 @@ export function ResetPasswordPage() {
   const [linkState, setLinkState] = useState<ReturnType<typeof getMockResetLinkState> | "loading">("loading");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -105,17 +103,12 @@ export function ResetPasswordPage() {
 
   return <AuthShell kicker="Password recovery" title="Choose a new password" description="Use a strong password you do not reuse elsewhere.">
     <form className="auth-form" onSubmit={submit} noValidate>
-      <PasswordField id="new-password" label="New password" value={password} onChange={setPassword} visible={showPassword} onToggle={() => setShowPassword((value) => !value)} error={fieldErrors.password}/>
-      <PasswordField id="confirm-new-password" label="Confirm new password" value={confirmation} onChange={setConfirmation} visible={showConfirmation} onToggle={() => setShowConfirmation((value) => !value)} error={fieldErrors.confirmation}/>
+      <PasswordField id="new-password" name="password" label="New password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} error={fieldErrors.password} minLength={PASSWORD_MIN_LENGTH} required/>
+      <PasswordField id="confirm-new-password" name="confirmation" label="Confirm new password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} error={fieldErrors.confirmation} minLength={PASSWORD_MIN_LENGTH} required/>
       <p className="password-requirements">Password requirements: at least {PASSWORD_MIN_LENGTH} characters.</p>
       {error && <div className="login-message login-message-error" role="alert"><span aria-hidden="true">!</span>{error}</div>}
-      <button className="login-submit" type="submit" disabled={submitting}>{submitting ? "Updating password…" : "Reset password"}</button>
+      <button className="login-submit" type="submit" disabled={submitting} aria-busy={submitting}>{submitting ? <><span className="button-spinner" aria-hidden="true" />Updating password…</> : "Reset password"}</button>
     </form>
     <div className="auth-footer-links"><Link href="/">Return to sign in</Link></div>
   </AuthShell>;
-}
-
-function PasswordField({ id, label, value, onChange, visible, onToggle, error }: { id: string; label: string; value: string; onChange: (value: string) => void; visible: boolean; onToggle: () => void; error?: string[] }) {
-  const errorId = `${id}-error`;
-  return <div className="form-field"><label htmlFor={id}>{label}</label><div className="password-input"><TextInput id={id} name={id} type={visible ? "text" : "password"} autoComplete="new-password" value={value} onChange={(event) => onChange(event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} required/><button className="password-toggle" type="button" onClick={onToggle} aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`} aria-pressed={visible}>{visible ? "Hide" : "Show"}</button></div>{error?.[0] && <p id={errorId} className="field-error" role="alert">{error[0]}</p>}</div>;
 }
