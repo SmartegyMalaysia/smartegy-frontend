@@ -44,7 +44,7 @@ export function RegistrationStatusPage() {
     const result = await registrationRepository.submitFee(user, {
       registrationId: registration.id,
       paymentDate,
-      paymentReference: registration.paymentReference,
+      paymentReference: registration.paymentReference ?? registration.applicationNumber,
       paymentRemarks: paymentRemarks.trim() || registration.paymentRemarks,
       proof: {
         file: paymentProof,

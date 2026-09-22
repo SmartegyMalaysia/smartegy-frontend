@@ -71,8 +71,7 @@ export function RegistrationQueuePage() {
   return <AppShell user={user} onRoleChange={setRole} authLoading={!ready}>
     <div className="page-content registration-page-content">
       {!ready ? <LoadingState/> : <>
-        <div className="page-header"><div><p className="eyebrow">Staff operations</p><h1>Agent Registration</h1><p className="page-description">Find applications awaiting profile and payment review.</p></div></div>
-        <div className="preview-banner"><span className="preview-dot"/><div><strong>Manual verification</strong><span> Payment Proof Is Reviewed by authorised staff. No payment is verified automatically.</span></div></div>
+        <div className="page-header"><div><p className="eyebrow">Staff operations</p><h1>Agent Registration</h1><p className="page-description">Find applications awaiting profile and payment review. Payment Proof Is Reviewed by authorised staff.</p></div></div>
         {role === "agent" ? <PermissionDenied/> : loading && !hasLoaded.current ? <LoadingState/> : failed && !hasLoaded.current ? <ErrorState onRetry={load}/> : <section className="panel recent-panel case-table-panel">
           <div className="panel-header case-table-header"><div><h2>Agent Registrations</h2><p>Select an application to review its payment proof and audit history.</p></div><span className="case-count">{registrations.length} applications {refreshing && <span className="table-secondary" role="status" aria-live="polite">Updating…</span>}</span></div>
           <QueueFilters query={query} search={search} onSearchChange={(value) => { setSearch(value); setPage(1); }} update={update} reset={reset} hasFilters={hasFilters}/>

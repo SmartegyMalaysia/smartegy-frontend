@@ -296,7 +296,7 @@ export function RegistrationSignup({
           {
             registrationId: registration.id,
             paymentDate,
-            paymentReference: null,
+            paymentReference: registration.applicationNumber,
             paymentRemarks: String(form.get("paymentRemarks") ?? ""),
             proof: {
               file,
@@ -513,6 +513,9 @@ function PaymentSubmittedStep() {
         Payment submitted and pending staff verification. Your account will be
         activated after your registration and payment have been approved.
       </p>
+      <Link className="button button-secondary" href="/">
+        Back to sign in
+      </Link>
     </div>
   );
 }
@@ -735,10 +738,6 @@ function PaymentStep({
           <strong>{registration.applicationNumber}</strong>
           <small>Use this application number when making the transfer.</small>
         </div>
-      </div>
-      <div className="payment-qr-card">
-        <strong>DuitNow QR</strong>
-        <span>QR will be provided by Smartegy later.</span>
       </div>
       <div className="registration-field">
         <DatePicker

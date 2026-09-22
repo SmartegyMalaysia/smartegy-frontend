@@ -301,7 +301,7 @@ Registration status and registration-fee status are separate. Registration statu
 
 An agent can become active only when email is verified, required profile information is complete, the RM50 fee is verified or formally waived, and authorised staff approve the registration. Pending agents may log in but can access only onboarding and registration-status screens. Agents cannot assign or modify role, level, commission percentage, registration status, fee-verification status, or confirmed upline. Privileged registration actions create an audit entry with action, previous/new status, acting user, timestamp, and reason/note where applicable.
 
-Payment instructions and temporary bank values belong to configuration/mock data, not presentational components. The DuitNow QR is an explicit unavailable state until supplied. Version 1 does not provide a payment gateway, automatic verification, or a registration-fee receipt.
+Payment instructions and temporary bank values belong to configuration/mock data, not presentational components. Version 1 does not provide a payment gateway, automatic verification, or a registration-fee receipt.
 
 ### 10.1 Simplified Mock Applicant Flow
 

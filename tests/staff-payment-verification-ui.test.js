@@ -25,6 +25,7 @@ test("staff payment verification fields are required and validated before openin
   assert.match(reviewSource, /Verified payment date is required/);
   assert.match(reviewSource, /maxLength=\{REGISTRATION_PAYMENT_REJECTION_REASON_MAX_LENGTH\}/);
   assert.match(reviewSource, /paymentReason\.trim\(\)/);
+  assert.match(reviewSource, /registration\.paymentReference \?\? registration\.applicationNumber/);
   assert.match(reviewSource, /payment-rejection-reason-count/);
   assert.match(reviewSource, /onClick=\{verify\}/);
   assert.match(reviewSource, /loading=\{actionLoading\}/);

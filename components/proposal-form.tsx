@@ -20,7 +20,6 @@ const MAX_MONEY_DECIMAL_PLACES = 2;
 const MAX_KWH_DECIMAL_PLACES = 3;
 const MAX_MONEY_SEN = 99999999999999;
 const MAX_KWH = 99999999999.999;
-const MAX_TNB_RATE = 999999.999999;
 
 function formatMoneyInput(sen: number) {
   return (sen / 100).toFixed(2);
@@ -82,7 +81,7 @@ function dateFieldError(value: string): string | undefined {
 
 function getProposalErrors(salesRepName: string, proposalDate: string, installationAddress: string, installationCost: string, outstationCost: string, saleAmount: string, downpaymentAmount: string, readings: ReadingDraft[], calculatedDownpaymentSen: number | null): ProposalErrors {
   const errors: ProposalErrors = {
-    salesRepName: salesRepName.trim() ? undefined : "Sales representative is required.",
+    salesRepName: undefined,
     proposalDate: dateFieldError(proposalDate),
     installationAddress: installationAddress.trim() ? undefined : "Installation address is required.",
     installationCost: decimalFieldError(installationCost, "Installation cost", MAX_MONEY_DECIMAL_PLACES, 0, MAX_MONEY_SEN / 100, false),
@@ -98,10 +97,6 @@ function getProposalErrors(salesRepName: string, proposalDate: string, installat
     else seenMonths.add(reading.month);
     readingErrors.bill = decimalFieldError(reading.bill, "Bill amount", MAX_MONEY_DECIMAL_PLACES, 0.01, MAX_MONEY_SEN / 100, true);
     readingErrors.kwh = decimalFieldError(reading.kwh, "kWh used", MAX_KWH_DECIMAL_PLACES, 0.001, MAX_KWH, true);
-    if (!readingErrors.bill && !readingErrors.kwh) {
-      const roundedRate = Number((Number(reading.bill) / Number(reading.kwh)).toFixed(6));
-      if (roundedRate > MAX_TNB_RATE) readingErrors.kwh = "Bill amount divided by kWh exceeds the supported TNB rate.";
-    }
     return readingErrors;
   });
 
@@ -141,7 +136,7 @@ function buildInput(salesRepName: string, proposalDate: string, installationAddr
   const amount = Number(saleAmount);
   const installationCostValue = Number(installationCost);
   const outstationCostValue = Number(outstationCost);
-  if (!salesRepName.trim() || !proposalDate || !installationAddress.trim() || !Number.isFinite(installationCostValue) || installationCostValue < 0 || !Number.isFinite(outstationCostValue) || outstationCostValue < 0 || !Number.isFinite(amount) || amount <= 0) return null;
+  if (!proposalDate || !installationAddress.trim() || !Number.isFinite(installationCostValue) || installationCostValue < 0 || !Number.isFinite(outstationCostValue) || outstationCostValue < 0 || !Number.isFinite(amount) || amount <= 0) return null;
   const parsed: ProposalEnergyReading[] = readings.map((reading, index) => {
     const billAmountSen = Math.round(Number(reading.bill) * 100);
     const kwhUsed = Number(reading.kwh);
@@ -180,6 +175,8 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
   const downpaymentDisplay = downpaymentAmount.trim() || (basePreview ? formatMoneyInput(basePreview.calculatedDownpaymentSen) : "");
   const fieldErrors = useMemo(() => getProposalErrors(salesRepName, proposalDate, installationAddress, installationCost, outstationCost, saleAmount, downpaymentAmount, readings, basePreview?.calculatedDownpaymentSen ?? null), [salesRepName, proposalDate, installationAddress, installationCost, outstationCost, saleAmount, downpaymentAmount, readings, basePreview]);
   const validationWarning = useMemo(() => firstProposalError(fieldErrors), [fieldErrors]);
+  const isReadingWarning = Boolean(warning?.startsWith("Reading "));
+  const isDownpaymentWarning = Boolean(warning?.toLowerCase().includes("downpayment"));
 
   function updateReading(index: number, key: keyof ReadingDraft, value: string) {
     setWarning(null);
@@ -247,7 +244,7 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
         <div className="case-field proposal-service-address-field"><label htmlFor="proposal-service-address">Service Address</label><div id="proposal-service-address" className="proposal-service-address-value">{caseDetail.service.siteAddress || "Not provided"}</div></div>
         <ReadOnlyField id="proposal-contact-person" title="Contact Person" value={caseDetail.customer.contactName ?? "Not provided"} />
         <ReadOnlyField id="proposal-customer-email" title="Contact Email" value={caseDetail.customer.email ?? "Not provided"} />
-        <div className="proposal-editable-field"><TextInput id="proposal-sales-representative" title="Sales Representative" value={salesRepName} onChange={(event) => setSalesRepName(event.target.value)} required aria-invalid={showWarnings && Boolean(fieldErrors.salesRepName)} aria-describedby={showWarnings && fieldErrors.salesRepName ? "proposal-sales-representative-error" : undefined} fieldClassName={showWarnings && fieldErrors.salesRepName ? "case-field-error" : ""} /><FieldError id="proposal-sales-representative-error" message={showWarnings ? fieldErrors.salesRepName : undefined} /></div>
+        <div className="proposal-editable-field"><TextInput id="proposal-sales-representative" title="Sales Representative" value={salesRepName} onChange={(event) => setSalesRepName(event.target.value)} aria-invalid={showWarnings && Boolean(fieldErrors.salesRepName)} aria-describedby={showWarnings && fieldErrors.salesRepName ? "proposal-sales-representative-error" : undefined} fieldClassName={showWarnings && fieldErrors.salesRepName ? "case-field-error" : ""} /><FieldError id="proposal-sales-representative-error" message={showWarnings ? fieldErrors.salesRepName : undefined} /></div>
         <div className="proposal-editable-field"><DatePicker id="proposal-date" title="Proposal Date" value={proposalDate} onChange={setProposalDate} required ariaInvalid={showWarnings && Boolean(fieldErrors.proposalDate)} ariaDescribedBy={showWarnings && fieldErrors.proposalDate ? "proposal-date-error" : undefined} fieldClassName={showWarnings && fieldErrors.proposalDate ? "case-field-error" : ""} /><FieldError id="proposal-date-error" message={showWarnings ? fieldErrors.proposalDate : undefined} /></div>
         <div className="proposal-editable-field"><TextArea id="proposal-installation-address" title="Installation Address" value={installationAddress} onChange={(event) => setInstallationAddress(event.target.value)} required aria-invalid={showWarnings && Boolean(fieldErrors.installationAddress)} aria-describedby={showWarnings && fieldErrors.installationAddress ? "proposal-installation-address-error" : undefined} fieldClassName={showWarnings && fieldErrors.installationAddress ? "case-field-error" : ""} /><FieldError id="proposal-installation-address-error" message={showWarnings ? fieldErrors.installationAddress : undefined} /></div>
         <div className="proposal-editable-field"><TextInput prefix="RM" id="proposal-sale-amount" title="Sale Amount" inputMode="decimal" value={saleAmount} onChange={(event) => setSaleAmount(event.target.value)} required aria-invalid={showWarnings && Boolean(fieldErrors.saleAmount)} aria-describedby={showWarnings && fieldErrors.saleAmount ? "proposal-sale-amount-error" : undefined} fieldClassName={showWarnings && fieldErrors.saleAmount ? "case-field-error" : ""} /><FieldError id="proposal-sale-amount-error" message={showWarnings ? fieldErrors.saleAmount : undefined} /></div>
@@ -257,18 +254,20 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
       </div>
       <section className="proposal-readings-section">
         <div className="proposal-section-heading"><div><h3>TNB Readings</h3><p>Start with one completed historical month. Add up to twelve rows; days are fixed from the selected calendar month.</p></div></div>
+        {showWarnings && warning && isReadingWarning && <div className="proposal-warning" role="alert">⚠ {warning}</div>}
         <div className="proposal-readings-table">
           <div className="proposal-reading-row proposal-reading-header"><span>Month</span><span>Year</span><span>Bill (RM)</span><span>kWh Used</span><span>TNB Rate</span><span>Days</span><span>Daily kWh</span></div>
           {readings.map((reading, index) => {
             const days = calendarDaysForMonth(reading.month);
             const readingErrors = fieldErrors.readings[index] ?? {};
+            const readingHasInput = Boolean(reading.month || reading.year || reading.bill || reading.kwh);
             const availableMonths = monthOptions.filter((option) => option === reading.month || !readings.some((other, otherIndex) => otherIndex !== index && other.month === option));
             const availableMonthNumbers = proposalMonthOptions.filter((month) => availableMonths.some((option) => option.endsWith(`-${month}`)));
             return <div className="proposal-reading-row" key={index}>
-              <div className="proposal-reading-field"><FilterSelect id={`proposal-month-${index + 1}`} ariaLabel={`Month ${index + 1}`} ariaDescribedBy={showWarnings && readingErrors.month ? `proposal-reading-${index + 1}-month-error` : undefined} allLabel="Select month" value={reading.monthNumber} options={availableMonthNumbers} labels={proposalMonthLabels} onChange={(value) => updateReading(index, "monthNumber", value)} required ariaInvalid={showWarnings && Boolean(readingErrors.month)} /><FieldError id={`proposal-reading-${index + 1}-month-error`} message={showWarnings ? readingErrors.month : undefined} /></div>
-              <div className="proposal-reading-field"><TextInput id={`proposal-year-${index + 1}`} aria-label={`Year ${index + 1}`} aria-describedby={showWarnings && readingErrors.month ? `proposal-reading-${index + 1}-month-error` : undefined} aria-invalid={showWarnings && Boolean(readingErrors.month)} placeholder="YYYY" inputMode="numeric" maxLength={4} value={reading.year} onChange={(event) => updateReading(index, "year", event.target.value.replace(/\D/g, "").slice(0, 4))} className={showWarnings && readingErrors.month ? "proposal-warning-field" : ""} required /></div>
-              <div className="proposal-reading-field"><TextInput prefix="RM" aria-label={`Bill amount in RM ${index + 1}`} aria-describedby={showWarnings && readingErrors.bill ? `proposal-reading-${index + 1}-bill-error` : undefined} aria-invalid={showWarnings && Boolean(readingErrors.bill)} placeholder="1300" inputMode="decimal" className={showWarnings && readingErrors.bill ? "proposal-warning-field" : ""} value={reading.bill} onChange={(event) => updateReading(index, "bill", event.target.value)} /><FieldError id={`proposal-reading-${index + 1}-bill-error`} message={showWarnings ? readingErrors.bill : undefined} /></div>
-              <div className="proposal-reading-field"><TextInput aria-label={`kWh used ${index + 1}`} aria-describedby={showWarnings && readingErrors.kwh ? `proposal-reading-${index + 1}-kwh-error` : undefined} aria-invalid={showWarnings && Boolean(readingErrors.kwh)} placeholder="e.g. 2600" inputMode="decimal" className={showWarnings && readingErrors.kwh ? "proposal-warning-field" : ""} value={reading.kwh} onChange={(event) => updateReading(index, "kwh", event.target.value)} /><FieldError id={`proposal-reading-${index + 1}-kwh-error`} message={showWarnings ? readingErrors.kwh : undefined} /></div>
+              <div className="proposal-reading-field"><FilterSelect id={`proposal-month-${index + 1}`} ariaLabel={`Month ${index + 1}`} allLabel="Select month" value={reading.monthNumber} options={availableMonthNumbers} labels={proposalMonthLabels} onChange={(value) => updateReading(index, "monthNumber", value)} required ariaInvalid={showWarnings && readingHasInput && Boolean(readingErrors.month)} /></div>
+              <div className="proposal-reading-field"><TextInput id={`proposal-year-${index + 1}`} aria-label={`Year ${index + 1}`} aria-invalid={showWarnings && readingHasInput && Boolean(readingErrors.month)} placeholder="YYYY" inputMode="numeric" maxLength={4} value={reading.year} onChange={(event) => updateReading(index, "year", event.target.value.replace(/\D/g, "").slice(0, 4))} className={showWarnings && readingHasInput && readingErrors.month ? "proposal-warning-field" : ""} required /></div>
+              <div className="proposal-reading-field"><TextInput prefix="RM" aria-label={`Bill amount in RM ${index + 1}`} aria-invalid={showWarnings && readingHasInput && Boolean(readingErrors.bill)} placeholder="1300" inputMode="decimal" className={showWarnings && readingHasInput && readingErrors.bill ? "proposal-warning-field" : ""} value={reading.bill} onChange={(event) => updateReading(index, "bill", event.target.value)} /></div>
+              <div className="proposal-reading-field"><TextInput aria-label={`kWh used ${index + 1}`} aria-invalid={showWarnings && readingHasInput && Boolean(readingErrors.kwh)} placeholder="e.g. 2600" inputMode="decimal" className={showWarnings && readingHasInput && readingErrors.kwh ? "proposal-warning-field" : ""} value={reading.kwh} onChange={(event) => updateReading(index, "kwh", event.target.value)} /></div>
               <span className="proposal-reading-calculated" aria-label={`Calculated TNB rate ${index + 1}`}>{formatRate(reading.bill, reading.kwh)}</span>
               <span className="proposal-reading-calculated" aria-label={`Calendar days ${index + 1}`}>{days ?? "—"}</span>
               <span className="proposal-reading-calculated" aria-label={`Daily kWh ${index + 1}`}>{days && Number.isFinite(Number(reading.kwh)) && Number(reading.kwh) > 0 ? (Number(reading.kwh) / days).toFixed(3) : "—"}</span>
@@ -279,9 +278,9 @@ export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDet
       </section>
       <section className="proposal-preview-section">
         <div className="proposal-section-heading"><div><h3>Calculated Preview</h3><p>Final values are recalculated and validated by the system.</p></div></div>
-        {displayPreview ? <dl className="proposal-preview-grid"><div><dt>Average Bill</dt><dd>{formatMoney(displayPreview.avgBillSen)}</dd></div><div><dt>Calculated Savings/ Suggested Downpayment</dt><dd>{formatMoney(displayPreview.calculatedDownpaymentSen)}</dd></div><div className="proposal-preview-downpayment"><dt>Downpayment</dt><dd><MoneyInput id="proposal-downpayment" inputMode="decimal" value={downpaymentDisplay} onChange={(event) => setDownpaymentAmount(event.target.value)} required aria-invalid={showWarnings && Boolean(fieldErrors.downpayment)} aria-describedby={showWarnings && fieldErrors.downpayment ? "proposal-downpayment-error" : undefined} fieldClassName={showWarnings && fieldErrors.downpayment ? "case-field-error" : ""} /></dd>{showWarnings && <FieldError id="proposal-downpayment-error" message={fieldErrors.downpayment} />}</div><div><dt>Post-Installation</dt><dd>{formatMoney(displayPreview.postInstallationSen)}</dd></div><div><dt>Balance</dt><dd>{formatMoney(displayPreview.balanceSen)}</dd></div><div><dt>10-Month Option</dt><dd>{formatMoney(displayPreview.option1MonthlySen)} / month</dd></div><div><dt>20-Month Option</dt><dd>{formatMoney(displayPreview.option2MonthlySen)} / month</dd></div><div><dt>Annual Saving</dt><dd>{formatMoney(displayPreview.savingRmYearSen)}</dd></div></dl> : <p className="detail-empty">Complete the required values to see the calculation preview.</p>}
+        {showWarnings && warning && isDownpaymentWarning && <div className="proposal-warning" role="alert">⚠ {warning}</div>}
+        {displayPreview && <dl className="proposal-preview-grid"><div><dt>Average Bill</dt><dd>{formatMoney(displayPreview.avgBillSen)}</dd></div><div><dt>Calculated Savings/ Suggested Downpayment</dt><dd>{formatMoney(displayPreview.calculatedDownpaymentSen)}</dd></div><div className={`proposal-preview-downpayment ${showWarnings && fieldErrors.downpayment ? "proposal-preview-downpayment-error" : ""}`}><dt>Downpayment</dt><dd><MoneyInput id="proposal-downpayment" inputMode="decimal" value={downpaymentDisplay} onChange={(event) => setDownpaymentAmount(event.target.value)} required aria-invalid={showWarnings && Boolean(fieldErrors.downpayment)} fieldClassName={showWarnings && fieldErrors.downpayment ? "case-field-error" : ""} /></dd></div><div><dt>Post-Installation</dt><dd>{formatMoney(displayPreview.postInstallationSen)}</dd></div><div><dt>Balance</dt><dd>{formatMoney(displayPreview.balanceSen)}</dd></div><div><dt>10-Month Option</dt><dd>{formatMoney(displayPreview.option1MonthlySen)} / month</dd></div><div><dt>20-Month Option</dt><dd>{formatMoney(displayPreview.option2MonthlySen)} / month</dd></div><div><dt>Annual Saving</dt><dd>{formatMoney(displayPreview.savingRmYearSen)}</dd></div></dl>}
       </section>
-      {warning && <p className="proposal-warning" role="alert">⚠ {warning}</p>}
       <div className="proposal-form-actions"><Button type="button" variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button><Button type="button" variant="secondary" onClick={() => save(false)} loading={busy}>{busy ? "Saving…" : "Save Draft"}</Button><Button type="button" variant="primary" onClick={() => save(true)} loading={busy}>{busy ? "Issuing…" : "Issue Proposal"}</Button></div>
     </div>
   </PopupModal>;
