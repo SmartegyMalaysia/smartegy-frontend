@@ -143,6 +143,13 @@ async function hydrateRegistration(data: unknown): Promise<RegistrationActionRes
   }
 }
 
+async function sendFeeRejectionEmail(supabase: any, registrationId: string): Promise<RegistrationActionResult<true>> {
+  const { error } = await supabase.functions.invoke("send-registration-fee-rejection-email", {
+    body: { registration_id: registrationId },
+  });
+  return error ? errorResult(error) : { ok: true, data: true };
+}
+
 export const supabaseRegistrationRepository: RegistrationRepository = {
   async getPaymentConfig() {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
@@ -250,7 +257,26 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
     return { ok: true, data: { fileName: document.original_filename, mimeType: document.mime_type, accessToken: signed.signedUrl, expiresAt: new Date(Date.now() + 300000).toISOString() } };
   },
   async verifyFee(_actor, input: VerifyRegistrationFeeInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("verify_registration_fee", { p_registration_id: input.registrationId, p_verified_amount: input.verifiedAmountSen / 100, p_verified_payment_date: input.paymentDate, p_bank_reference: input.bankReference, p_note: input.note ?? null }); return error ? errorResult(error) : hydrateRegistration(data); },
-  async rejectFee(_actor, input: RejectRegistrationFeeInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("reject_registration_fee", { p_registration_id: input.registrationId, p_reason: input.reason }); return error ? errorResult(error) : hydrateRegistration(data); },
+  async rejectFee(_actor, input: RejectRegistrationFeeInput) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return errorResult({ message: "Supabase is not configured" });
+    const { data, error } = await supabase.rpc("reject_registration_fee", { p_registration_id: input.registrationId, p_reason: input.reason });
+    if (error) return errorResult(error);
+
+    const notification = await sendFeeRejectionEmail(supabase, input.registrationId);
+    const result = await hydrateRegistration(data);
+    if (!result.ok || notification.ok) return result;
+    console.error("Registration fee rejection was saved, but the applicant email could not be sent.", notification.error);
+    return {
+      ...result,
+      warning: "Payment rejected, but the applicant notification email could not be sent. Please retry the notification after checking email configuration.",
+    };
+  },
+  async sendFeeRejectionEmail(_actor, registrationId) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return errorResult({ message: "Supabase is not configured" });
+    return sendFeeRejectionEmail(supabase, registrationId);
+  },
   async approveRegistration(_actor, input: RegistrationDecisionInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("approve_registration", { p_registration_id: input.registrationId, p_reason: input.reason ?? null }); return error ? errorResult(error) : hydrateRegistration(data); },
   async rejectRegistration(_actor, input: RegistrationDecisionInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" }); const { data, error } = await supabase.rpc("reject_registration", { p_registration_id: input.registrationId, p_reason: input.reason ?? "Registration rejected" }); return error ? errorResult(error) : hydrateRegistration(data); },
   async assertActiveAgent(actor, registrationId) { const result = await supabaseRegistrationRepository.getRegistration(actor, registrationId); if (!result.ok) return result; return result.data.registrationStatus === "active" ? result : { ok: false, error: { code: "FORBIDDEN", message: "Your account is awaiting registration approval. Only onboarding and registration status are available." } }; },
