@@ -220,5 +220,5 @@ export interface RegistrationErrorResponse {
 }
 
 export type RegistrationActionResult<T> =
-  | { ok: true; data: T }
+  | { ok: true; data: T; warning?: string }
   | { ok: false; error: { code: "VALIDATION_ERROR" | "FORBIDDEN" | "NOT_FOUND" | "CONFLICT"; message: string; response?: RegistrationErrorResponse; fieldErrors?: Record<string, string[]> } };

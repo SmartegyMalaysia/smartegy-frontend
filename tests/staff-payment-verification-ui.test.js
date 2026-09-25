@@ -28,3 +28,8 @@ test("registration actions preserve uploaded payment proof after mutations", () 
   assert.match(repositorySource, /verify_registration_fee[\s\S]*hydrateRegistration\(data\)/);
   assert.match(repositorySource, /approve_registration[\s\S]*hydrateRegistration\(data\)/);
 });
+
+test("rejected registration fees notify the applicant and expose a resend action", () => {
+  assert.match(repositorySource, /send-registration-fee-rejection-email/);
+  assert.match(reviewSource, /Resend rejection email/);
+});

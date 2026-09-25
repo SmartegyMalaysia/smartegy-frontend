@@ -115,6 +115,7 @@ export interface RegistrationRepository {
   getPaymentProof(actor: CurrentUser, registrationId: ID): Promise<RegistrationActionResult<RegistrationPaymentProofAccess>>;
   verifyFee(actor: CurrentUser, input: VerifyRegistrationFeeInput): Promise<RegistrationActionResult<AgentRegistration>>;
   rejectFee(actor: CurrentUser, input: RejectRegistrationFeeInput): Promise<RegistrationActionResult<AgentRegistration>>;
+  sendFeeRejectionEmail(actor: CurrentUser, registrationId: ID): Promise<RegistrationActionResult<true>>;
   approveRegistration(actor: CurrentUser, input: RegistrationDecisionInput): Promise<RegistrationActionResult<AgentRegistration>>;
   rejectRegistration(actor: CurrentUser, input: RegistrationDecisionInput): Promise<RegistrationActionResult<AgentRegistration>>;
   assertActiveAgent(actor: CurrentUser, registrationId: ID): Promise<RegistrationActionResult<AgentRegistration>>;
@@ -304,6 +305,15 @@ export const mockRegistrationRepository: RegistrationRepository = {
     found.data.rejectionReason = input.reason.trim();
     addAudit(found.data, actor, "registration_fee", "payment_rejected", previous, "rejected", input.reason.trim());
     return { ok: true, data: found.data };
+  },
+
+  async sendFeeRejectionEmail(actor, registrationId) {
+    const allowed = staffOnly<true>(actor);
+    if (!allowed.ok) return allowed;
+    const found = getOwnedRegistration({ ...actor, role: "staff" }, registrationId);
+    if (!found.ok) return found;
+    if (found.data.feeStatus !== "rejected" || !found.data.rejectionReason) return failure("VALIDATION_ERROR", "Only a rejected registration fee can receive this notification.");
+    return { ok: true, data: true };
   },
 
   async approveRegistration(actor, input) {
