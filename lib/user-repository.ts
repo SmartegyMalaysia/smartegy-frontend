@@ -1,6 +1,7 @@
 import { getSupabaseBrowserClient, isSupabaseConfigured, normalizeSupabaseError } from "./supabase-browser";
 import type { AccountStatus, CreateStaffInput, CurrentUser, ManageUser, UpdateManageUserInput, UserRole } from "./types";
 import { downloadCsv } from "./export-csv";
+import { formatDateTime } from "./format";
 
 type UserErrorCode = "FORBIDDEN" | "NOT_FOUND" | "VALIDATION_ERROR" | "CONFLICT" | "INTERNAL_ERROR";
 export type UserResult<T> = { ok: true; data: T } | { ok: false; error: { code: UserErrorCode; message: string; fieldErrors?: Record<string, string[]> } };
@@ -58,7 +59,7 @@ export const mockUserRepository: UserRepository = {
   async export(actor, query) {
     const result = await this.listPage(actor, { ...query, page: 1, pageSize: 10000 });
     if (!result.ok) return result;
-    const rows = [["User", "Email", "Phone", "Role", "Account status", "Agent code", "Last active", "Created"], ...result.data.items.map((item) => [item.displayName, item.email ?? "", item.phone ?? "", item.role, item.accountStatus, item.agentCode ?? "", item.lastActiveAt ?? "Never", item.createdAt])];
+    const rows = [["User", "Email", "Phone", "Role", "Account status", "Agent code", "Last active", "Created"], ...result.data.items.map((item) => [item.displayName, item.email ?? "", item.phone ?? "", item.role, item.accountStatus, item.agentCode ?? "", item.lastActiveAt ? formatDateTime(item.lastActiveAt) : "Never", formatDateTime(item.createdAt)])];
     downloadCsv(`smartegy-users${query.search || query.role || query.accountStatus ? "-filtered" : ""}.csv`, rows);
     return { ok: true, data: true };
   },
