@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { badRpc, csvResponse, serverSupabase } from "../_lib";
+import { formatDateTime } from "@/lib/format";
 
 export async function GET(request: NextRequest) {
   const { supabase, cookiesToSet, error } = await serverSupabase(request);
@@ -13,6 +14,6 @@ export async function GET(request: NextRequest) {
     const direction = params.get("sort_direction") === "asc" ? 1 : -1;
     items.sort((a: any, b: any) => direction * String(a.fee_status ?? "").localeCompare(String(b.fee_status ?? "")) || String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")) || String(a.application_number ?? "").localeCompare(String(b.application_number ?? "")));
   }
-  const rows = [["Application", "Name", "Mobile", "Email", "Upline agent", "Registration", "Fee", "Profile", "Submitted"], ...items.map((item: any) => [item.application_number, item.full_name, item.mobile_number, item.email, item.referring_agent_name, item.registration_status, item.fee_status, item.profile_complete ? "Complete" : "Incomplete", item.submitted_at ?? ""])];
+  const rows = [["Application", "Name", "Mobile", "Email", "Upline agent", "Registration", "Fee", "Profile", "Submitted"], ...items.map((item: any) => [item.application_number, item.full_name, item.mobile_number, item.email, item.referring_agent_name, item.registration_status, item.fee_status, item.profile_complete ? "Complete" : "Incomplete", item.submitted_at ? formatDateTime(item.submitted_at) : ""])];
   return csvResponse(rows, "smartegy-registrations.csv", cookiesToSet);
 }

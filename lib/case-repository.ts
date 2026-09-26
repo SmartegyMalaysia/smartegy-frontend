@@ -2,6 +2,7 @@ import { mockDashboard } from "./mock-data";
 import { caseDocumentConfig, validateCaseDocument } from "./document-config";
 import { canDeleteCase } from "./case-workflow";
 import { calculateProposalPreview } from "./proposal-calculations";
+import { formatDateTime } from "./format";
 import type { AcceptTrialInput, AcceptanceInput, CaseDetail, CaseDocumentInput, CasePayment, CaseSummary, CurrentUser, CreateCaseInput, GeneratedDocumentResult, GeneratePaymentScheduleInput, ID, ProposalInput, RecordPaymentInput, SavingsVerificationInput, UpdateCaseInput, VerifyPaymentInput, CaseStatus, PaymentStatus } from "./types";
 
 type CaseErrorCode = "VALIDATION_ERROR" | "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR" | "CONFLICT";
@@ -133,7 +134,7 @@ export const mockCasesRepository: CasesRepository = {
     const pageSize = Math.min(10000, Math.max(1, query.pageSize ?? 5)); const page = Math.max(1, query.page ?? 1);
     return { ok: true, data: { items: sorted.slice((page - 1) * pageSize, page * pageSize).map((item) => ({ ...item })), totalItems: sorted.length, totalPages: Math.max(1, Math.ceil(sorted.length / pageSize)), agentOptions: Array.from(new Map(all.map((item) => [item.agentId, { value: item.agentId, label: item.agentName }])).values()).sort((a, b) => a.label.localeCompare(b.label)) } };
   },
-  async export(actor, query) { const result = await this.listPage(actor, { ...query, page: 1, pageSize: 10000 }); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-cases.csv", [["Case", "Customer", "Agent", "Amount", "Status", "Payment", "Updated"], ...result.data.items.map((item) => [item.caseNumber, item.customerDisplayName, item.agentName, item.saleAmountSen == null ? "" : item.saleAmountSen / 100, item.status, item.paymentStatus, item.updatedAt])]); return { ok: true, data: true }; },
+  async export(actor, query) { const result = await this.listPage(actor, { ...query, page: 1, pageSize: 10000 }); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-cases.csv", [["Case", "Customer", "Agent", "Amount", "Status", "Payment", "Updated"], ...result.data.items.map((item) => [item.caseNumber, item.customerDisplayName, item.agentName, item.saleAmountSen == null ? "" : item.saleAmountSen / 100, item.status, item.paymentStatus, formatDateTime(item.updatedAt)])]); return { ok: true, data: true }; },
   async getById(actor, caseId) {
     await new Promise((resolve) => setTimeout(resolve, 30));
     const found = caseStore.get(caseId);
