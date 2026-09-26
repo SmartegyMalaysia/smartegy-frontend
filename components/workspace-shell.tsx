@@ -11,6 +11,7 @@ import { useIdleLogout } from "@/lib/use-idle-logout";
 import { Button } from "./ui";
 import { PopupModal } from "./popup-modal";
 
+
 function pageTitleFor(pathname: string) {
   if (pathname === "/") return "Sign In";
   if (pathname === "/signup") return "Sign Up";
@@ -70,6 +71,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 function AuthenticatedWorkspaceShell({ children, hideSidebar, onboardingOnly }: { children: ReactNode; hideSidebar: boolean; onboardingOnly: boolean }) {
   const { user, setRole, ready, authenticated } = usePreviewUser();
   const { warningSecondsRemaining, staySignedIn } = useIdleLogout(ready && authenticated, user.id);
+
   useEffect(() => {
     if (ready && !authenticated) window.location.replace(new URL("/", window.location.href).toString());
   }, [authenticated, ready]);

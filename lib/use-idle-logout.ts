@@ -25,7 +25,6 @@ export function useIdleLogout(enabled: boolean, userId: string | null | undefine
       setWarningSecondsRemaining(null);
       return;
     }
-
     const activityKey = `smartegy:last-activity:${userId}`;
     let timeoutId: number | null = null;
     let lastActivityWrite = 0;
@@ -52,6 +51,7 @@ export function useIdleLogout(enabled: boolean, userId: string | null | undefine
       loggingOut.current = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
       setWarningSecondsRemaining(null);
+
       try {
         if (isSupabaseConfigured() && getSupabaseBrowserClient()) await logout("local");
         else clearDeveloperView();
