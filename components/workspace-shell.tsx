@@ -7,6 +7,7 @@ import { AppShell } from "./app-shell";
 import { PreviewUserProvider, usePreviewUser } from "@/lib/preview-user";
 import { navigation } from "@/lib/navigation";
 import type { UserRole } from "@/lib/types";
+import { useIdleLogout } from "@/lib/use-idle-logout";
 
 function pageTitleFor(pathname: string) {
   if (pathname === "/") return "Sign In";
@@ -66,6 +67,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
 function AuthenticatedWorkspaceShell({ children, hideSidebar, onboardingOnly }: { children: ReactNode; hideSidebar: boolean; onboardingOnly: boolean }) {
   const { user, setRole, ready, authenticated } = usePreviewUser();
+  useIdleLogout(ready && authenticated, user.id);
   useEffect(() => {
     if (ready && !authenticated) window.location.replace(new URL("/", window.location.href).toString());
   }, [authenticated, ready]);
