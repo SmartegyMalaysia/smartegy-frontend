@@ -47,7 +47,7 @@ function AppShellFrame({ user, children, onRoleChange, onboardingOnly = false, h
   return <AppShellContext.Provider value>
   <div className="app-shell" aria-busy={authLoading}>
     {!hideSidebar && <aside className={`sidebar ${mobileOpen ? "sidebar-mobile-open" : ""}`}>
-      <BrandLogo className="brand" variant="stacked" compactVariant="icon" />
+      <BrandLogo className="brand" href="/dashboard" variant="stacked" compactVariant="icon" />
       {nav}
       <div className="sidebar-footer">{!authLoading && !restricted && previewMode && <><div className="preview-note"><span className="preview-dot"/>Preview mode</div><label className="role-select-label" htmlFor="role-switcher">View as</label><select id="role-switcher" value={user.role} onChange={(event) => onRoleChange(event.target.value as UserRole)}>{Object.entries(roleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></>}</div>
     </aside>}

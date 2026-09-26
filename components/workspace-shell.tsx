@@ -8,6 +8,9 @@ import { PreviewUserProvider, usePreviewUser } from "@/lib/preview-user";
 import { navigation } from "@/lib/navigation";
 import type { UserRole } from "@/lib/types";
 import { useIdleLogout } from "@/lib/use-idle-logout";
+import { Button } from "./ui";
+import { PopupModal } from "./popup-modal";
+
 
 function pageTitleFor(pathname: string) {
   if (pathname === "/") return "Sign In";
@@ -67,14 +70,34 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
 function AuthenticatedWorkspaceShell({ children, hideSidebar, onboardingOnly }: { children: ReactNode; hideSidebar: boolean; onboardingOnly: boolean }) {
   const { user, setRole, ready, authenticated } = usePreviewUser();
-  useIdleLogout(ready && authenticated, user.id);
+  const { warningSecondsRemaining, staySignedIn } = useIdleLogout(ready && authenticated, user.id);
+
   useEffect(() => {
     if (ready && !authenticated) window.location.replace(new URL("/", window.location.href).toString());
   }, [authenticated, ready]);
   if (ready && !authenticated) return null;
   return (
-    <AppShell user={user} onRoleChange={setRole} hideSidebar={hideSidebar} onboardingOnly={onboardingOnly} authLoading={!ready}>
-      {children}
-    </AppShell>
+    <>
+      <AppShell user={user} onRoleChange={setRole} hideSidebar={hideSidebar} onboardingOnly={onboardingOnly} authLoading={!ready}>
+        {children}
+      </AppShell>
+      <PopupModal
+        open={warningSecondsRemaining !== null}
+        title="You are about to be signed out"
+        description="For your security, you will be signed out because of inactivity."
+        icon={<span aria-hidden="true">!</span>}
+        tone="danger"
+        size="sm"
+        onClose={staySignedIn}
+        showCloseButton={false}
+        closeOnBackdrop={false}
+        closeOnEscape={false}
+        footer={<div className="dialog-actions"><Button onClick={staySignedIn}>Stay signed in</Button></div>}
+      >
+        <p className="inactivity-countdown" role="timer" aria-live="polite">
+          {warningSecondsRemaining ?? 0} seconds remaining
+        </p>
+      </PopupModal>
+    </>
   );
 }

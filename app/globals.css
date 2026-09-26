@@ -1269,6 +1269,7 @@ input::placeholder, textarea::placeholder { font-weight: 400; }
 .popup-modal-footer { display: flex; justify-content: flex-end; gap: 10px; flex: 0 0 auto; padding: 16px 24px 20px; border-top: 1px solid var(--border); }
 .popup-modal-footer .dialog-actions { margin: 0; padding: 0; border: 0; background: transparent; }
 .popup-modal-footer .button { min-height: 38px; }
+.inactivity-countdown { margin: 0; color: var(--danger); font-size: 30px; font-weight: 750; font-variant-numeric: tabular-nums; text-align: center; }
 .registration-proof-viewer { display: grid; gap: 12px; }
 .registration-proof-image { display: block; width: 100%; max-height: min(62dvh, 640px); object-fit: contain; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-subtle); }
 .registration-proof-pdf { display: block; width: 100%; height: min(65dvh, 680px); border: 1px solid var(--border); border-radius: 9px; background: white; }
