@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { clearDeveloperView, getSupabaseBrowserClient, isSupabaseConfigured } from "./supabase-browser";
 import { logout } from "./auth-repository";
 
@@ -11,13 +11,20 @@ const idleTimeoutMinutes = Number.isFinite(configuredIdleTimeoutMinutes) && conf
   : DEFAULT_IDLE_TIMEOUT_MINUTES;
 
 export const IDLE_TIMEOUT_MS = idleTimeoutMinutes * 60 * 1000;
+export const IDLE_WARNING_MS = 15 * 1000;
 const ACTIVITY_SYNC_INTERVAL_MS = 1000;
 
 export function useIdleLogout(enabled: boolean, userId: string | null | undefined) {
   const loggingOut = useRef(false);
+  const recordActivityRef = useRef<(() => void) | null>(null);
+  const [warningSecondsRemaining, setWarningSecondsRemaining] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!enabled || !userId || typeof window === "undefined") return;
+    if (!enabled || !userId || typeof window === "undefined") {
+      recordActivityRef.current = null;
+      setWarningSecondsRemaining(null);
+      return;
+    }
 
     const activityKey = `smartegy:last-activity:${userId}`;
     let timeoutId: number | null = null;
@@ -44,6 +51,7 @@ export function useIdleLogout(enabled: boolean, userId: string | null | undefine
       if (loggingOut.current) return;
       loggingOut.current = true;
       if (timeoutId !== null) window.clearTimeout(timeoutId);
+      setWarningSecondsRemaining(null);
       try {
         if (isSupabaseConfigured() && getSupabaseBrowserClient()) await logout("local");
         else clearDeveloperView();
@@ -61,10 +69,9 @@ export function useIdleLogout(enabled: boolean, userId: string | null | undefine
         void signOutForInactivity();
         return;
       }
-      timeoutId = window.setTimeout(() => {
-        if (Date.now() - readLastActivity() >= IDLE_TIMEOUT_MS) void signOutForInactivity();
-        else scheduleTimeout();
-      }, remaining);
+      setWarningSecondsRemaining(remaining <= IDLE_WARNING_MS ? Math.ceil(remaining / 1000) : null);
+      const delay = remaining > IDLE_WARNING_MS ? remaining - IDLE_WARNING_MS : Math.min(1000, remaining);
+      timeoutId = window.setTimeout(scheduleTimeout, delay);
     };
 
     const initialActivity = Date.now();
@@ -78,6 +85,7 @@ export function useIdleLogout(enabled: boolean, userId: string | null | undefine
       writeActivity(timestamp);
       scheduleTimeout();
     };
+    recordActivityRef.current = recordActivity;
 
     const handleStorage = (event: StorageEvent) => {
       if (event.key === activityKey) scheduleTimeout();
@@ -95,10 +103,18 @@ export function useIdleLogout(enabled: boolean, userId: string | null | undefine
 
     return () => {
       if (timeoutId !== null) window.clearTimeout(timeoutId);
+      recordActivityRef.current = null;
+      setWarningSecondsRemaining(null);
       activityEvents.forEach((eventName) => window.removeEventListener(eventName, recordActivity));
       window.removeEventListener("focus", recordActivity);
       window.removeEventListener("storage", handleStorage);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [enabled, userId]);
+
+  const staySignedIn = useCallback(() => {
+    recordActivityRef.current?.();
+  }, []);
+
+  return { warningSecondsRemaining, staySignedIn };
 }
