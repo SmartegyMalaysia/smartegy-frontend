@@ -6,7 +6,7 @@ import { AuthShell } from "./auth-shell";
 import { PasswordField, TextInput } from "./form-controls";
 import { CompleteStaffInvitationInput, completeStaffInvitation, loadStaffInvitation } from "@/lib/staff-invitation";
 
-const emptyForm: CompleteStaffInvitationInput = { displayName: "", email: "", phone: "", password: "", confirmation: "" };
+const emptyForm: CompleteStaffInvitationInput = { displayName: "", email: "", phone: "", bankName: "", accountHolderName: "", accountNumber: "", password: "", confirmation: "", requiresPassword: true };
 const invitationIntro = { introTitle: "Set up your Smartegy staff workspace.", introDescription: "Complete your staff profile and create secure sign-in details from your invitation." };
 
 export function StaffInvitationPage() {
@@ -47,15 +47,17 @@ export function StaffInvitationPage() {
       <InvitationField id="staff-invite-name" label="Full name" value={form.displayName} onChange={(displayName) => setForm((current) => ({ ...current, displayName }))} error={fieldErrors.displayName?.[0]} autoComplete="name"/>
       <div className="form-field"><label htmlFor="staff-invite-email">Work email</label><TextInput id="staff-invite-email" type="email" value={form.email} readOnly className="auth-readonly-input"/><p className="field-help">This email is fixed by your invitation.</p></div>
       <InvitationField id="staff-invite-phone" label="Phone number" value={form.phone} onChange={(phone) => setForm((current) => ({ ...current, phone }))} error={fieldErrors.phone?.[0]} autoComplete="tel" optional/>
-      <PasswordField id="staff-invite-password" name="password" label="Create password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} error={fieldErrors.password} autoComplete="new-password" minLength={8} required/>
-      <PasswordField id="staff-invite-confirmation" name="confirmation" label="Confirm password" value={form.confirmation} onChange={(event) => setForm((current) => ({ ...current, confirmation: event.target.value }))} error={fieldErrors.confirmation} autoComplete="new-password" minLength={8} required/>
-      <p className="password-requirements">Password requirements: at least 8 characters.</p>
+      <InvitationField id="staff-invite-bank" label="Bank name" value={form.bankName} onChange={(bankName) => setForm((current) => ({ ...current, bankName }))} error={fieldErrors.bankName} autoComplete="organization"/>
+      <InvitationField id="staff-invite-account-holder" label="Bank account holder name" value={form.accountHolderName} onChange={(accountHolderName) => setForm((current) => ({ ...current, accountHolderName }))} error={fieldErrors.accountHolderName} autoComplete="name"/>
+      <InvitationField id="staff-invite-account-number" label="Bank account number" value={form.accountNumber} onChange={(accountNumber) => setForm((current) => ({ ...current, accountNumber }))} error={fieldErrors.accountNumber} autoComplete="off" inputMode="numeric"/>
+      {form.requiresPassword && <><PasswordField id="staff-invite-password" name="password" label="Create password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} error={fieldErrors.password} autoComplete="new-password" minLength={8} required/><PasswordField id="staff-invite-confirmation" name="confirmation" label="Confirm password" value={form.confirmation} onChange={(event) => setForm((current) => ({ ...current, confirmation: event.target.value }))} error={fieldErrors.confirmation} autoComplete="new-password" minLength={8} required/><p className="password-requirements">Password requirements: at least 8 characters.</p></>}
       {error && <div className="login-message login-message-error" role="alert"><span aria-hidden="true">!</span>{error}</div>}
       <button className="login-submit" type="submit" disabled={submitting} aria-busy={submitting}>{submitting ? <><span className="button-spinner" aria-hidden="true" />Completing setup…</> : "Complete account setup"}</button>
     </form>
   </AuthShell>;
 }
 
-function InvitationField({ id, label, value, onChange, error, autoComplete, optional = false }: { id: string; label: string; value: string; onChange: (value: string) => void; error?: string; autoComplete: string; optional?: boolean }) {
-  return <div className="form-field"><label htmlFor={id}>{label}{optional && <span className="muted-cell"> (optional)</span>}</label><TextInput id={id} value={value} onChange={(event) => onChange(event.target.value)} autoComplete={autoComplete} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined}/>{error && <p id={`${id}-error`} className="field-error" role="alert">{error}</p>}</div>;
+function InvitationField({ id, label, value, onChange, error, autoComplete, optional = false, inputMode }: { id: string; label: string; value: string; onChange: (value: string) => void; error?: string | string[]; autoComplete: string; optional?: boolean; inputMode?: "numeric" | "text" }) {
+  const message = Array.isArray(error) ? error[0] : error;
+  return <div className="form-field"><label htmlFor={id}>{label}{optional && <span className="muted-cell"> (optional)</span>}</label><TextInput id={id} value={value} onChange={(event) => onChange(event.target.value)} autoComplete={autoComplete} inputMode={inputMode} aria-invalid={Boolean(message)} aria-describedby={message ? `${id}-error` : undefined}/>{message && <p id={`${id}-error`} className="field-error" role="alert">{message}</p>}</div>;
 }

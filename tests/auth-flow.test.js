@@ -19,7 +19,7 @@ test.beforeEach(() => auth.resetMockPasswordState());
 test("protected links preserve their destination through login", () => {
   assert.match(proxySource, /loginUrl\.searchParams\.set\("next", requestedPath\)/);
   assert.match(loginSource, /new URLSearchParams\(window\.location\.search\)\.get\("next"\)/);
-  assert.match(loginSource, /router\.push\(safeNextPath/);
+  assert.match(loginSource, /router\.push\(result\.redirectPath \?\? safeNextPath/);
 });
 
 test("forgot-password returns the same neutral response for any valid-looking email", async () => {

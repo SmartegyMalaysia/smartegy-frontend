@@ -57,9 +57,17 @@ export async function POST(request: NextRequest) {
   });
 
   try {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       return jsonError("AUTHENTICATION_FAILED", authenticationMessage(error.message), 401);
+    }
+    const { data: profile } = signInData.user
+      ? await supabase.from("profiles").select("role,account_status").eq("id", signInData.user.id).maybeSingle()
+      : { data: null };
+    if (profile?.role === "staff" && profile.account_status === "invited") {
+      const onboardingResponse = NextResponse.json({ ok: true, message: "Signed in successfully.", redirectPath: "/accept-invitation?mode=recovery" });
+      response.cookies.getAll().forEach((cookie) => onboardingResponse.cookies.set(cookie));
+      return onboardingResponse;
     }
     return response;
   } catch {

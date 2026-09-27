@@ -30,7 +30,7 @@ export function LoginPage() {
     const result = await login({ email, password, remember });
     setMessageTone(result.ok ? "info" : "error");
     setMessage(result.message);
-    if (result.ok) router.push(safeNextPath(new URLSearchParams(window.location.search).get("next")));
+    if (result.ok) router.push(result.redirectPath ?? safeNextPath(new URLSearchParams(window.location.search).get("next")));
     setIsSubmitting(false);
   }
 

@@ -79,7 +79,7 @@ export function resetMockPasswordState() { mockResetSession = null; }
 export function expireMockPasswordResetForTest() { if (mockResetSession) mockResetSession.expiresAt = Date.now() - 1; }
 
 export type AuthResult =
-  | { ok: true; message: string }
+  | { ok: true; message: string; redirectPath?: string }
   | { ok: false; code: "NOT_CONFIGURED" | "INVALID_INPUT" | "AUTHENTICATION_FAILED" | "NETWORK_ERROR"; message: string };
 
 /** Sign in through the server route so the Supabase session is written to SSR cookies. */

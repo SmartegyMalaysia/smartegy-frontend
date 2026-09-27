@@ -37,6 +37,13 @@ function onboardingRequired(request: NextRequest, response: NextResponse) {
   return nextResponse;
 }
 
+function staffOnboardingRequired(request: NextRequest, response: NextResponse) {
+  const nextResponse = NextResponse.redirect(new URL("/accept-invitation?mode=recovery", request.url));
+  response.cookies.getAll().forEach((cookie) => nextResponse.cookies.set(cookie));
+  nextResponse.headers.set("Cache-Control", "private, no-store");
+  return nextResponse;
+}
+
 export async function proxy(request: NextRequest) {
   if (isPublicPath(request.nextUrl.pathname)) return NextResponse.next();
 
@@ -73,6 +80,9 @@ export async function proxy(request: NextRequest) {
     .maybeSingle();
 
   if (profileError || !profile) return unauthorized(request, response);
+  if (profile.role === "staff" && profile.account_status === "invited") {
+    return staffOnboardingRequired(request, response);
+  }
   if (profile.role === "agent" && profile.account_status !== "active") {
     return onboardingRequired(request, response);
   }
