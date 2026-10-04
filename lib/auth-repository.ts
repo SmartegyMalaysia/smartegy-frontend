@@ -103,7 +103,7 @@ export async function login(input: LoginInput): Promise<AuthResult> {
   }
 }
 
-export async function logout() {
+export async function logout(scope: "global" | "local" = "global") {
   const supabase = getSupabaseBrowserClient();
-  if (supabase) await supabase.auth.signOut();
+  if (supabase) await supabase.auth.signOut({ scope });
 }

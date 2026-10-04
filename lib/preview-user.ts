@@ -17,9 +17,9 @@ type PreviewUserContextValue = {
 const PreviewUserContext = createContext<PreviewUserContextValue | null>(null);
 
 const previewUsers: Record<UserRole, CurrentUser> = {
-  agent: { id: "user-001", role: "agent", displayName: "Aisha Rahman", email: "aisha@smartegy.example", agentId: "agent-001" },
-  staff: { id: "user-002", role: "staff", displayName: "Farid Iskandar", email: "farid@smartegy.example", agentId: null },
-  admin: { id: "user-003", role: "admin", displayName: "Mei Tan", email: "mei@smartegy.example", agentId: null },
+  agent: { id: "user-001", role: "agent", displayName: "Aisha Rahman", email: "aisha@smartegy.example", agentId: "agent-001", accountStatus: "active" },
+  staff: { id: "user-002", role: "staff", displayName: "Farid Iskandar", email: "farid@smartegy.example", agentId: null, accountStatus: "active" },
+  admin: { id: "user-003", role: "admin", displayName: "Mei Tan", email: "mei@smartegy.example", agentId: null, accountStatus: "active" },
 };
 
 function usePreviewUserState(defaultRole: UserRole): PreviewUserContextValue {
