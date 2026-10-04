@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { badRpc, csvResponse, serverSupabase } from "../_lib";
+import { formatDateTime } from "@/lib/format";
 
 export async function GET(request: NextRequest) {
   const { supabase, cookiesToSet, error } = await serverSupabase(request);
@@ -16,6 +17,6 @@ export async function GET(request: NextRequest) {
     const current = levelNumber(row.agent?.current_level); const requested = levelNumber(row.requested_level);
     return (!term || `${row.id} ${row.agent?.legal_name ?? ""} ${row.agent?.agent_code ?? ""} ${row.requested_by}`.toLowerCase().includes(term)) && (!type || type === (requested > current ? "promotion" : "demotion"));
   });
-  const rows = [["Type", "Agent", "Level Change", "Qualification", "Requested By", "Requested", "Status"], ...filtered.map((row: any) => { const current = levelNumber(row.agent?.current_level); const requested = levelNumber(row.requested_level); return [requested > current ? "Promotion" : "Demotion", row.agent?.legal_name ?? row.agent_id, `Level ${current} to Level ${requested}`, row.review_reason ?? "", row.requested_by, row.requested_at, row.status]; })];
+  const rows = [["Type", "Agent", "Level Change", "Qualification", "Requested By", "Requested", "Status"], ...filtered.map((row: any) => { const current = levelNumber(row.agent?.current_level); const requested = levelNumber(row.requested_level); return [requested > current ? "Promotion" : "Demotion", row.agent?.legal_name ?? row.agent_id, `Level ${current} to Level ${requested}`, row.review_reason ?? "", row.requested_by, formatDateTime(row.requested_at), row.status]; })];
   return csvResponse(rows, "smartegy-level-change-approvals.csv", cookiesToSet);
 }

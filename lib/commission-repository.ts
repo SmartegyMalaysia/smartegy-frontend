@@ -1,5 +1,6 @@
 import { mockDashboard } from "./mock-data";
 import type { AgentCommissionRecord, CommissionOverview, CommissionStatus, CurrentUser, ID } from "./types";
+import { formatDate, formatDateTime } from "./format";
 
 export type CommissionResult<T> = { ok: true; data: T } | { ok: false; error: { code: "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR"; message: string } };
 export interface CommissionDirectoryQuery { search?: string; status?: CommissionStatus; month?: string; page?: number; pageSize?: number; sortBy?: "updated" | "balance" | "customer"; sortDirection?: "asc" | "desc"; }
@@ -39,7 +40,7 @@ export const mockAgentCommissionsRepository: AgentCommissionsRepository = {
     const pageSize = Math.min(10000, Math.max(1, query.pageSize ?? 5)); const page = Math.max(1, query.page ?? 1);
     return { ok: true, data: { items: sorted.slice((page - 1) * pageSize, page * pageSize), totalItems: sorted.length, totalPages: Math.max(1, Math.ceil(sorted.length / pageSize)) } };
   },
-  async export(actor, query) { const result = await this.listPage(actor, { ...query, page: 1, pageSize: 10000 }); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-commissions.csv", [["Case", "Customer", "Entitlement", "Paid", "Remaining", "Status", "Next payout", "Updated"], ...result.data.items.map((item) => [item.caseNumber, item.customerDisplayName, item.entitlementSen / 100, item.paidToDateSen / 100, item.deferredBalanceSen / 100, item.status, item.nextPaymentDate ?? "", item.lastUpdatedAt])]); return { ok: true, data: true }; },
+  async export(actor, query) { const result = await this.listPage(actor, { ...query, page: 1, pageSize: 10000 }); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-commissions.csv", [["Case", "Customer", "Entitlement", "Paid", "Remaining", "Status", "Next payout", "Updated"], ...result.data.items.map((item) => [item.caseNumber, item.customerDisplayName, item.entitlementSen / 100, item.paidToDateSen / 100, item.deferredBalanceSen / 100, item.status, item.nextPaymentDate ? formatDate(item.nextPaymentDate) : "", formatDateTime(item.lastUpdatedAt)])]); return { ok: true, data: true }; },
   async getById(actor, commissionId) { await new Promise((resolve) => setTimeout(resolve, 90)); if (!access(actor)) return forbidden(); const record = records.find((item) => item.id === commissionId && item.recipientId === actor.agentId); return record ? { ok: true, data: record } : { ok: false, error: { code: "NOT_FOUND", message: "Commission record not found." } }; },
 };
 

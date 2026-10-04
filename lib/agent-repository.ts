@@ -1,5 +1,6 @@
 import { buildQualification, mockAgents, mockCases, mockCommissions } from "./mock-data";
 import type { AgentLevel, AgentLevelChangeApproval, AgentLevelChangeRequest, AgentPromotionAudit, AgentSummary, AgentWorkspaceDetail, CurrentUser, ID } from "./types";
+import { formatDateTime } from "./format";
 
 type AgentErrorCode = "FORBIDDEN" | "NOT_FOUND" | "NOT_ELIGIBLE" | "CONFLICT";
 export type AgentResult<T> = { ok: true; data: T } | { ok: false; error: { code: AgentErrorCode; message: string } };
@@ -52,7 +53,7 @@ export const mockAgentRepository: AgentRepository = {
     const term = query.search?.trim().toLowerCase() ?? "";
     return { ok: true, data: approvals.filter((item) => (!term || `${item.id} ${item.agent.displayName} ${item.agent.agentCode} ${item.requestedByDisplayName}`.toLowerCase().includes(term)) && (!query.status || item.status === query.status) && (!query.type || (query.type === "promotion" ? item.requestedLevel > item.previousLevel : item.requestedLevel < item.previousLevel))) };
   },
-  async exportLevelChangeApprovals(actor, query = {}) { const result = await this.listLevelChangeApprovals(actor, query); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-level-change-approvals.csv", [["Type", "Agent", "Level Change", "Qualification", "Requested By", "Requested", "Status"], ...result.data.map((item) => [item.requestedLevel > item.previousLevel ? "Promotion" : "Demotion", item.agent.displayName, `Level ${item.previousLevel} to Level ${item.requestedLevel}`, item.reason ?? "", item.requestedByDisplayName, item.requestedAt, item.status])]); return { ok: true, data: true }; },
+  async exportLevelChangeApprovals(actor, query = {}) { const result = await this.listLevelChangeApprovals(actor, query); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-level-change-approvals.csv", [["Type", "Agent", "Level Change", "Qualification", "Requested By", "Requested", "Status"], ...result.data.map((item) => [item.requestedLevel > item.previousLevel ? "Promotion" : "Demotion", item.agent.displayName, `Level ${item.previousLevel} to Level ${item.requestedLevel}`, item.reason ?? "", item.requestedByDisplayName, formatDateTime(item.requestedAt), item.status])]); return { ok: true, data: true }; },
   async requestLevelChange(actor, input) {
     if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can request a level change.");
     const agent = agents.find((item) => item.id === input.agentId); if (!agent) return fail("NOT_FOUND", "Agent not found.");

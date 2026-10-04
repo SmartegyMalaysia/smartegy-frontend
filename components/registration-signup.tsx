@@ -7,7 +7,7 @@ import { Badge, ErrorState, LoadingState } from "./ui";
 import { BrandLogo } from "./brand-logo";
 import { Icon } from "./icons";
 import { PaymentProofUpload } from "./payment-proof-upload";
-import { formatMoney } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import {
   isValidMobileNumber,
   mockRegistrationConfig,
@@ -714,7 +714,7 @@ function PaymentStep({
         <div>
           <p className="detail-label">Amount due</p>
           <strong>{formatMoney(registration.invoice.amountSen)}</strong>
-          <span>Issued {registration.invoice.issueDate}</span>
+          <span>Issued {formatDate(registration.invoice.issueDate)}</span>
         </div>
       </div>
       <div className="payment-account-grid">
