@@ -91,6 +91,7 @@ function AuthenticatedWorkspaceShell({ children, hideSidebar, onboardingOnly }: 
     });
     return () => { active = false; };
   }, [authenticated, bankDetailsRetry, ready, user]);
+
   useEffect(() => {
     if (ready && !authenticated) window.location.replace(new URL("/", window.location.href).toString());
   }, [authenticated, ready]);
