@@ -1,7 +1,6 @@
 "use client";
 
 import { PasswordField, TextInput, TextArea } from "./form-controls";
-import { DatePicker } from "./date-picker";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Badge, ErrorState, LoadingState } from "./ui";
 import { BrandLogo } from "./brand-logo";
@@ -83,7 +82,6 @@ export function RegistrationSignup({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [paymentDate, setPaymentDate] = useState("");
   const [paymentConfig, setPaymentConfig] = useState<RegistrationPaymentConfig>(
     mockRegistrationConfig,
   );
@@ -284,10 +282,6 @@ export function RegistrationSignup({
         setUploadError("Upload your proof of payment to continue.");
         return;
       }
-      if (!paymentDate) {
-        setError("Enter the payment date to continue.");
-        return;
-      }
       setUploadError(null);
       setSubmitting(true);
       try {
@@ -295,7 +289,7 @@ export function RegistrationSignup({
           actorFor(registration.id),
           {
             registrationId: registration.id,
-            paymentDate,
+            paymentDate: null,
             paymentReference: null,
             paymentRemarks: String(form.get("paymentRemarks") ?? ""),
             proof: {
@@ -465,11 +459,6 @@ export function RegistrationSignup({
                   paymentConfig={paymentConfig}
                   uploadError={uploadError}
                   onUploadChange={setUploadError}
-                  paymentDate={paymentDate}
-                  onPaymentDateChange={(value) => {
-                    setPaymentDate(value);
-                    setError(null);
-                  }}
                 />
               )}
               {paymentSubmitted && <PaymentSubmittedStep />}
@@ -684,15 +673,11 @@ function PaymentStep({
   paymentConfig,
   uploadError,
   onUploadChange,
-  paymentDate,
-  onPaymentDateChange,
 }: {
   registration: AgentRegistration;
   paymentConfig: RegistrationPaymentConfig;
   uploadError: string | null;
   onUploadChange: (error: string | null) => void;
-  paymentDate: string;
-  onPaymentDateChange: (value: string) => void;
 }) {
   return (
     <div className="payment-step">
@@ -739,19 +724,6 @@ function PaymentStep({
       <div className="payment-qr-card">
         <strong>DuitNow QR</strong>
         <span>QR will be provided by Smartegy later.</span>
-      </div>
-      <div className="registration-field">
-        <DatePicker
-          id="paymentDate"
-          title="Payment Date"
-          value={paymentDate}
-          placeholder="DD/MM/YYYY"
-          onChange={onPaymentDateChange}
-          required
-        />
-        <p className="field-help payment-upload-help">
-          Select the date you made the RM50 transfer.
-        </p>
       </div>
       <div className="registration-field">
         <label htmlFor="proof">

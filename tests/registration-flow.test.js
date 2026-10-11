@@ -148,3 +148,14 @@ test("fee verification and activation create separate auditable status changes",
   assert.equal(verified.data.audit.some((event) => event.action === "registration_approved"), true);
   assert.equal(verified.data.audit.some((event) => event.action === "agent_activated" && event.newStatus === "active"), true);
 });
+
+test("manual registration approval records active as the new status", async () => {
+  const created = await repository.registrationRepository.createApplication({ fullName: "Manual Approval", email: "manual@example.com", mobileNumber: "+60123456789", password: "password123", passwordConfirmation: "password123", referralCode: "K7Q2M8", acceptedTerms: true });
+  const actor = applicant(created.data.id);
+  await repository.registrationRepository.submitFee(actor, { registrationId: created.data.id, paymentDate: null, paymentReference: null, proof: { fileName: "proof.png", mimeType: "image/png", sizeBytes: 1000 } });
+  await repository.registrationRepository.verifyFee(staff, { registrationId: created.data.id, verifiedAmountSen: 5000, paymentDate: "2026-08-13", bankReference: "BANK-MANUAL" });
+  await repository.registrationRepository.verifyEmail(actor, created.data.id);
+  const approved = await repository.registrationRepository.approveRegistration(staff, { registrationId: created.data.id, reason: "Manually approved after final review" });
+  assert.equal(approved.ok, true);
+  assert.equal(approved.data.audit.some((event) => event.action === "registration_approved" && event.previousStatus === "pending_approval" && event.newStatus === "active"), true);
+});

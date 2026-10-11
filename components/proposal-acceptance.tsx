@@ -8,13 +8,14 @@ import { DatePicker } from "./date-picker";
 import { PaymentProofUpload } from "./payment-proof-upload";
 import { PopupModal } from "./popup-modal";
 import { casesRepository } from "@/lib/case-repository";
+import { addISODateDays, todayISODate } from "@/lib/format";
 import type { CaseDetail, CurrentUser } from "@/lib/types";
 
 export function ProposalAcceptance({ caseDetail, user, onChanged, onClose }: { caseDetail: CaseDetail; user: CurrentUser; onChanged: (value: CaseDetail) => void; onClose: () => void }) {
   const [acceptedByName, setAcceptedByName] = useState(caseDetail.proposal?.acceptedByName ?? caseDetail.customer.contactName ?? "");
-  const [acceptanceDate, setAcceptanceDate] = useState(caseDetail.proposal?.acceptanceDate ?? new Date().toISOString().slice(0, 10));
-  const [depositDue, setDepositDue] = useState(caseDetail.proposal?.acceptanceDate ?? new Date().toISOString().slice(0, 10));
-  const [postInstallationDue, setPostInstallationDue] = useState(() => { const date = new Date(); date.setDate(date.getDate() + 14); return date.toISOString().slice(0, 10); });
+  const [acceptanceDate, setAcceptanceDate] = useState(caseDetail.proposal?.acceptanceDate ?? todayISODate());
+  const [depositDue, setDepositDue] = useState(todayISODate);
+  const [postInstallationDue, setPostInstallationDue] = useState(() => addISODateDays(todayISODate(), 14));
   const [term, setTerm] = useState<10 | 20>(caseDetail.proposal?.selectedTermMonths ?? 10);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);

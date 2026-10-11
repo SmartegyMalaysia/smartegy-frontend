@@ -11,7 +11,7 @@ import { ExportIcon } from "./export-icon";
 import { Icon } from "./icons";
 import { Toast, type ToastTone } from "./toast";
 import { PopupModal } from "./popup-modal";
-import { formatDate, formatDateTime, formatMoney, titleCase } from "@/lib/format";
+import { addISODateDays, formatDate, formatDateTime, formatMoney, titleCase, todayISODate } from "@/lib/format";
 import { malaysiaStates } from "@/lib/malaysia";
 import { casesRepository } from "@/lib/case-repository";
 import { canEditCase, caseActionLabels, caseFlowStages, getCaseFlowStageIndex, type CaseActionKind } from "@/lib/case-workflow";
@@ -185,18 +185,18 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
   const [depositProofError, setDepositProofError] = useState<string | null>(null);
   const [allocations, setAllocations] = useState<Record<string, string>>({});
   const [allocationError, setAllocationError] = useState<string | null>(null);
-  const [installationDate, setInstallationDate] = useState(new Date().toISOString().slice(0, 10));
+  const [installationDate, setInstallationDate] = useState(todayISODate);
   const [installationTime, setInstallationTime] = useState("09:00");
-  const [depositDue, setDepositDue] = useState(new Date().toISOString().slice(0, 10));
-  const [postInstallationDue, setPostInstallationDue] = useState(new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
+  const [depositDue, setDepositDue] = useState(todayISODate);
+  const [postInstallationDue, setPostInstallationDue] = useState(() => addISODateDays(todayISODate(), 14));
   const [savingsReadings, setSavingsReadings] = useState<SavingsReadingDraft[]>(() => savingsReadingDrafts(initialCase.verifiedSavings?.readings));
   const [savingsError, setSavingsError] = useState<string | null>(null);
   const [savingsDetailsOpen, setSavingsDetailsOpen] = useState(false);
-  const [installmentStart, setInstallmentStart] = useState(new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10));
+  const [installmentStart, setInstallmentStart] = useState(() => addISODateDays(todayISODate(), 30));
   const [termMonths, setTermMonths] = useState<10 | 20>(initialCase.proposal?.selectedTermMonths ?? initialCase.installmentTermMonths ?? 10);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [installationPaymentAmount, setInstallationPaymentAmount] = useState("");
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState(todayISODate);
   const [paymentReference, setPaymentReference] = useState("");
   const [depositProof, setDepositProof] = useState<File | null>(null);
   const [paymentProofAccess, setPaymentProofAccess] = useState<PaymentProofAccess | null>(null);
@@ -303,7 +303,7 @@ export function CaseWorkspace({ initialCase, user, onChanged, onDeleted }: { ini
     setDialog(action);
   }
   function closeDialog() { setDialog(null); setRecordPaymentOpen(false); setReason(""); setQuoteError(null); setPaymentError(null); setAllocationError(null); setVerificationPaymentId(null); setSavingsError(null); setSavingsReadings(emptySavingsReadings()); setResubmitError(null); }
-  function openRecordPayment() { setDialog(null); setPaymentError(null); setDepositProofError(null); setPaymentAmount(moneyInputValue(Math.max(0, currentPaymentBalanceSen - pendingPaymentAmountSen))); setPaymentDate(new Date().toISOString().slice(0, 10)); setPaymentReference(""); setDepositProof(null); setRecordPaymentOpen(true); }
+  function openRecordPayment() { setDialog(null); setPaymentError(null); setDepositProofError(null); setPaymentAmount(moneyInputValue(Math.max(0, currentPaymentBalanceSen - pendingPaymentAmountSen))); setPaymentDate(todayISODate()); setPaymentReference(""); setDepositProof(null); setRecordPaymentOpen(true); }
   function closeRecordPayment() { setRecordPaymentOpen(false); setDialog(null); setPaymentError(null); setDepositProofError(null); }
   function apply(result: Awaited<ReturnType<typeof casesRepository.getById>>) {
     if (result.ok) { setCaseData(result.data); setToast({ title: "Case Updated", subtitle: "The case changes were saved successfully.", tone: "success" }); closeDialog(); }
