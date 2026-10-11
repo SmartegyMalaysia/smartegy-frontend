@@ -73,6 +73,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 function AuthenticatedWorkspaceShell({ children, hideSidebar, onboardingOnly }: { children: ReactNode; hideSidebar: boolean; onboardingOnly: boolean }) {
   const { user, setRole, ready, authenticated } = usePreviewUser();
   const { warningSecondsRemaining, staySignedIn } = useIdleLogout(ready && authenticated, user.id);
+
   const [bankDetailsState, setBankDetailsState] = useState<"checking" | "required" | "complete" | "error">("complete");
   const [bankDetailsRetry, setBankDetailsRetry] = useState(0);
 
