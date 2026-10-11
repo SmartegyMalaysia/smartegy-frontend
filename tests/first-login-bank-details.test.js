@@ -17,6 +17,7 @@ const workspaceShell = fs.readFileSync(path.resolve(__dirname, "../components/wo
 const staff = { id: "user-002", role: "staff", displayName: "Farid Iskandar", email: "farid@smartegy.example", agentId: null };
 const agent = { id: "user-001", role: "agent", displayName: "Aisha Rahman", email: "aisha@smartegy.example", agentId: "agent-001" };
 const admin = { id: "user-003", role: "admin", displayName: "Mei Tan", email: "mei@smartegy.example", agentId: null };
+const newAgent = { id: "user-004", role: "agent", displayName: "New Agent", email: "new.agent@smartegy.example", agentId: "agent-004" };
 
 test.beforeEach(() => repository.resetMockBankDetails());
 
@@ -26,34 +27,34 @@ test("first-login bank setup is a required, workspace-blocking form", () => {
   assert.ok(firstLoginPage.includes("BANK_OPTIONS"));
 });
 
-test("only admin users are gated by first-login bank setup", () => {
-  assert.match(workspaceShell, /user\.role !== "admin"/);
-  assert.match(workspaceShell, /user\.role === "admin" && bankDetailsState === "required"/);
-  assert.match(workspaceShell, /user\.role === "admin" && bankDetailsState === "checking"/);
+test("only agents are gated by first-login bank setup", () => {
+  assert.match(workspaceShell, /user\.role !== "agent"/);
+  assert.match(workspaceShell, /user\.role === "agent" && bankDetailsState === "required"/);
+  assert.match(workspaceShell, /user\.role === "agent" && bankDetailsState === "checking"/);
 });
 
-test("staff and agents are not blocked by the first-login bank setup", async () => {
+test("staff and admins are not blocked by the first-login bank setup", async () => {
   const staffDetails = await repository.mockBankDetailsRepository.getMine(staff);
-  const agentDetails = await repository.mockBankDetailsRepository.getMine(agent);
+  const adminDetails = await repository.mockBankDetailsRepository.getMine(admin);
   assert.equal(staffDetails.ok, true);
-  assert.equal(agentDetails.ok, true);
+  assert.equal(adminDetails.ok, true);
   assert.equal(staffDetails.data, null);
-  assert.equal(agentDetails.data.bankName, "Malayan Banking Berhad (Maybank)");
+  assert.equal(adminDetails.data, null);
 });
 
-test("admins can still save bank details through the setup repository", async () => {
-  const missing = await repository.mockBankDetailsRepository.getMine(admin);
+test("agents can save bank details through the setup repository", async () => {
+  const missing = await repository.mockBankDetailsRepository.getMine(newAgent);
   assert.equal(missing.ok, true);
   assert.equal(missing.data, null);
 
-  const invalid = await repository.mockBankDetailsRepository.updateMine(admin, { bankName: "", accountHolderName: "", accountNumber: "12" });
+  const invalid = await repository.mockBankDetailsRepository.updateMine(newAgent, { bankName: "", accountHolderName: "", accountNumber: "12" });
   assert.equal(invalid.ok, false);
   assert.ok(invalid.error.fieldErrors.bankName);
 
-  const saved = await repository.mockBankDetailsRepository.updateMine(admin, { bankName: "Maybank", accountHolderName: "Mei Tan", accountNumber: "1234567890" });
+  const saved = await repository.mockBankDetailsRepository.updateMine(newAgent, { bankName: "Maybank", accountHolderName: "New Agent", accountNumber: "1234567890" });
   assert.equal(saved.ok, true);
   assert.equal(saved.data.accountNumber, "1234567890");
-  assert.deepEqual((await repository.mockBankDetailsRepository.getMine(admin)).data, saved.data);
+  assert.deepEqual((await repository.mockBankDetailsRepository.getMine(newAgent)).data, saved.data);
 });
 
 test("agents use their existing payout bank-details source", async () => {

@@ -79,7 +79,7 @@ function AuthenticatedWorkspaceShell({ children, hideSidebar, onboardingOnly }: 
 
   useEffect(() => {
     if (!ready || !authenticated) return;
-    if (user.role !== "admin") {
+    if (user.role !== "agent") {
       setBankDetailsState("complete");
       return;
     }
@@ -96,8 +96,8 @@ function AuthenticatedWorkspaceShell({ children, hideSidebar, onboardingOnly }: 
     if (ready && !authenticated) window.location.replace(new URL("/", window.location.href).toString());
   }, [authenticated, ready]);
   if (ready && !authenticated) return null;
-  const bankDetailsRequired = user.role === "admin" && bankDetailsState === "required";
-  const bankDetailsChecking = user.role === "admin" && bankDetailsState === "checking";
+  const bankDetailsRequired = user.role === "agent" && bankDetailsState === "required";
+  const bankDetailsChecking = user.role === "agent" && bankDetailsState === "checking";
   return (
     <>
       <AppShell user={user} onRoleChange={setRole} hideSidebar={hideSidebar || bankDetailsRequired || bankDetailsChecking} onboardingOnly={onboardingOnly || bankDetailsRequired || bankDetailsChecking} authLoading={!ready || bankDetailsChecking}>
