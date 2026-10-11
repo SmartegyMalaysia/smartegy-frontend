@@ -73,11 +73,15 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 function AuthenticatedWorkspaceShell({ children, hideSidebar, onboardingOnly }: { children: ReactNode; hideSidebar: boolean; onboardingOnly: boolean }) {
   const { user, setRole, ready, authenticated } = usePreviewUser();
   const { warningSecondsRemaining, staySignedIn } = useIdleLogout(ready && authenticated, user.id);
-  const [bankDetailsState, setBankDetailsState] = useState<"checking" | "required" | "complete" | "error">("checking");
+  const [bankDetailsState, setBankDetailsState] = useState<"checking" | "required" | "complete" | "error">("complete");
   const [bankDetailsRetry, setBankDetailsRetry] = useState(0);
 
   useEffect(() => {
     if (!ready || !authenticated) return;
+    if (user.role !== "admin") {
+      setBankDetailsState("complete");
+      return;
+    }
     let active = true;
     setBankDetailsState("checking");
     bankDetailsRepository.getMine(user).then((result) => {
@@ -91,8 +95,8 @@ function AuthenticatedWorkspaceShell({ children, hideSidebar, onboardingOnly }: 
     if (ready && !authenticated) window.location.replace(new URL("/", window.location.href).toString());
   }, [authenticated, ready]);
   if (ready && !authenticated) return null;
-  const bankDetailsRequired = bankDetailsState === "required";
-  const bankDetailsChecking = bankDetailsState === "checking";
+  const bankDetailsRequired = user.role === "admin" && bankDetailsState === "required";
+  const bankDetailsChecking = user.role === "admin" && bankDetailsState === "checking";
   return (
     <>
       <AppShell user={user} onRoleChange={setRole} hideSidebar={hideSidebar || bankDetailsRequired || bankDetailsChecking} onboardingOnly={onboardingOnly || bankDetailsRequired || bankDetailsChecking} authLoading={!ready || bankDetailsChecking}>
