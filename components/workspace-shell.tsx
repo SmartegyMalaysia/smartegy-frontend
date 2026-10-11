@@ -2,14 +2,16 @@
 
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AppShell } from "./app-shell";
 import { PreviewUserProvider, usePreviewUser } from "@/lib/preview-user";
 import { navigation } from "@/lib/navigation";
 import type { UserRole } from "@/lib/types";
 import { useIdleLogout } from "@/lib/use-idle-logout";
-import { Button } from "./ui";
+import { Button, ErrorState, LoadingState } from "./ui";
 import { PopupModal } from "./popup-modal";
+import { FirstLoginBankDetails } from "./first-login-bank-details";
+import { bankDetailsRepository } from "@/lib/bank-details-repository";
 
 
 function pageTitleFor(pathname: string) {
@@ -71,15 +73,30 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 function AuthenticatedWorkspaceShell({ children, hideSidebar, onboardingOnly }: { children: ReactNode; hideSidebar: boolean; onboardingOnly: boolean }) {
   const { user, setRole, ready, authenticated } = usePreviewUser();
   const { warningSecondsRemaining, staySignedIn } = useIdleLogout(ready && authenticated, user.id);
+  const [bankDetailsState, setBankDetailsState] = useState<"checking" | "required" | "complete" | "error">("checking");
+  const [bankDetailsRetry, setBankDetailsRetry] = useState(0);
+
+  useEffect(() => {
+    if (!ready || !authenticated) return;
+    let active = true;
+    setBankDetailsState("checking");
+    bankDetailsRepository.getMine(user).then((result) => {
+      if (!active) return;
+      setBankDetailsState(result.ok ? result.data ? "complete" : "required" : "error");
+    });
+    return () => { active = false; };
+  }, [authenticated, bankDetailsRetry, ready, user]);
 
   useEffect(() => {
     if (ready && !authenticated) window.location.replace(new URL("/", window.location.href).toString());
   }, [authenticated, ready]);
   if (ready && !authenticated) return null;
+  const bankDetailsRequired = bankDetailsState === "required";
+  const bankDetailsChecking = bankDetailsState === "checking";
   return (
     <>
-      <AppShell user={user} onRoleChange={setRole} hideSidebar={hideSidebar} onboardingOnly={onboardingOnly} authLoading={!ready}>
-        {children}
+      <AppShell user={user} onRoleChange={setRole} hideSidebar={hideSidebar || bankDetailsRequired || bankDetailsChecking} onboardingOnly={onboardingOnly || bankDetailsRequired || bankDetailsChecking} authLoading={!ready || bankDetailsChecking}>
+        {bankDetailsChecking ? <main className="page-content first-login-loading"><LoadingState /></main> : bankDetailsState === "error" ? <main className="page-content first-login-loading"><ErrorState onRetry={() => { setBankDetailsState("checking"); setBankDetailsRetry((value) => value + 1); }} /></main> : bankDetailsRequired ? <FirstLoginBankDetails user={user} onComplete={() => setBankDetailsState("complete")} /> : children}
       </AppShell>
       <PopupModal
         open={warningSecondsRemaining !== null}
