@@ -9,5 +9,6 @@ export const navigation: NavItem[] = [
   { label: "Users", href: "/users", icon: "user-settings", roles: ["admin"] },
   { label: "Commissions", href: "/commissions", icon: "wallet", roles: ["agent"] },
   { label: "Payouts", href: "/payouts", icon: "wallet", roles: ["staff", "admin"] },
+  { label: "Help & User Guide", href: "/help", icon: "question", roles: ["agent", "staff", "admin"] },
 ];
 export const roleLabels: Record<UserRole, string> = { agent: "Agent", staff: "Staff", admin: "Admin" };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serializeCsv } from "@/lib/csv";
 import { serverSupabase } from "../../exports/_lib";
+import { formatDateTime } from "@/lib/format";
 
 function money(value: unknown) { return Number(value ?? 0).toFixed(2); }
 
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
   const rows = view === "transactions"
     ? [
       ["Agent", "Agent ID", "Agent Code", "Bank", "Account Holder", "Account Number", "Payout Month", "Case", "Customer", "Amount", "Settlement", "Paid At", "Bank Reference"],
-      ...sortedData.map((row: any) => [row.agent_name, row.agent_id, row.agent_code, row.bank_name, row.account_holder_name, row.account_number_masked, row.payout_month, row.case_number, row.customer_name, money(row.amount), row.status === "paid" ? "settled" : "pending", row.paid_at, row.bank_reference]),
+      ...sortedData.map((row: any) => [row.agent_name, row.agent_id, row.agent_code, row.bank_name, row.account_holder_name, row.account_number_masked, row.payout_month, row.case_number, row.customer_name, money(row.amount), row.status === "paid" ? "settled" : "pending", row.paid_at ? formatDateTime(row.paid_at) : "", row.bank_reference]),
     ]
     : [
       ["Agent", "Agent ID", "Agent Code", "Bank", "Account Holder", "Account Number", "Payout Month", "Total Payout", "Pending Amount", "Settled Amount", "Transaction Count", "Settlement Status"],

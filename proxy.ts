@@ -19,7 +19,12 @@ function isPublicPath(pathname: string) {
 function unauthorized(request: NextRequest, response: NextResponse) {
   const nextResponse = request.nextUrl.pathname.startsWith("/api/")
     ? NextResponse.json({ message: "Authentication is required." }, { status: 401 })
-    : NextResponse.redirect(new URL("/", request.url));
+    : (() => {
+      const loginUrl = new URL("/", request.url);
+      const requestedPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+      if (requestedPath !== "/") loginUrl.searchParams.set("next", requestedPath);
+      return NextResponse.redirect(loginUrl);
+    })();
   response.cookies.getAll().forEach((cookie) => nextResponse.cookies.set(cookie));
   nextResponse.headers.set("Cache-Control", "private, no-store");
   return nextResponse;

@@ -9,6 +9,11 @@ import { enableDeveloperView, isDeveloperPreviewEnabled } from "@/lib/supabase-b
 import { Icon } from "./icons";
 import { BrandLogo } from "./brand-logo";
 
+function safeNextPath(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/api/")) return "/dashboard";
+  return value;
+}
+
 export function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -25,7 +30,7 @@ export function LoginPage() {
     const result = await login({ email, password, remember });
     setMessageTone(result.ok ? "info" : "error");
     setMessage(result.message);
-    if (result.ok) router.push("/dashboard");
+    if (result.ok) router.push(safeNextPath(new URLSearchParams(window.location.search).get("next")));
     setIsSubmitting(false);
   }
 

@@ -75,6 +75,7 @@ Proposed route structure; adjust to the actual Next.js architecture without chan
 | `/documents` | Invoice and receipt list | Staff, Admin |
 | `/reports` | Reports and exports | Staff, Admin |
 | `/settings/profile` | User profile | All |
+| `/help` | Searchable help and complete role-specific PDF guide | Active Agent, Staff, Admin |
 | `/settings/agents` | Agent/level configuration where approved | Staff, Admin |
 
 ## 4. Shared Page Patterns
@@ -397,3 +398,18 @@ A screen is not done until:
 The public authentication routes are `/forgot-password`, `/reset-password`, and `/accept-invitation`. Forgot-password requests always show a neutral response so the interface does not reveal whether an email is registered. The reset page validates the provider/service password policy, confirmation matching, reset-link validity/expiry, and one-time use. Staff invitation emails open the separate invitation page, which validates the invitation session, collects the staff member's profile and password, preserves the server-assigned email and role, and automatically activates the account after the recipient sets a password.
 
 The current frontend has no Supabase configuration, so local preview behavior uses the replaceable auth service with an eight-character minimum password policy. Supabase Auth should replace the mock request/session implementation when configured, without changing the routes or page contract.
+
+## 16. Help & User Guide
+
+- Show Help & User Guide in the sidebar for active agents, staff, and admins.
+- Agents receive guidance for their own workflow. Staff and admins share the operational guide, with Approvals and Users articles added only for admins.
+- Start Getting Started with a prominent “What Do You Want to Do?” grid of four to six large, icon-led task cards using short, plain-English labels. Prioritise common tasks, keep topic navigation compact, and include operational shortcuts before admin-only items.
+- Cover portal navigation, cases and documents, customer payments, commission calculations and statuses, referrals, and account/support questions. Explain financial examples as illustrations and direct users to their actual record for eligibility, amounts, and dates.
+- Provide labelled full-text search, desktop topic navigation, a mobile topic selector, clear no-results feedback, and shareable article links. Search and saved topics remain limited to the current role.
+- Keep introductory copy brief. Present task steps as numbered cards; use labelled flow diagrams with icons and connecting arrows where a process benefits from a visual overview. Place detailed calculations, status definitions, and less common cases in accessible, closed-by-default details that search can reveal.
+- Understand Commissions includes an interactive example for all three roles. Users enter a project value, add or remove people, choose each person's name, Level 1–3 rank and referrer, and select the seller. A branching diagram shows who referred whom; live results show every person's three cuts, total and explanation, including people receiving zero. Prevent self-referrals and circular chains. Deleting a person clears links from their direct referrals and replaces the seller if needed, with visible feedback.
+- The calculator is a hypothetical, client-side learning aid with no payment or account mutations. It follows the current referral selection described in the backend commission specification: higher-ranked sellers absorb lower cuts, and the nearest eligible higher-ranked referrer receives the next cut. Show unassigned cuts separately when no entered person qualifies; do not redistribute them to another person. Project value alone gives total entitlements, not first-payment or deferred schedules. All entered people are treated as active.
+- Keep the calculator draft while moving between Help topics. A complete guide download includes that current example's people, relationships, seller, project value and results. Invalid examples include an explanation of the input errors in the PDF instead of exporting a stale calculation.
+- Support annotated product screenshots with meaningful alternative text, captions, and a readable responsive presentation. Across all help articles, keep captions close to their images with a 4px gap and leave 16px below each figure before following content. Keep the article experience usable at narrow mobile widths and ensure all visual explanations remain understandable without colour or imagery.
+- Reuse the existing shell, controls, tables, states, colours, and spacing.
+- Download PDF produces an actual PDF containing every permitted article, independent of the current search or selected article or collapsed details. Render the page and PDF from the same content, including steps, tables, notes, FAQs, flows, money cards, and available annotated screenshots. Include the guide role, revision, clickable contents, and page numbers.
