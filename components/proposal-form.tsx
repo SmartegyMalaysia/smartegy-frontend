@@ -8,7 +8,7 @@ import { DatePicker } from "./date-picker";
 import { PopupModal } from "./popup-modal";
 import { casesRepository } from "@/lib/case-repository";
 import { calendarDaysForMonth, calculateProposalPreview, emptyProposalReadings, isCompletedHistoricalMonth } from "@/lib/proposal-calculations";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, todayISODate } from "@/lib/format";
 import type { CaseDetail, CurrentUser, MoneySen, ProposalEnergyReading, ProposalInput } from "@/lib/types";
 
 type ReadingDraft = { month: string; monthNumber: string; year: string; bill: string; kwh: string };
@@ -121,7 +121,7 @@ function buildInput(salesRepName: string, proposalDate: string, installationAddr
 
 export function ProposalForm({ caseDetail, user, onChanged, onClose }: { caseDetail: CaseDetail; user: CurrentUser; onChanged: (value: CaseDetail) => void; onClose: () => void }) {
   const [salesRepName, setSalesRepName] = useState(caseDetail.proposal?.salesRepName ?? user.displayName);
-  const [proposalDate, setProposalDate] = useState(caseDetail.proposal?.proposalDate ?? new Date().toISOString().slice(0, 10));
+  const [proposalDate, setProposalDate] = useState(caseDetail.proposal?.proposalDate ?? todayISODate());
   const installationAddress = caseDetail.service.siteAddress;
   const [installationCost, setInstallationCost] = useState(caseDetail.proposal?.installationCostSen ? formatMoneyInput(caseDetail.proposal.installationCostSen) : "");
   const [outstationCost, setOutstationCost] = useState(caseDetail.proposal?.outstationCostSen ? formatMoneyInput(caseDetail.proposal.outstationCostSen) : "");

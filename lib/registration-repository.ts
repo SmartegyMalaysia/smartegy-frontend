@@ -326,7 +326,7 @@ export const mockRegistrationRepository: RegistrationRepository = {
     if (!found.data.emailVerified || !found.data.profileComplete || !["verified", "waived"].includes(found.data.feeStatus)) return failure("CONFLICT", "The application cannot be activated until email, profile, and fee requirements are complete.");
     const previous = found.data.registrationStatus;
     found.data.registrationStatus = "active";
-    addAudit(found.data, actor, "registration", "registration_approved", previous, "pending_approval", input.reason?.trim() || null);
+    addAudit(found.data, actor, "registration", "registration_approved", previous, "active", input.reason?.trim() || null);
     addAudit(found.data, actor, "registration", "agent_activated", "pending_approval", "active", input.reason?.trim() || null);
     return { ok: true, data: found.data };
   },
