@@ -18,6 +18,7 @@ import type {
   VerifyRegistrationFeeInput,
 } from "./types";
 import { sortRegistrationDirectory } from "./registration-directory";
+import { formatDateTime } from "./format";
 
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -253,7 +254,7 @@ export const mockRegistrationRepository: RegistrationRepository = {
     const sorted = sortRegistrationDirectory(filtered, query.sort);
     return { ok: true, data: sorted };
   },
-  async exportForStaff(actor, query = {}) { const result = await this.listForStaff(actor, query); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-registrations.csv", [["Application", "Name", "Mobile", "Email", "Upline agent", "Registration", "Fee", "Profile", "Submitted"], ...result.data.map((item) => [item.applicationNumber, item.profile.fullName, item.profile.mobileNumber, item.profile.email, item.referringAgentName, item.registrationStatus, item.feeStatus, item.profileComplete ? "Complete" : "Incomplete", item.submittedAt ?? ""])]); return { ok: true, data: true }; },
+  async exportForStaff(actor, query = {}) { const result = await this.listForStaff(actor, query); if (!result.ok) return result; const { downloadCsv } = await import("./export-csv"); downloadCsv("smartegy-registrations.csv", [["Application", "Name", "Mobile", "Email", "Upline agent", "Registration", "Fee", "Profile", "Submitted"], ...result.data.map((item) => [item.applicationNumber, item.profile.fullName, item.profile.mobileNumber, item.profile.email, item.referringAgentName, item.registrationStatus, item.feeStatus, item.profileComplete ? "Complete" : "Incomplete", item.submittedAt ? formatDateTime(item.submittedAt) : ""])]); return { ok: true, data: true }; },
 
   async getByApplicationNumber(actor, applicationNumber) {
     const allowed = staffOnly<AgentRegistration>(actor);
@@ -325,7 +326,7 @@ export const mockRegistrationRepository: RegistrationRepository = {
     if (!found.data.emailVerified || !found.data.profileComplete || !["verified", "waived"].includes(found.data.feeStatus)) return failure("CONFLICT", "The application cannot be activated until email, profile, and fee requirements are complete.");
     const previous = found.data.registrationStatus;
     found.data.registrationStatus = "active";
-    addAudit(found.data, actor, "registration", "registration_approved", previous, "pending_approval", input.reason?.trim() || null);
+    addAudit(found.data, actor, "registration", "registration_approved", previous, "active", input.reason?.trim() || null);
     addAudit(found.data, actor, "registration", "agent_activated", "pending_approval", "active", input.reason?.trim() || null);
     return { ok: true, data: found.data };
   },
