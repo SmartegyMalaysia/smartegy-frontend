@@ -96,7 +96,7 @@ export function DatePicker({ id, title, value, mode = "date", placeholder, surfa
   const firstDay = new Date(Date.UTC(year, month, 1)).getUTCDay();
   const days = Array.from({ length: mode === "date" ? Math.ceil((firstDay + daysInMonth) / 7) * 7 : 0 }, (_, index) => { const day = index - firstDay + 1; return day > 0 && day <= daysInMonth ? day : null; });
   const rect = anchorRect ?? summaryRef.current?.getBoundingClientRect();
-  const estimatedPopoverHeight = yearPickerOpen ? 270 : mode === "month" ? 320 : 330;
+  const estimatedPopoverHeight = yearPickerOpen ? 270 : mode === "month" ? 220 : 330;
   const viewportHeight = typeof window === "undefined" ? 0 : window.innerHeight;
   const viewportWidth = typeof window === "undefined" ? 0 : window.innerWidth;
   const fitsBelow = Boolean(rect && (!viewportHeight || rect.bottom + 8 + estimatedPopoverHeight <= viewportHeight - 8));
