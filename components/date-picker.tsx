@@ -7,13 +7,21 @@ import { PopupModalLayerContext } from "./popup-modal";
 
 type DatePickerMode = "date" | "month";
 export type DateRangeValue = { start: string; end: string };
+type AnchorRect = { top: number; bottom: number; left: number };
 
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const shortMonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 function CalendarIcon() { return <svg aria-hidden="true" className="date-picker-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>; }
-function initialDate(value: string, mode: DatePickerMode) { if (value) { const [year, month, day] = value.split("-").map(Number); return new Date(Date.UTC(year, month - 1, mode === "date" ? day ?? 1 : 1)); } const today = new Date(); return new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1)); }
+function initialDate(value: string, mode: DatePickerMode) {
+  if (value) {
+    const [year, month, day] = value.split("-").map(Number);
+    if (Number.isInteger(year) && Number.isInteger(month) && month >= 1 && month <= 12) return new Date(Date.UTC(year, month - 1, mode === "date" ? day || 1 : 1));
+  }
+  const today = new Date();
+  return new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1));
+}
 
 export function DatePicker({ id, title, value, mode = "date", placeholder, surface = "subtle", onChange, required = false, ariaLabel, displayValueOverride, range, onRangeChange, fieldClassName = "", disabled = false }: { id: string; title?: string; value: string; mode?: DatePickerMode; placeholder?: string; surface?: "subtle" | "white"; onChange: (value: string) => void; required?: boolean; ariaLabel?: string; displayValueOverride?: string; range?: DateRangeValue; onRangeChange?: (value: DateRangeValue) => void; fieldClassName?: string; disabled?: boolean }) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -24,6 +32,7 @@ export function DatePicker({ id, title, value, mode = "date", placeholder, surfa
   const [open, setOpen] = useState(false);
   const [popoverMounted, setPopoverMounted] = useState(false);
   const [popoverExiting, setPopoverExiting] = useState(false);
+  const [anchorRect, setAnchorRect] = useState<AnchorRect | null>(null);
   const insidePopupModal = useContext(PopupModalLayerContext);
   const closeTimerRef = useRef<number | null>(null);
   useEffect(() => {
@@ -31,6 +40,24 @@ export function DatePicker({ id, title, value, mode = "date", placeholder, surfa
     window.addEventListener("smartegy:popover-open", closeOtherPopover);
     return () => window.removeEventListener("smartegy:popover-open", closeOtherPopover);
   }, []);
+  useEffect(() => {
+    setViewDate(initialDate(value, mode));
+    setYearPickerOpen(false);
+  }, [value, mode]);
+  useEffect(() => {
+    if (!open) return;
+    const updatePosition = () => {
+      const rect = summaryRef.current?.getBoundingClientRect();
+      if (rect) setAnchorRect({ top: rect.top, bottom: rect.bottom, left: rect.left });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
   useEffect(() => {
     if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
     if (open) {
@@ -69,7 +96,7 @@ export function DatePicker({ id, title, value, mode = "date", placeholder, surfa
   const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
   const firstDay = new Date(Date.UTC(year, month, 1)).getUTCDay();
   const days = Array.from({ length: mode === "date" ? Math.ceil((firstDay + daysInMonth) / 7) * 7 : 0 }, (_, index) => { const day = index - firstDay + 1; return day > 0 && day <= daysInMonth ? day : null; });
-  const rect = summaryRef.current?.getBoundingClientRect();
+  const rect = anchorRect ?? summaryRef.current?.getBoundingClientRect();
   const estimatedPopoverHeight = yearPickerOpen ? 270 : mode === "month" ? 220 : 330;
   const viewportHeight = typeof window === "undefined" ? 0 : window.innerHeight;
   const viewportWidth = typeof window === "undefined" ? 0 : window.innerWidth;
