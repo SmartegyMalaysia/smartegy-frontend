@@ -78,7 +78,66 @@ async function checkSignupEmail(email: string): Promise<RegistrationActionResult
   }
 }
 
-function mapRegistration(row: RegistrationRow, proof?: RegistrationRow | null, audit: RegistrationRow[] = []): AgentRegistration {
+type RegistrationAuditEvent = AgentRegistration["audit"][number];
+
+function changed(oldData: RegistrationRow, newData: RegistrationRow, field: string) {
+  return oldData[field] !== newData[field] && (oldData[field] !== undefined || newData[field] !== undefined);
+}
+
+function auditAction(entityType: RegistrationAuditEvent["entityType"], previousStatus: string | null, newStatus: string | null, operation: string) {
+  if (entityType === "registration_fee") {
+    if (newStatus === "pending_verification") return "payment_submitted";
+    if (newStatus === "verified") return "payment_verified";
+    if (newStatus === "rejected") return "payment_rejected";
+    if (newStatus === "waived") return "payment_waived";
+    return operation === "insert" ? "payment_created" : "payment_updated";
+  }
+  if (newStatus === "pending_approval") return "registration_submitted";
+  if (newStatus === "active") return "registration_approved";
+  if (newStatus === "rejected") return "registration_rejected";
+  if (previousStatus === null && newStatus !== null) return "registration_created";
+  return operation === "insert" ? "registration_created" : operation === "delete" ? "registration_deleted" : "registration_updated";
+}
+
+function mapAuditEvents(audit: RegistrationRow[], actorNames: Map<string, string>): RegistrationAuditEvent[] {
+  return audit.flatMap((event) => {
+    const oldData = event.old_data ?? {};
+    const newData = event.new_data ?? {};
+    const feeChanged = changed(oldData, newData, "fee_status");
+    const registrationChanged = changed(oldData, newData, "registration_status");
+    const actorId = event.actor_id ?? "system";
+    const baseReason = event.reason ?? newData.rejection_reason ?? oldData.rejection_reason ?? null;
+    const changes = [
+      ...(feeChanged ? [{ entityType: "registration_fee" as const, previousStatus: oldData.fee_status ?? null, newStatus: newData.fee_status ?? null }] : []),
+      ...(registrationChanged ? [{ entityType: "registration" as const, previousStatus: oldData.registration_status ?? null, newStatus: newData.registration_status ?? null }] : []),
+    ];
+    if (!changes.length) changes.push({ entityType: "registration", previousStatus: null, newStatus: null });
+    return changes.map(({ entityType, previousStatus, newStatus }) => {
+      const action = auditAction(entityType, previousStatus, newStatus, event.action);
+      return {
+        id: changes.length > 1 ? `${String(event.id)}-${entityType}` : String(event.id),
+        entityType,
+        entityId: event.record_id,
+        action,
+        previousStatus,
+        newStatus,
+        actorId,
+        actorDisplayName: actorNames.get(actorId) ?? "System",
+        occurredAt: event.occurred_at,
+        reason: baseReason,
+      };
+    });
+  });
+}
+
+async function fetchAuditActorNames(supabase: any, audit: RegistrationRow[]) {
+  const actorIds = Array.from(new Set(audit.map((event) => event.actor_id).filter(Boolean)));
+  if (!actorIds.length) return new Map<string, string>();
+  const { data } = await supabase.from("profiles").select("id,display_name").in("id", actorIds);
+  return new Map<string, string>((data ?? []).map((profile: RegistrationRow) => [profile.id, profile.display_name]));
+}
+
+function mapRegistration(row: RegistrationRow, proof?: RegistrationRow | null, audit: RegistrationRow[] = [], actorNames = new Map<string, string>()): AgentRegistration {
   const previousRejectionReason = row.rejection_reason ?? audit.find((event) => event.new_data?.fee_status === "rejected" && event.new_data?.rejection_reason)?.new_data?.rejection_reason ?? audit.find((event) => event.old_data?.fee_status === "rejected" && event.old_data?.rejection_reason)?.old_data?.rejection_reason ?? null;
   return {
     id: row.id,
@@ -106,7 +165,7 @@ function mapRegistration(row: RegistrationRow, proof?: RegistrationRow | null, a
     submittedAt: row.submitted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    audit: audit.map((event) => ({ id: String(event.id), entityType: event.table_name === "agent_registrations" ? "registration" : "registration_fee", entityId: event.record_id, action: event.action, previousStatus: event.old_data?.registration_status ?? event.old_data?.fee_status ?? null, newStatus: event.new_data?.registration_status ?? event.new_data?.fee_status ?? null, actorId: event.actor_id ?? "system", actorDisplayName: event.actor?.display_name ?? "System", occurredAt: event.occurred_at, reason: event.reason ?? event.new_data?.rejection_reason ?? event.old_data?.rejection_reason ?? null })),
+    audit: mapAuditEvents(audit, actorNames),
   };
 }
 
@@ -117,10 +176,11 @@ async function fetchRegistration(id: string, includeAudit = true) {
   if (error) throw error;
   const proof = await fetchRegistrationProof(supabase, id, row.payment_proof_document_id);
   // audit_log.actor_id is intentionally not a foreign key (deleted users must
-  // not delete audit history), so resolve the actor name separately only when
-  // a future screen needs it. The audit row remains available to admins.
-  const { data: audit } = includeAudit ? await supabase.from("audit_log").select("*").eq("table_name", "agent_registrations").eq("record_id", id).order("occurred_at", { ascending: false }) : { data: [] };
-  return mapRegistration(row, proof, audit ?? []);
+  // not delete audit history), so resolve the actor name separately for the
+  // staff registration review screen.
+  const { data: audit, error: auditError } = includeAudit ? await supabase.from("audit_log").select("*").eq("table_name", "agent_registrations").eq("record_id", id).order("occurred_at", { ascending: false }) : { data: [], error: null };
+  if (auditError) throw auditError;
+  return mapRegistration(row, proof, audit ?? [], includeAudit ? await fetchAuditActorNames(supabase, audit ?? []) : new Map());
 }
 
 async function fetchOwnRegistration(authUserId: string, includeAudit = true) {
@@ -130,8 +190,9 @@ async function fetchOwnRegistration(authUserId: string, includeAudit = true) {
   if (error) throw error;
   if (!row) throw new Error("Registration application not found.");
   const proof = await fetchRegistrationProof(supabase, row.id, row.payment_proof_document_id);
-  const { data: audit } = includeAudit ? await supabase.from("audit_log").select("*").eq("table_name", "agent_registrations").eq("record_id", row.id).order("occurred_at", { ascending: false }) : { data: [] };
-  return mapRegistration(row, proof, audit ?? []);
+  const { data: audit, error: auditError } = includeAudit ? await supabase.from("audit_log").select("*").eq("table_name", "agent_registrations").eq("record_id", row.id).order("occurred_at", { ascending: false }) : { data: [], error: null };
+  if (auditError) throw auditError;
+  return mapRegistration(row, proof, audit ?? [], includeAudit ? await fetchAuditActorNames(supabase, audit ?? []) : new Map());
 }
 
 async function hydrateRegistration(data: unknown): Promise<RegistrationActionResult<AgentRegistration>> {
@@ -193,7 +254,7 @@ export const supabaseRegistrationRepository: RegistrationRepository = {
     if (error) return errorResult(error);
     return { ok: true, data: mapRegistration(firstRow(data)) };
   },
-  async getRegistration(actor, registrationId) { try { return { ok: true, data: registrationId ? await fetchRegistration(registrationId) : await fetchOwnRegistration(actor.id) }; } catch (error) { return errorResult(error as any); } },
+  async getRegistration(actor, registrationId) { try { return { ok: true, data: registrationId ? await fetchRegistration(registrationId, actor.role !== "agent") : await fetchOwnRegistration(actor.id, false) }; } catch (error) { return errorResult(error as any); } },
   async verifyEmail(_actor, registrationId) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return errorResult({ message: "Supabase is not configured" });
     const { data, error } = await supabase.rpc("mark_registration_email_verified", { p_registration_id: registrationId });

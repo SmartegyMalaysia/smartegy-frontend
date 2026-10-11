@@ -12,7 +12,7 @@ import { DatePicker } from "./date-picker";
 import { PopupModal } from "./popup-modal";
 import { TextInput, TextArea } from "./form-controls";
 import { Toast, type ToastTone } from "./toast";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoney, todayISODate } from "@/lib/format";
 import { registrationRepository } from "@/lib/registration-repository";
 import { usePreviewUser } from "@/lib/preview-user";
 import type { AgentRegistration, RegistrationActionResult, RegistrationPaymentProofAccess, VerifyRegistrationFeeInput } from "@/lib/types";
@@ -69,12 +69,12 @@ function PaymentReview({ actor, registration, showVerificationFields, resendLoad
   const [message, setMessage] = useState<string | null>(null);
   const [loadingProof, setLoadingProof] = useState(false);
   const [amount, setAmount] = useState("50.00");
-  const [date, setDate] = useState(() => registration.verifiedPaymentDate ?? registration.paymentDate ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => registration.verifiedPaymentDate ?? registration.paymentDate ?? todayISODate());
   const [fieldErrors, setFieldErrors] = useState<{ amount?: string; date?: string }>({});
   const reference = registration.paymentReference ?? "Manual verification";
   const [note, setNote] = useState("");
   const previousRejectionReason = registration.previousRejectionReason ?? registration.rejectionReason ?? registration.audit.find((event) => event.reason)?.reason ?? "None";
-  useEffect(() => { setAmount(((registration.verifiedAmountSen ?? registration.feeAmountSen) / 100).toFixed(2)); setDate(registration.verifiedPaymentDate ?? registration.paymentDate ?? new Date().toISOString().slice(0, 10)); setFieldErrors({}); }, [registration.id, registration.verifiedAmountSen, registration.feeAmountSen, registration.verifiedPaymentDate, registration.paymentDate]);
+  useEffect(() => { setAmount(((registration.verifiedAmountSen ?? registration.feeAmountSen) / 100).toFixed(2)); setDate(registration.verifiedPaymentDate ?? registration.paymentDate ?? todayISODate()); setFieldErrors({}); }, [registration.id, registration.verifiedAmountSen, registration.feeAmountSen, registration.verifiedPaymentDate, registration.paymentDate]);
   function verify() {
     const errors: typeof fieldErrors = {};
     const parsedAmount = Number(amount);
