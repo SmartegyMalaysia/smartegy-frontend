@@ -123,32 +123,7 @@ function shouldNotifyNextAction(before: CaseDetail | null, after: CaseDetail) {
 }
 
 async function rpcCase(actor: CurrentUser, name: string, args: Record<string, unknown>, caseId: string, notificationKey?: string) {
-async function notifyCaseAction(supabase: any, caseId: string, eventKey: string) {
-  try {
-    const { data, error } = await supabase.functions.invoke("send-case-action-notification", { body: { case_id: caseId, event_key: `${caseId}:${eventKey}` } });
-    if (error || data?.error) console.error("Case action notification could not be sent", error ?? data?.error);
-  } catch (error) {
-    console.error("Case action notification request failed", error);
-  }
-}
-
-function hasPendingPayment(detail: CaseDetail) {
-  return (detail.payments ?? []).some((payment) => payment.status === "pending_verification");
-}
-
-function shouldNotifyNextAction(before: CaseDetail | null, after: CaseDetail) {
-  if (!before || before.status !== after.status) return true;
-  return before.status === "active_installments" || before.status === "deposit_pending_verification" || before.status === "post_installation_payment_pending_verification"
-    ? hasPendingPayment(before) !== hasPendingPayment(after)
-    : false;
-}
-
-async function rpcCase(actor: CurrentUser, name: string, args: Record<string, unknown>, caseId: string, notificationKey?: string) {
   const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
-  const { error } = await supabase.rpc(name, args); if (error) return failure<CaseDetail>(error);
-  const detail = await loadCase(caseId);
-  if (notificationKey) await notifyCaseAction(supabase, caseId, `${notificationKey}:${detail.updatedAt}`);
-  return { ok: true, data: detail } as CaseResult<CaseDetail>;
   const { error } = await supabase.rpc(name, args); if (error) return failure<CaseDetail>(error);
   const detail = await loadCase(caseId);
   if (notificationKey) await notifyCaseAction(supabase, caseId, `${notificationKey}:${detail.updatedAt}`);
@@ -162,8 +137,6 @@ async function submitAgentPayment(actor: CurrentUser, caseId: string, input: Rec
   if (!input.proof) return failure<CaseDetail>({ code: "VALIDATION_ERROR", message: "Payment proof is required." });
   let before: CaseDetail;
   try { before = await loadCase(caseId); } catch (error) { return failure<CaseDetail>(error as any); }
-  let before: CaseDetail;
-  try { before = await loadCase(caseId); } catch (error) { return failure<CaseDetail>(error as any); }
   const { data: registered, error: registerError } = await supabase.rpc("register_case_document", { p_case_id: caseId, p_type: "payment_proof", p_filename: input.proof.fileName, p_mime_type: input.proof.mimeType, p_visible_to_agent: true });
   if (registerError) return failure(registerError);
   const metadata = (registered as any[])[0] ?? registered as any;
@@ -172,11 +145,7 @@ async function submitAgentPayment(actor: CurrentUser, caseId: string, input: Rec
   const { error: finalizeError } = await supabase.rpc("finalize_case_document", { p_document_id: metadata.document_id ?? metadata.id, p_size_bytes: input.proof.sizeBytes });
   if (finalizeError) return failure(finalizeError);
   const { data: payment, error: paymentError } = await supabase.rpc("record_payment", { p_case_id: caseId, p_amount: input.amountSen / 100, p_paid_on: input.paymentDate, p_reference: input.reference ?? null, p_proof_document_id: metadata.document_id ?? metadata.id });
-  const { data: payment, error: paymentError } = await supabase.rpc("record_payment", { p_case_id: caseId, p_amount: input.amountSen / 100, p_paid_on: input.paymentDate, p_reference: input.reference ?? null, p_proof_document_id: metadata.document_id ?? metadata.id });
   if (paymentError) return failure(paymentError);
-  const detail = await loadCase(caseId);
-  if (payment?.id && shouldNotifyNextAction(before, detail)) await notifyCaseAction(supabase, caseId, `payment-submitted:${payment.id}`);
-  return { ok: true, data: detail };
   const detail = await loadCase(caseId);
   if (payment?.id && shouldNotifyNextAction(before, detail)) await notifyCaseAction(supabase, caseId, `payment-submitted:${payment.id}`);
   return { ok: true, data: detail };
@@ -203,9 +172,6 @@ export const supabaseCasesRepository: CasesRepository = {
     const detail = await loadCase(caseId);
     await notifyCaseAction(supabase, caseId, `case-created:${detail.updatedAt}`);
     return { ok: true, data: detail };
-    const detail = await loadCase(caseId);
-    await notifyCaseAction(supabase, caseId, `case-created:${detail.updatedAt}`);
-    return { ok: true, data: detail };
   },
   async update(_actor, caseId, input: UpdateCaseInput) { const customer = input.customer ?? {}; const service = input.service ?? {}; const quote = input.quote ?? {}; return rpcCase(_actor, "update_case_details", { p_case_id: caseId, p_customer: { legal_name: customer.displayName, registration_number: customer.companyRegistrationNumber, contact_name: customer.contactName, email: customer.email, phone: customer.phone, business_type: customer.businessType, business_type_other: customer.businessType === "Other" ? customer.businessTypeOther : null, site_address: service.siteAddress, address_line_1: service.addressLine1, address_line_2: service.addressLine2, postcode: service.postcode, city: service.city, state: service.state }, p_case: { ...(service.notes == null ? {} : { service_notes: service.notes }), ...(quote.saleAmountSen == null ? {} : { sale_amount: moneyToRm(quote.saleAmountSen) }), ...(quote.averageMonthlyKwh == null ? {} : { average_monthly_kwh: quote.averageMonthlyKwh }), ...(quote.averageTnbRate == null ? {} : { average_tnb_rate: quote.averageTnbRate }), ...(quote.quotedSavingsKwh == null ? {} : { quoted_savings_kwh: quote.quotedSavingsKwh }), ...(quote.quotedMonthlySavingsSen == null ? {} : { quoted_monthly_savings_rm: moneyToRm(quote.quotedMonthlySavingsSen) }) } }, caseId); },
   async deleteCase(_actor, caseId) {
@@ -223,20 +189,15 @@ export const supabaseCasesRepository: CasesRepository = {
     return { ok: true, data: { id: (data as string | null) ?? caseId } };
   },
   async transition(_actor, caseId, to, reason) { return rpcCase(_actor, "transition_case", { p_case_id: caseId, p_to: to, p_reason: reason ?? null }, caseId, to === "cancelled" ? undefined : `transition:${to}`); },
-  async transition(_actor, caseId, to, reason) { return rpcCase(_actor, "transition_case", { p_case_id: caseId, p_to: to, p_reason: reason ?? null }, caseId, to === "cancelled" ? undefined : `transition:${to}`); },
   async requestChanges(actor, caseId, reason) { return this.transition(actor, caseId, "changes_requested", reason); },
   async cancel(actor, caseId, reason) { return this.transition(actor, caseId, "cancelled", reason); },
   async generatePaymentSchedule(_actor, caseId, input: GeneratePaymentScheduleInput) { return rpcCase(_actor, "generate_initial_payment_schedule", { p_case_id: caseId, p_deposit_due: input.depositDue, p_post_installation_due: input.postInstallationDue }, caseId); },
   async proposeInstallationDate(_actor, caseId, date, time) { return rpcCase(_actor, "propose_installation_date", { p_case_id: caseId, p_installation_date: date, p_installation_time: time }, caseId, `installation-date:${date}:${time}`); },
   async confirmInstallationDate(_actor, caseId) { return rpcCase(_actor, "confirm_installation_date", { p_case_id: caseId }, caseId, "installation-date-confirmed"); },
   async requestInstallationReschedule(_actor, caseId, reason) { return rpcCase(_actor, "request_installation_reschedule", { p_case_id: caseId, p_reason: reason }, caseId, "installation-reschedule-requested"); },
-  async proposeInstallationDate(_actor, caseId, date, time) { return rpcCase(_actor, "propose_installation_date", { p_case_id: caseId, p_installation_date: date, p_installation_time: time }, caseId, `installation-date:${date}:${time}`); },
-  async confirmInstallationDate(_actor, caseId) { return rpcCase(_actor, "confirm_installation_date", { p_case_id: caseId }, caseId, "installation-date-confirmed"); },
-  async requestInstallationReschedule(_actor, caseId, reason) { return rpcCase(_actor, "request_installation_reschedule", { p_case_id: caseId, p_reason: reason }, caseId, "installation-reschedule-requested"); },
   async submitDeposit(actor, caseId, input: RecordPaymentInput) { return submitAgentPayment(actor, caseId, input); },
   async submitPostInstallationPayment(actor, caseId, input) { return submitAgentPayment(actor, caseId, input); },
   async submitInstallmentPayment(actor, caseId, input) { return submitAgentPayment(actor, caseId, input); },
-  async rejectPayment(_actor, paymentId, reason) { const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" }); const { data: existingPayment, error: lookupError } = await supabase.from("payments").select("case_id").eq("id", paymentId).single(); if (lookupError) return failure(lookupError); const before = await loadCase(existingPayment.case_id); const { data: payment, error } = await supabase.rpc("reject_payment", { p_payment_id: paymentId, p_reason: reason }); if (error) return failure(error); const detail = await loadCase((payment as any).case_id); if (shouldNotifyNextAction(before, detail)) await notifyCaseAction(supabase, (payment as any).case_id, `payment-rejected:${paymentId}:${detail.updatedAt}`); return { ok: true, data: detail }; },
   async rejectPayment(_actor, paymentId, reason) { const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" }); const { data: existingPayment, error: lookupError } = await supabase.from("payments").select("case_id").eq("id", paymentId).single(); if (lookupError) return failure(lookupError); const before = await loadCase(existingPayment.case_id); const { data: payment, error } = await supabase.rpc("reject_payment", { p_payment_id: paymentId, p_reason: reason }); if (error) return failure(error); const detail = await loadCase((payment as any).case_id); if (shouldNotifyNextAction(before, detail)) await notifyCaseAction(supabase, (payment as any).case_id, `payment-rejected:${paymentId}:${detail.updatedAt}`); return { ok: true, data: detail }; },
   async recordPayment(_actor, caseId, input: RecordPaymentInput) { return rpcCase(_actor, "record_payment", { p_case_id: caseId, p_amount: input.amountSen / 100, p_paid_on: input.paymentDate, p_reference: input.reference ?? null, p_proof_document_id: null }, caseId); },
   async recordAndVerifyPayment(actor, caseId, input: RecordPaymentInput) {
@@ -259,10 +220,6 @@ export const supabaseCasesRepository: CasesRepository = {
   async recordInstallation(_actor, caseId, installationDate, installationTime) { return rpcCase(_actor, "record_installation", { p_case_id: caseId, p_installation_date: installationDate, p_installation_time: installationTime }, caseId, "installation-recorded"); },
   async verifySavings(_actor, caseId, input) { return rpcCase(_actor, "verify_case_savings", { p_case_id: caseId, p_readings: input.readings.map((reading) => ({ month: reading.month, kwh_used: reading.kwhUsed, bill_amount: reading.billAmountSen / 100 })) }, caseId, "savings-verified"); },
   async acceptTrial(_actor, caseId, input: AcceptTrialInput) { return rpcCase(_actor, "accept_trial_and_continue", { p_case_id: caseId, p_installment_start: input.installmentStart, p_term_months: input.termMonths }, caseId, "trial-accepted"); },
-  async verifyPayment(_actor, input: VerifyPaymentInput) { const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" }); const { data: existingPayment, error: lookupError } = await supabase.from("payments").select("case_id").eq("id", input.paymentId).single(); if (lookupError) return failure(lookupError); const before = await loadCase(existingPayment.case_id); const { data: payment, error } = await supabase.rpc("verify_payment", { p_payment_id: input.paymentId, p_allocations: input.allocations.map((allocation) => ({ schedule_id: allocation.scheduleId, amount: allocation.amountSen / 100 })) }); if (error) return failure(error); const paymentCase = (payment as any)?.case_id; if (!paymentCase) return failure<CaseDetail>({ message: "Verified payment did not return its case." }); const detail = await loadCase(paymentCase); if (shouldNotifyNextAction(before, detail)) await notifyCaseAction(supabase, paymentCase, `payment-verified:${input.paymentId}:${detail.updatedAt}`); return { ok: true, data: detail }; },
-  async recordInstallation(_actor, caseId, installationDate, installationTime) { return rpcCase(_actor, "record_installation", { p_case_id: caseId, p_installation_date: installationDate, p_installation_time: installationTime }, caseId, "installation-recorded"); },
-  async verifySavings(_actor, caseId, input) { return rpcCase(_actor, "verify_case_savings", { p_case_id: caseId, p_readings: input.readings.map((reading) => ({ month: reading.month, kwh_used: reading.kwhUsed, bill_amount: reading.billAmountSen / 100 })) }, caseId, "savings-verified"); },
-  async acceptTrial(_actor, caseId, input: AcceptTrialInput) { return rpcCase(_actor, "accept_trial_and_continue", { p_case_id: caseId, p_installment_start: input.installmentStart, p_term_months: input.termMonths }, caseId, "trial-accepted"); },
   async saveProposalDraft(_actor, caseId, input: ProposalInput) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
     const { error } = await supabase.rpc("save_proposal_draft", { p_case_id: caseId, p_proposal: { sales_rep_name: input.salesRepName, proposal_date: input.proposalDate, installation_address: input.installationAddress, installation_cost: moneyToRm(input.installationCostSen), outstation_cost: moneyToRm(input.outstationCostSen), sale_amount: input.saleAmountSen / 100, downpayment_override: moneyToRm(input.downpaymentSen) }, p_readings: input.readings.map((reading) => ({ month: reading.month, kwh_used: reading.kwhUsed, bill_amount: reading.billAmountSen / 100 })) });
@@ -274,17 +231,6 @@ export const supabaseCasesRepository: CasesRepository = {
     const readings = input.readings.map((reading) => ({ month: reading.month, kwh_used: reading.kwhUsed, bill_amount: reading.billAmountSen / 100 }));
     const { data, error } = await supabase.functions.invoke("generate-document", { body: { case_id: caseId, type: "quotation", proposal, readings } });
     if (error) return functionFailure<CaseDetail>(error); if (data?.error) return failure<CaseDetail>({ message: data.error }); const detail = await loadCase(caseId); await notifyCaseAction(supabase, caseId, `proposal-issued:${detail.updatedAt}`); return { ok: true, data: detail };
-  },
-  async regenerateProposal(_actor, caseId, input: ProposalInput) {
-    const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
-    const current = await loadCase(caseId);
-    if (!current.proposal || current.proposal.status !== "issued" || current.status !== "quotation_issued") return failure<CaseDetail>({ code: "VALIDATION_ERROR", message: "Only an unaccepted issued proposal can be regenerated." });
-    const { error: voidError } = await supabase.rpc("void_proposal", { p_proposal_id: current.proposal.id, p_reason: "Case details changed; proposal regenerated." });
-    if (voidError) return failure<CaseDetail>(voidError);
-    const proposal = { sales_rep_name: input.salesRepName, proposal_date: input.proposalDate, installation_address: input.installationAddress, installation_cost: moneyToRm(input.installationCostSen), outstation_cost: moneyToRm(input.outstationCostSen), sale_amount: input.saleAmountSen / 100, downpayment_override: moneyToRm(input.downpaymentSen) };
-    const readings = input.readings.map((reading) => ({ month: reading.month, kwh_used: reading.kwhUsed, bill_amount: reading.billAmountSen / 100 }));
-    const { data, error } = await supabase.functions.invoke("generate-document", { body: { case_id: caseId, type: "quotation", proposal, readings } });
-    if (error) return functionFailure<CaseDetail>(error); if (data?.error) return failure<CaseDetail>({ message: data.error }); const detail = await loadCase(caseId); await notifyCaseAction(supabase, caseId, `proposal-regenerated:${detail.updatedAt}`); return { ok: true, data: detail };
   },
   async regenerateProposal(_actor, caseId, input: ProposalInput) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<CaseDetail>({ message: "Supabase is not configured" });
@@ -317,11 +263,7 @@ export const supabaseCasesRepository: CasesRepository = {
     const detail = await loadCase(caseId);
     await notifyCaseAction(supabase, caseId, `proposal-accepted:${input.proposalId}:${detail.updatedAt}`);
     return { ok: true, data: detail };
-    const detail = await loadCase(caseId);
-    await notifyCaseAction(supabase, caseId, `proposal-accepted:${input.proposalId}:${detail.updatedAt}`);
-    return { ok: true, data: detail };
   },
-  async voidProposal(_actor, caseId, proposalId, reason) { return rpcCase(_actor, "void_proposal", { p_proposal_id: proposalId, p_reason: reason }, caseId, `proposal-voided:${proposalId}`); },
   async voidProposal(_actor, caseId, proposalId, reason) { return rpcCase(_actor, "void_proposal", { p_proposal_id: proposalId, p_reason: reason }, caseId, `proposal-voided:${proposalId}`); },
   async generateFinancialDocument(_actor, caseId, type, paymentScheduleId) {
     const supabase = getSupabaseBrowserClient(); if (!supabase) return failure<GeneratedDocumentResult>({ message: "Supabase is not configured" });
