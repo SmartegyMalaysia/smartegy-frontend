@@ -12,6 +12,7 @@ require.extensions[".ts"] = function loadTypeScript(module, filename) {
 
 const repository = require(path.resolve(__dirname, "../lib/agent-repository.ts"));
 const agentDetailSource = fs.readFileSync(path.resolve(__dirname, "../app/agents/[agentId]/page.tsx"), "utf8");
+const agentsPageSource = fs.readFileSync(path.resolve(__dirname, "../app/agents/page.tsx"), "utf8");
 const staff = { id: "staff-001", role: "staff", displayName: "Staff User", email: "staff@smartegy.example", agentId: null };
 const admin = { id: "admin-001", role: "admin", displayName: "Admin User", email: "admin@smartegy.example", agentId: null };
 const agent = { id: "user-001", role: "agent", displayName: "Aisha Rahman", email: "aisha@smartegy.example", agentId: "agent-001" };
@@ -31,6 +32,25 @@ test("staff can list all agents with qualification data while agents cannot", as
   const forbidden = await repository.agentRepository.list(agent);
   assert.equal(forbidden.ok, false);
   assert.equal(forbidden.error.code, "FORBIDDEN");
+});
+
+test("agents directory exposes an explicit report year and annual paid commission column", () => {
+  assert.ok(agentsPageSource.includes("Report year"));
+  assert.ok(agentsPageSource.includes("Annual Commission Paid"));
+  assert.ok(agentsPageSource.includes("exportAgents"));
+});
+
+test("annual paid commission follows the selected report year without changing lifetime metrics", async () => {
+  repository.resetMockAgents();
+  const current = await repository.agentRepository.listPage(staff, { year: 2026, page: 1, pageSize: 100 });
+  const prior = await repository.agentRepository.listPage(staff, { year: 2025, page: 1, pageSize: 100 });
+  assert.equal(current.ok, true);
+  assert.equal(prior.ok, true);
+  const currentAisha = current.data.items.find((item) => item.id === "agent-001");
+  const priorAisha = prior.data.items.find((item) => item.id === "agent-001");
+  assert.equal(currentAisha.annualCommissionPaidSen, 104832);
+  assert.equal(priorAisha.annualCommissionPaidSen, 0);
+  assert.equal(currentAisha.commissionEarnedSen, priorAisha.commissionEarnedSen);
 });
 
 test("staff can view an agent's sales, commissions, upline chain, and direct downline", async () => {

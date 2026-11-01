@@ -118,6 +118,7 @@ export interface AgentSummary {
   referralSalesSen: MoneySen;
   annualSalesSen: MoneySen;
   commissionEarnedSen: MoneySen;
+  annualCommissionPaidSen: MoneySen;
   status: RecordStatus;
   qualification: AgentQualificationProgress;
   promotionHistory: AgentPromotionAudit[];
