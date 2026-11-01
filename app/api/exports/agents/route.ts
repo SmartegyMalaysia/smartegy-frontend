@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   if (rpcError) return badRpc(rpcError);
   const payload = (data ?? {}) as Record<string, any>;
   const rows = [
-    ["Agent", "Agent Code", "Status", "Level", "Upline", "Successful Cases", "Direct Agents", "Personal Sales", "Referral Sales", "Lifetime Commission Earned", "Annual Commission Paid", "Eligibility"],
+    ["Agent", "Agent Code", "Status", "Level", "Upline", "Successful Cases", "Direct Agents", "Personal Sales", "Referral Sales", "Lifetime Commission Earned", "Annual Commission Earned", "Annual Commission Paid", "Eligibility"],
     ...(payload.items ?? []).map((item: any) => [
       item.display_name,
       item.agent_code,
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       money(item.personal_sales),
       money(item.referral_sales),
       money(item.commission_earned),
+      money(item.annual_commission_earned),
       money(item.annual_commission_paid),
       item.qualification?.eligible_for_promotion ? "Eligible for promotion" : "In progress",
     ]),
