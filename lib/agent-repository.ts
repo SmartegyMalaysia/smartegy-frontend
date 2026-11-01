@@ -36,7 +36,7 @@ export const mockAgentRepository: AgentRepository = {
     const totalItems = matches.length;
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
     const page = Math.min(Math.max(query.page ?? 1, 1), totalPages);
-    return { ok: true, data: { items: structuredClone(matches.slice((page - 1) * pageSize, page * pageSize).map((agent) => ({ ...agent, annualCommissionPaidSen: reportYear === 2026 ? agent.annualCommissionPaidSen : 0 }))), totalItems, totalPages, filterOptions: { levels: [1, 2, 3], statuses: ["active", "inactive"], qualifications: ["eligible", "in_progress"], uplines: agents.filter((agent) => agent.status === "active").map((agent) => ({ value: agent.id, label: agent.displayName })).toSorted((a, b) => a.label.localeCompare(b.label)) } } };
+    return { ok: true, data: { items: structuredClone(matches.slice((page - 1) * pageSize, page * pageSize).map((agent) => ({ ...agent, annualCommissionEarnedSen: reportYear === 2026 ? agent.annualCommissionEarnedSen : 0, annualCommissionPaidSen: reportYear === 2026 ? agent.annualCommissionPaidSen : 0 }))), totalItems, totalPages, filterOptions: { levels: [1, 2, 3], statuses: ["active", "inactive"], qualifications: ["eligible", "in_progress"], uplines: agents.filter((agent) => agent.status === "active").map((agent) => ({ value: agent.id, label: agent.displayName })).toSorted((a, b) => a.label.localeCompare(b.label)) } } };
   },
   async exportDirectory(actor, query = {}) {
     if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can export agent data.");
@@ -44,8 +44,8 @@ export const mockAgentRepository: AgentRepository = {
     if (!result.ok) return result;
     const year = query.year ?? 2026;
     downloadCsv(`smartegy-agents-${year}.csv`, [
-      ["Agent", "Agent Code", "Status", "Level", "Upline", "Successful Cases", "Direct Agents", "Personal Sales", "Referral Sales", "Lifetime Commission Earned", "Annual Commission Paid", "Eligibility"],
-      ...result.data.items.map((agent) => [agent.displayName, agent.agentCode, agent.status, agent.currentLevel, agent.uplineName ?? "", agent.successfulCaseCount, agent.directAgentCount, (agent.personalSalesSen / 100).toFixed(2), (agent.referralSalesSen / 100).toFixed(2), (agent.commissionEarnedSen / 100).toFixed(2), (agent.annualCommissionPaidSen / 100).toFixed(2), agent.qualification.eligibleForPromotion ? "Eligible for promotion" : "In progress"]),
+      ["Agent", "Agent Code", "Status", "Level", "Upline", "Successful Cases", "Direct Agents", "Personal Sales", "Referral Sales", "Lifetime Commission Earned", "Annual Commission Earned", "Annual Commission Paid", "Eligibility"],
+      ...result.data.items.map((agent) => [agent.displayName, agent.agentCode, agent.status, agent.currentLevel, agent.uplineName ?? "", agent.successfulCaseCount, agent.directAgentCount, (agent.personalSalesSen / 100).toFixed(2), (agent.referralSalesSen / 100).toFixed(2), (agent.commissionEarnedSen / 100).toFixed(2), (agent.annualCommissionEarnedSen / 100).toFixed(2), (agent.annualCommissionPaidSen / 100).toFixed(2), agent.qualification.eligibleForPromotion ? "Eligible for promotion" : "In progress"]),
     ]);
     return { ok: true, data: true };
   },

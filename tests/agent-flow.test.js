@@ -36,6 +36,7 @@ test("staff can list all agents with qualification data while agents cannot", as
 
 test("agents directory exposes an explicit report year and annual paid commission column", () => {
   assert.ok(agentsPageSource.includes("Report year"));
+  assert.ok(agentsPageSource.includes("Annual Commission Earned"));
   assert.ok(agentsPageSource.includes("Annual Commission Paid"));
   assert.ok(agentsPageSource.includes("exportAgents"));
 });
@@ -48,7 +49,9 @@ test("annual paid commission follows the selected report year without changing l
   assert.equal(prior.ok, true);
   const currentAisha = current.data.items.find((item) => item.id === "agent-001");
   const priorAisha = prior.data.items.find((item) => item.id === "agent-001");
+  assert.equal(currentAisha.annualCommissionEarnedSen, 134750);
   assert.equal(currentAisha.annualCommissionPaidSen, 104832);
+  assert.equal(priorAisha.annualCommissionEarnedSen, 0);
   assert.equal(priorAisha.annualCommissionPaidSen, 0);
   assert.equal(currentAisha.commissionEarnedSen, priorAisha.commissionEarnedSen);
 });
