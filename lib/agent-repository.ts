@@ -1,15 +1,16 @@
 import { buildQualification, mockAgents, mockCases, mockCommissions } from "./mock-data";
 import type { AgentLevel, AgentLevelChangeApproval, AgentLevelChangeRequest, AgentPromotionAudit, AgentSummary, AgentWorkspaceDetail, CurrentUser, ID } from "./types";
 import { formatDateTime } from "./format";
+import { downloadCsv } from "./export-csv";
 
 type AgentErrorCode = "FORBIDDEN" | "NOT_FOUND" | "NOT_ELIGIBLE" | "CONFLICT";
 export type AgentResult<T> = { ok: true; data: T } | { ok: false; error: { code: AgentErrorCode; message: string } };
 export type AgentQualificationFilter = "all" | "eligible" | "in_progress";
-export interface AgentDirectoryQuery { search?: string; level?: AgentLevel; uplineAgentId?: ID; status?: "active" | "inactive"; qualification?: AgentQualificationFilter; page?: number; pageSize?: number; }
+export interface AgentDirectoryQuery { search?: string; level?: AgentLevel; uplineAgentId?: ID; status?: "active" | "inactive"; qualification?: AgentQualificationFilter; year?: number; page?: number; pageSize?: number; }
 export interface AgentDirectoryFilterOptions { levels: AgentLevel[]; statuses: Array<"active" | "inactive">; qualifications: Array<Exclude<AgentQualificationFilter, "all">>; uplines: Array<{ value: ID; label: string }>; }
 export interface AgentDirectoryPage { items: AgentSummary[]; totalItems: number; totalPages: number; filterOptions: AgentDirectoryFilterOptions; }
 export interface AgentApprovalQuery { search?: string; status?: AgentLevelChangeApproval["status"]; type?: "promotion" | "demotion"; }
-export interface AgentRepository { list(actor: CurrentUser): Promise<AgentResult<AgentSummary[]>>; listPage(actor: CurrentUser, query: AgentDirectoryQuery): Promise<AgentResult<AgentDirectoryPage>>; getById(actor: CurrentUser, agentId: ID): Promise<AgentResult<AgentWorkspaceDetail>>; listLevelChangeApprovals(actor: CurrentUser, query?: AgentApprovalQuery): Promise<AgentResult<AgentLevelChangeApproval[]>>; exportLevelChangeApprovals(actor: CurrentUser, query?: AgentApprovalQuery): Promise<AgentResult<true>>; requestLevelChange(actor: CurrentUser, input: { agentId: ID; direction: "promote" | "demote"; reason?: string }): Promise<AgentResult<AgentSummary>>; manualPromote(actor: CurrentUser, input: { agentId: ID; reason?: string }): Promise<AgentResult<AgentSummary>>; reviewLevelChange(actor: CurrentUser, input: { agentId: ID; requestId: ID; decision: "approve" | "reject"; note?: string }): Promise<AgentResult<AgentSummary>>; }
+export interface AgentRepository { list(actor: CurrentUser): Promise<AgentResult<AgentSummary[]>>; listPage(actor: CurrentUser, query: AgentDirectoryQuery): Promise<AgentResult<AgentDirectoryPage>>; exportDirectory(actor: CurrentUser, query?: AgentDirectoryQuery): Promise<AgentResult<true>>; getById(actor: CurrentUser, agentId: ID): Promise<AgentResult<AgentWorkspaceDetail>>; listLevelChangeApprovals(actor: CurrentUser, query?: AgentApprovalQuery): Promise<AgentResult<AgentLevelChangeApproval[]>>; exportLevelChangeApprovals(actor: CurrentUser, query?: AgentApprovalQuery): Promise<AgentResult<true>>; requestLevelChange(actor: CurrentUser, input: { agentId: ID; direction: "promote" | "demote"; reason?: string }): Promise<AgentResult<AgentSummary>>; manualPromote(actor: CurrentUser, input: { agentId: ID; reason?: string }): Promise<AgentResult<AgentSummary>>; reviewLevelChange(actor: CurrentUser, input: { agentId: ID; requestId: ID; decision: "approve" | "reject"; note?: string }): Promise<AgentResult<AgentSummary>>; }
 
 let agents: AgentSummary[] = structuredClone(mockAgents);
 function permitted(actor: CurrentUser) { return actor.role === "staff" || actor.role === "admin"; }
@@ -21,6 +22,7 @@ export const mockAgentRepository: AgentRepository = {
   async list(actor) { if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can view all agents."); return { ok: true, data: structuredClone(agents) }; },
   async listPage(actor, query) {
     if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can view all agents.");
+    const reportYear = query.year ?? 2026;
     const search = query.search?.trim().toLowerCase() ?? "";
     const matches = agents.filter((agent) => {
       const eligible = agent.qualification.eligibleForPromotion;
@@ -34,7 +36,18 @@ export const mockAgentRepository: AgentRepository = {
     const totalItems = matches.length;
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
     const page = Math.min(Math.max(query.page ?? 1, 1), totalPages);
-    return { ok: true, data: { items: structuredClone(matches.slice((page - 1) * pageSize, page * pageSize)), totalItems, totalPages, filterOptions: { levels: [1, 2, 3], statuses: ["active", "inactive"], qualifications: ["eligible", "in_progress"], uplines: agents.filter((agent) => agent.status === "active").map((agent) => ({ value: agent.id, label: agent.displayName })).toSorted((a, b) => a.label.localeCompare(b.label)) } } };
+    return { ok: true, data: { items: structuredClone(matches.slice((page - 1) * pageSize, page * pageSize).map((agent) => ({ ...agent, annualCommissionEarnedSen: reportYear === 2026 ? agent.annualCommissionEarnedSen : 0, annualCommissionPaidSen: reportYear === 2026 ? agent.annualCommissionPaidSen : 0 }))), totalItems, totalPages, filterOptions: { levels: [1, 2, 3], statuses: ["active", "inactive"], qualifications: ["eligible", "in_progress"], uplines: agents.filter((agent) => agent.status === "active").map((agent) => ({ value: agent.id, label: agent.displayName })).toSorted((a, b) => a.label.localeCompare(b.label)) } } };
+  },
+  async exportDirectory(actor, query = {}) {
+    if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can export agent data.");
+    const result = await mockAgentRepository.listPage(actor, { ...query, page: 1, pageSize: 10000 });
+    if (!result.ok) return result;
+    const year = query.year ?? 2026;
+    downloadCsv(`smartegy-agents-${year}.csv`, [
+      ["Agent", "Agent Code", "Status", "Level", "Upline", "Successful Cases", "Direct Agents", "Personal Sales", "Referral Sales", "Lifetime Commission Earned", "Annual Commission Earned", "Annual Commission Paid", "Eligibility"],
+      ...result.data.items.map((agent) => [agent.displayName, agent.agentCode, agent.status, agent.currentLevel, agent.uplineName ?? "", agent.successfulCaseCount, agent.directAgentCount, (agent.personalSalesSen / 100).toFixed(2), (agent.referralSalesSen / 100).toFixed(2), (agent.commissionEarnedSen / 100).toFixed(2), (agent.annualCommissionEarnedSen / 100).toFixed(2), (agent.annualCommissionPaidSen / 100).toFixed(2), agent.qualification.eligibleForPromotion ? "Eligible for promotion" : "In progress"]),
+    ]);
+    return { ok: true, data: true };
   },
   async getById(actor, agentId) {
     if (!permitted(actor)) return fail("FORBIDDEN", "Only staff and administrators can view agent details.");
