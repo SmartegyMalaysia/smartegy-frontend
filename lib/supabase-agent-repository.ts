@@ -31,7 +31,7 @@ async function mapAgent(row: any, supabase: any): Promise<AgentSummary> {
   ]);
   const metric = Array.isArray(metrics) ? metrics[0] : metrics;
   const mappedHistory: AgentPromotionAudit[] = (history ?? []).map((item: any) => ({ id: item.id, agentId: item.agent_id, previousLevel: level(item.from_level), newLevel: level(item.to_level), actorId: item.approved_by ?? "system", actorDisplayName: "Administrator", occurredAt: item.effective_at, note: item.reason }));
-  const summary: AgentSummary = { id: row.id, agentCode: row.agent_code, displayName: row.legal_name, email: row.email ?? "", currentLevel, uplineAgentId: row.upline_agent_id, uplineName: row.upline?.legal_name ?? null, directAgentCount: Number(metric?.active_direct_recruits ?? 0), successfulCaseCount: Number(metric?.personal_successful_cases ?? 0), personalSalesSen: 0, referralSalesSen: rmToSen(metric?.annual_organization_sales), annualSalesSen: rmToSen(metric?.annual_organization_sales), commissionEarnedSen: 0, status: row.is_active ? "active" : "inactive", qualification: qualification(metric, currentLevel), promotionHistory: mappedHistory, levelChangeRequests: (requests ?? []).map((item: any) => ({ id: item.id, agentId: item.agent_id, previousLevel: currentLevel, requestedLevel: level(item.requested_level), requestedById: item.requested_by, requestedByDisplayName: "Staff", requestedAt: item.requested_at, status: item.status, reviewedById: item.reviewed_by, reviewedByDisplayName: null, reviewedAt: item.reviewed_at, reason: item.review_reason ?? item.metrics_snapshot?.request_reason ?? null })) };
+  const summary: AgentSummary = { id: row.id, agentCode: row.agent_code, displayName: row.legal_name, email: row.email ?? "", currentLevel, uplineAgentId: row.upline_agent_id, uplineName: row.upline?.legal_name ?? null, directAgentCount: Number(metric?.active_direct_recruits ?? 0), successfulCaseCount: Number(metric?.personal_successful_cases ?? 0), personalSalesSen: 0, referralSalesSen: rmToSen(metric?.annual_organization_sales), annualSalesSen: rmToSen(metric?.annual_organization_sales), commissionEarnedSen: 0, annualCommissionPaidSen: 0, status: row.is_active ? "active" : "inactive", qualification: qualification(metric, currentLevel), promotionHistory: mappedHistory, levelChangeRequests: (requests ?? []).map((item: any) => ({ id: item.id, agentId: item.agent_id, previousLevel: currentLevel, requestedLevel: level(item.requested_level), requestedById: item.requested_by, requestedByDisplayName: "Staff", requestedAt: item.requested_at, status: item.status, reviewedById: item.reviewed_by, reviewedByDisplayName: null, reviewedAt: item.reviewed_at, reason: item.review_reason ?? item.metrics_snapshot?.request_reason ?? null })) };
   summary.registrationStatus = row.registration_status ?? null;
   return summary;
 }
@@ -54,6 +54,7 @@ function mapDirectoryAgent(row: any): AgentSummary {
     referralSalesSen: rmToSen(row.referral_sales),
     annualSalesSen: rmToSen(row.annual_sales),
     commissionEarnedSen: rmToSen(row.commission_earned),
+    annualCommissionPaidSen: rmToSen(row.annual_commission_paid),
     status: row.status === "active" ? "active" : "inactive",
     registrationStatus: row.registration_status ?? null,
     qualification: {
@@ -99,9 +100,27 @@ export const supabaseAgentRepository: AgentRepository = {
       p_qualification: query.qualification && query.qualification !== "all" ? query.qualification : null,
       p_page: query.page ?? 1,
       p_page_size: query.pageSize ?? 5,
+      p_year: query.year ?? new Date().getFullYear(),
     });
     if (error) return errorResult(error);
     return { ok: true, data: mapDirectoryPage(data) };
+  },
+  async exportDirectory(actor, query = {}) {
+    if (!permitted(actor)) return errorResult({ code: "42501", message: "Only staff and administrators can export agent data." });
+    const params = new URLSearchParams();
+    params.set("year", String(query.year ?? new Date().getFullYear()));
+    if (query.search?.trim()) params.set("search", query.search.trim());
+    if (query.level) params.set("level", String(query.level));
+    if (query.uplineAgentId) params.set("upline_agent_id", query.uplineAgentId);
+    if (query.status) params.set("status", query.status);
+    if (query.qualification && query.qualification !== "all") params.set("qualification", query.qualification);
+    try {
+      const response = await fetch(`/api/exports/agents?${params.toString()}`, { credentials: "same-origin" });
+      if (!response.ok) return errorResult({ code: response.status === 403 ? "42501" : "PGRST000", message: "Unable to export agent data." });
+      const blob = await response.blob();
+      const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `smartegy-agents-${query.year ?? new Date().getFullYear()}.csv`; link.click(); URL.revokeObjectURL(link.href);
+      return { ok: true, data: true };
+    } catch (error) { return errorResult(error as any); }
   },
   async getById(actor, agentId) {
     if (!permitted(actor)) return errorResult({ code: "42501", message: "Only staff and administrators can view agent details." });
