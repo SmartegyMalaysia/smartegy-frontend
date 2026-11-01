@@ -10,6 +10,7 @@ const dataTable = read("components/data-table.tsx");
 const caseQueue = read("components/case-queue.tsx");
 const commissions = read("app/commissions/page.tsx");
 const users = read("app/users/page.tsx");
+const agents = read("app/agents/page.tsx");
 
 test("shared data tables retain table markup inside a horizontal scroll container", () => {
   assert.ok(dataTable.includes('className="table-wrap"'));
@@ -34,4 +35,13 @@ test("mobile views do not replace case, commission, or user tables with cards", 
 test("all responsive table wrappers remain visible and horizontally scrollable", () => {
   assert.ok(css.includes(".desktop-case-table, .desktop-commission-table, .desktop-user-table { display: block; min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }"));
   assert.ok(css.includes(".case-savings-detail-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }"));
+});
+
+test("the agents table keeps all annual reporting columns aligned inside one scroll container", () => {
+  assert.ok(agents.includes('headers={["Agent", "Level", "Upline", "Successful Cases", "Direct Agents", "Lifetime Personal Sales", "Lifetime Referral Sales", "Lifetime Commission Earned", "Annual Commission Earned", "Annual Commission Paid", "Eligibility"]}'));
+  assert.equal((agents.match(/<th/g) ?? []).length, 0, "agent headers should be owned by DataTable");
+  assert.ok(agents.includes('"Annual Commission Earned", "Annual Commission Paid", "Eligibility"'));
+  assert.ok(css.includes(".agent-table { min-width: 0; overflow: hidden; }"));
+  assert.ok(css.includes(".agent-table .table-wrap { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }"));
+  assert.ok(css.includes(".agent-table th:nth-child(11) { width: 8%; }"));
 });
